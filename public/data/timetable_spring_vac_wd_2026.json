@@ -1,0 +1,54 @@
+{
+  "id": "timetable_spring_vac_wd_2026",
+  "name": "長期休暇ダイヤ",
+  "routes": {
+    "station_to_campus": {
+      "origin": "松永発",
+      "destination": "大学行き",
+      "bus_stop_name": "松永 バス乗り場",
+      "bus_stop_coords": { "lat": 34.45118558593484, "lng": 133.25675322125554 },
+      "schedule": [
+        { "departure": "08:00", "note": "" },
+        { "departure": "08:35", "note": "" },
+        { "departure": "08:55", "note": "" },
+        { "departure": "09:20", "note": "" },
+        { "departure": "09:55", "note": "" },
+        { "departure": "10:45", "note": "" },
+        { "departure": "12:30", "note": "" },
+        { "departure": "13:30", "note": "" },
+        { "departure": "15:15", "note": "" },
+        { "departure": "15:55", "note": "" },
+        { "departure": "16:55", "note": "" },
+        { "departure": "17:30", "note": "" },
+        { "departure": "18:10", "note": "" },
+        { "departure": "18:45", "note": "" },
+        { "departure": "19:15", "note": "" },
+        { "departure": "19:45", "note": "最終" }
+      ]
+    },
+    "campus_to_station": {
+      "origin": "大学発",
+      "destination": "松永行き",
+      "bus_stop_name": "大学 バス乗り場",
+      "bus_stop_coords": { "lat": 34.459281686471684, "lng": 133.23183492499786 },
+      "schedule": [
+        { "departure": "08:10", "note": "" },
+        { "departure": "08:45", "note": "" },
+        { "departure": "09:05", "note": "" },
+        { "departure": "09:30", "note": "" },
+        { "departure": "10:30", "note": "" },
+        { "departure": "12:15", "note": "" },
+        { "departure": "12:45", "note": "" },
+        { "departure": "13:00", "note": "" },
+        { "departure": "14:50", "note": "" },
+        { "departure": "15:30", "note": "" },
+        { "departure": "16:30", "note": "" },
+        { "departure": "17:15", "note": "" },
+        { "departure": "17:45", "note": "" },
+        { "departure": "18:30", "note": "" },
+        { "departure": "19:00", "note": "" },
+        { "departure": "19:30", "note": "最終" }
+      ]
+    }
+  }
+}
