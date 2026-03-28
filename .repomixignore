@@ -1,0 +1,16 @@
+**【.repomixignore に記述する内容】**
+```text
+# ビルド・Git関連
+node_modules/
+dist/
+build/
+.git/
+
+# バイナリファイル（画像）
+public/icons/
+public/icon-192.png
+public/icon-512.png
+
+# 大量のデータを持つJSON（Step1で構造を伝えたため除外）
+public/data/timetable_weekday.json
+public/data/timetable_holiday.json
