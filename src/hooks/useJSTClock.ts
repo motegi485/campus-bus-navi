@@ -19,6 +19,7 @@ export function useJSTClock(): dayjs.Dayjs {
 
   useEffect(() => {
     // 次の分の00秒に同期してから1分ごとに更新
+
     //
     const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000
     let intervalId: ReturnType<typeof setInterval>
@@ -35,6 +36,7 @@ export function useJSTClock(): dayjs.Dayjs {
       clearInterval(intervalId)
     }
       //
+      
   }, [])
 
   return now
