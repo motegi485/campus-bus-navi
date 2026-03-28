@@ -9,7 +9,13 @@
     "6": "timetable_holiday"
   },
   "overrides": {
-    "2026-04-05": "timetable_special_01",
-    "2026-08-10": "timetable_summer_vac"
+    "2026-03-29": "timetable_spring_vac_hld_2026",
+    "2026-03-30": "timetable_spring_vac_wd_2026",
+    "2026-03-31": "timetable_spring_vac_wd_2026",
+    "2026-04-01": "timetable_spring_vac_wd_2026",
+    "2026-04-02": "timetable_spring_vac_wd_2026",
+    "2026-04-03": "timetable_spring_vac_wd_2026",
+    "2026-04-04": "timetable_spring_vac_hld_2026",
+    "2026-04-05": "timetable_spring_vac_hld_2026"
   }
 }

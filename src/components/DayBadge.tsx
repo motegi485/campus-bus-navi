@@ -17,9 +17,9 @@ const BADGE_MAP: Record<DiagramType, { label: string; bg: string; color: string 
  * name フィールドで判断するロジックを拡張してください
  */
 export function resolveDiagramType(timetableId: string): DiagramType {
-  if (timetableId.includes('holiday') || timetableId.includes('vac')) return 'holiday'
-  if (timetableId.includes('summer') || timetableId.includes('winter')) return 'vacation'
-  if (timetableId.includes('special') || timetableId.includes('event')) return 'event'
+  if (timetableId.includes('holiday')) return 'holiday'
+  if (timetableId.includes('vac')) return 'vacation'
+  if (timetableId.includes('event')) return 'event'
   return 'class'
 }
 
