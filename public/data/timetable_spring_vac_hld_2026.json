@@ -1,0 +1,43 @@
+{
+  "id": "timetable_spring_vac_hld_2026",
+  "name": "長期休暇ダイヤ",
+  "routes": {
+    "station_to_campus": {
+      "origin": "松永発",
+      "destination": "大学行き",
+      "bus_stop_name": "松永 バス乗り場",
+      "bus_stop_coords": { "lat": 34.45118558593484, "lng": 133.25675322125554 },
+      "schedule": [
+        { "departure": "08:00", "note": "" },
+        { "departure": "08:55", "note": "" },
+        { "departure": "09:40", "note": "" },
+        { "departure": "10:40", "note": "" },
+        { "departure": "12:30", "note": "" },
+        { "departure": "13:20", "note": "" },
+        { "departure": "14:35", "note": "" },
+        { "departure": "15:55", "note": "" },
+        { "departure": "17:20", "note": "" },
+        { "departure": "18:25", "note": "" },
+        { "departure": "19:30", "note": "最終" }
+      ]
+    },
+    "campus_to_station": {
+      "origin": "大学発",
+      "destination": "松永行き",
+      "bus_stop_name": "大学 バス乗り場",
+      "bus_stop_coords": { "lat": 34.459281686471684, "lng": 133.23183492499786 },
+      "schedule": [
+        { "departure": "08:20", "note": "" },
+        { "departure": "09:15", "note": "" },
+        { "departure": "10:00", "note": "" },
+        { "departure": "12:00", "note": "" },
+        { "departure": "12:55", "note": "" },
+        { "departure": "14:20", "note": "" },
+        { "departure": "15:40", "note": "" },
+        { "departure": "17:00", "note": "" },
+        { "departure": "18:00", "note": "" },
+        { "departure": "19:00", "note": "最終" }
+      ]
+    }
+  }
+}
