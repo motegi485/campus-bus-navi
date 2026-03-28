@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+/* Leaflet CSS */
+@import "leaflet/dist/leaflet.css";
+
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
+
+/* ============================================================
+   Tailwind CSS v4 カスタムテーマ
+   tailwind.config.js は使用しない。
+   テーマ設定はすべてここに @theme ブロックで記述する。
+   ============================================================ */
+@theme {
+  --font-sans: 'Noto Sans JP', -apple-system, 'Hiragino Sans', sans-serif;
+}
+
+/* ============================================================
+   CSS カスタムプロパティ（テーマ変数）
+   ============================================================ */
+
+/* ── ライトテーマ（デフォルト）── */
+:root {
+  --bg-page:       #f2f3f7;
+  --bg-card:       #ffffff;
+  --bg-card2:      #f6f6fa;
+  --bg-input:      #f0f0f5;
+  --text-primary:  #1a1a2e;
+  --text-secondary:#6b7280;
+  --text-muted:    #aaaaaa;
+  --border:        #f3f3f3;
+  --border2:       #ececf0;
+  --past-text:     #cccccc;
+  --past-bg:       #f9f9f9;
+}
+
+/* ── ダークテーマ ── */
+.dark {
+  --bg-page:       #111827;
+  --bg-card:       #1f2937;
+  --bg-card2:      #1a2332;
+  --bg-input:      #374151;
+  --text-primary:  #f9fafb;
+  --text-secondary:#9ca3af;
+  --text-muted:    #6b7280;
+  --border:        #374151;
+  --border2:       #2d3748;
+  --past-text:     #4b5563;
+  --past-bg:       #1a2332;
+}
+
+/* ============================================================
+   グローバルスタイル
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* ネイティブライクUI: テキスト選択・タップハイライト無効化 */
+* {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ただし入力フィールドは選択可能 */
+input, textarea {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+html {
+  height: 100%;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100%;
+  min-height: -webkit-fill-available;
+  background: #1a1a2e;
+}
+
+html, body {
+  overscroll-behavior: none;
+}
+
+/* スクロールバー非表示 */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================================
+   ヘッダーグラデーション（テーマ非依存）
+   ============================================================ */
+.header.campus {
+  background: linear-gradient(160deg, #16a374 0%, #34d399 50%, #6ee7b7 100%);
+}
+.header.station {
+  background: linear-gradient(160deg, #818cf8 0%, #6c63d5 50%, #4f46e5 100%);
+}
+
+/* ============================================================
+   Leaflet UI カスタマイズ
+   ============================================================ */
+.leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.8) !important;
+  color: #64748b !important;
+  font-size: 10px !important;
+}
+.leaflet-control-attribution a {
+  color: #94a3b8 !important;
+}
+
+/* Leaflet の z-index をドロワー(z-index:30)より下に抑制 */
+/* isolation: isolate で囲ってあるが、Leaflet がグローバルCSSで高いz-indexを持つため明示的に上書き */
+.leaflet-pane         { z-index: 4 !important; }
+.leaflet-tile-pane    { z-index: 2 !important; }
+.leaflet-overlay-pane { z-index: 5 !important; }
+.leaflet-shadow-pane  { z-index: 6 !important; }
+.leaflet-marker-pane  { z-index: 7 !important; }
+.leaflet-tooltip-pane { z-index: 8 !important; }
+.leaflet-popup-pane   { z-index: 9 !important; }
+.leaflet-control      { z-index: 10 !important; }

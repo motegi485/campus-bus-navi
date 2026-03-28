@@ -1,0 +1,15 @@
+{
+  "default_rules": {
+    "0": "timetable_holiday",
+    "1": "timetable_weekday",
+    "2": "timetable_weekday",
+    "3": "timetable_weekday",
+    "4": "timetable_weekday",
+    "5": "timetable_weekday",
+    "6": "timetable_holiday"
+  },
+  "overrides": {
+    "2026-04-05": "timetable_special_01",
+    "2026-08-10": "timetable_summer_vac"
+  }
+}
