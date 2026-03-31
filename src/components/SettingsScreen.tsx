@@ -52,8 +52,8 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
   const SELECTS: Record<SelectKey, { title: string; current: string; options: string[]; apply: (v: string) => void }> = {
     route: {
       title: 'デフォルトルート',
-      current: settings.defaultRoute === 'campus_to_station' ? '大学発' : '駅発',
-      options: ['大学発', '駅発'],
+      current: settings.defaultRoute === 'campus_to_station' ? '大学発' : '松永発',
+      options: ['大学発', '松永発'],
       apply: (v) => onSetDefaultRoute(v === '大学発' ? 'campus_to_station' : 'station_to_campus'),
     },
     theme: {
