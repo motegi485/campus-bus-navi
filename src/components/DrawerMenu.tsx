@@ -19,7 +19,7 @@ export function DrawerMenu({ open, onClose, onOpenNews, onOpenSettings, onOpenHe
       style={{
         position: 'absolute', inset: 0, zIndex: 30, pointerEvents: open ? 'all' : 'none',
         background: open ? 'rgba(0,0,0,0.38)' : 'rgba(0,0,0,0)',
-        transition: 'background 0.3s', borderRadius: '44px', overflow: 'hidden',
+        transition: 'background 0.3s',
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
