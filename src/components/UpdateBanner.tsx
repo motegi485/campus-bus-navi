@@ -29,7 +29,7 @@ export function UpdateBanner({ onUpdate }: UpdateBannerProps) {
         whiteSpace: 'nowrap',
       }}
     >
-      <span>新しいバージョンがあります</span>
+      <span>更新データがあります</span>
       <button
         onClick={onUpdate}
         style={{
