@@ -35,11 +35,11 @@ export function DrawerMenu({ open, onClose, onOpenNews, onOpenSettings, onOpenHe
         onClick={e => e.stopPropagation()}
       >
         {/* ヘッダー */}
-        <div style={{ backgroundColor: '#f3ce98', padding: '52px 22px 20px', flexShrink: 0 }}>
+        <div style={{ backgroundColor: '#E9ECEF', padding: '52px 22px 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div>
-              <div style={{ fontSize: 23, fontWeight: 800, color: '#fff' }}>バスNAVI</div>
-              <div style={{ fontSize: 15, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>スクールバス時刻表アプリ</div>
+              <div style={{ fontSize: 25, fontWeight: 800, color: '#295057' }}>バスNAVI</div>
+              <div style={{ fontSize: 16, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>スクールバス時刻表アプリ</div>
             </div>
           </div>
         </div>
