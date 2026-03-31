@@ -47,7 +47,7 @@ export function HelpScreen({ open, onClose }: Props) {
   }
 
   return (
-    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', borderRadius: 44, overflow: 'hidden' }}>
+    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
       {/* ナビバー */}
       <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
         <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#10b981', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
