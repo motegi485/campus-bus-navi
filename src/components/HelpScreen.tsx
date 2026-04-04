@@ -109,7 +109,7 @@ export function HelpScreen({ open, onClose }: Props) {
         </div>
 
         <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', padding: '8px 0' }}>
-          福山大学 スクールバス時刻表アプリ ver 1.0.0
+          福山大学 スクールバス時刻表アプリ ver {__APP_VERSION__}
         </p>
       </div>
     </div>
