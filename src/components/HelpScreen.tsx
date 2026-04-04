@@ -62,7 +62,7 @@ export function HelpScreen({ open, onClose }: Props) {
         {/* バナー */}
         <div style={{ background: 'linear-gradient(135deg,#0d9966,#34d399)', borderRadius: 20, padding: '25px 20px', color: '#fff', textAlign: 'center' }}>
           <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>スクールバス時刻表</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,.8)' }}>福山大学 ver {__APP_VERSION__}</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,.8)' }}>ver {__APP_VERSION__}</div>
         </div>
 
         {/* FAQ */}
@@ -109,7 +109,7 @@ export function HelpScreen({ open, onClose }: Props) {
         </div>
 
         <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', padding: '8px 0' }}>
-          福山大学 スクールバス時刻表アプリ ver {__APP_VERSION__}
+          スクールバス時刻表アプリ ver {__APP_VERSION__}
         </p>
       </div>
     </div>
