@@ -589,338 +589,6 @@ npm run preview     # ビルド結果をローカルでプレビュー
 | Workbox | MIT |
 </file>
 
-<file path="src/App.tsx">
-import { useState, useCallback, lazy, Suspense } from 'react'
-import { useRegisterSW } from 'virtual:pwa-register/react'
-import type { RouteKey } from './types/timetable'
-import { useJSTClock } from './hooks/useJSTClock'
-import { useTimetable } from './hooks/useTimetable'
-import { useOnlineStatus } from './hooks/useOnlineStatus'
-import { useSettings } from './hooks/useSettings'
-import { findNextBus, findUpcomingBuses, findFirstBus } from './utils/findNextBus'
-import { RouteToggle } from './components/RouteToggle'
-import { NextBusCard } from './components/NextBusCard'
-import { UpcomingList } from './components/UpcomingList'
-import { FullTimetable } from './components/FullTimetable'
-import { EndOfServiceCard } from './components/EndOfServiceCard'
-import { DrawerMenu } from './components/DrawerMenu'
-import { NewsScreen } from './components/NewsScreen'
-import { SettingsScreen } from './components/SettingsScreen'
-import { HelpScreen } from './components/HelpScreen'
-import { Toast, useToast } from './components/Toast'
-import { UpdateBanner } from './components/UpdateBanner'
-import { DayBadge, resolveDiagramType } from './components/DayBadge'
-
-// 地図は遅延ロード（Leaflet はSSRに非対応のため）
-const BusStopMap = lazy(() =>
-  import('./components/BusStopMap').then(m => ({ default: m.BusStopMap }))
-)
-
-const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
-
-export default function App() {
-  const { settings, setDefaultRoute, setTheme, setFontSize } = useSettings()
-  const [route, setRoute] = useState<RouteKey>(settings.defaultRoute)
-
-  const now = useJSTClock()
-  const isOnline = useOnlineStatus()
-  const { timetable, tomorrowTimetable, loading, error, refresh } = useTimetable(now)
-  const { toast, showToast } = useToast()
-
-  // 画面表示状態
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [newsOpen, setNewsOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [helpOpen, setHelpOpen] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
-
-  // PWA更新検知（registerType: 'prompt'）
-  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW()
-
-  // 時刻計算
-  const currentRoute = timetable?.routes[route]
-  const schedule = currentRoute?.schedule ?? []
-  const nowMinutes = now.hour() * 60 + now.minute()
-  const nextBus = schedule.length > 0 ? findNextBus(schedule, now) : null
-  const upcoming = nextBus ? findUpcomingBuses(schedule, nextBus.index, 4) : []
-  const isEndOfService = schedule.length > 0 && nextBus === null
-  const tomorrowSchedule = tomorrowTimetable?.routes[route]?.schedule ?? []
-  const tomorrowFirstBus = findFirstBus(tomorrowSchedule)
-
-  // ダイヤ種別バッジ
-  const diagramType = timetable ? resolveDiagramType(timetable.id) : 'class'
-
-  // フォントサイズクラス（CSS変数経由ではなくコンポーネントprops渡し）
-  const fontSize = settings.fontSize
-
-  // 更新ボタン（window.location.reload() は使用しない）
-  const handleRefresh = useCallback(async () => {
-    if (refreshing) return
-    setRefreshing(true)
-    showToast('⟳ 時刻データを更新しています...', 1600)
-    try {
-      await refresh()
-      showToast('✓ 最新の時刻データに更新しました')
-    } catch {
-      showToast('⚠ 更新に失敗しました（オフライン？）')
-    } finally {
-      setRefreshing(false)
-    }
-  }, [refresh, refreshing, showToast])
-
-  // アプリの初期化
-  const handleInitApp = useCallback(async () => {
-    const confirmed = window.confirm(
-      'アプリを初期化しますか？\nキャッシュが削除され、再読み込みされます。'
-    )
-    if (!confirmed) return
-
-    // 1. Service Worker の登録解除
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations()
-      for (const reg of registrations) {
-        await reg.unregister()
-      }
-    }
-
-    // 2. localStorage のクリア
-    localStorage.clear()
-
-    // 3. Cache Storage の完全削除（Workboxキャッシュ本体）
-    if ('caches' in window) {
-      const cacheKeys = await caches.keys()
-      await Promise.all(cacheKeys.map(key => caches.delete(key)))
-    }
-
-    // 4. 強制リロード（初期化時のみ reload を許可）
-    window.location.reload()
-  }, [])
-
-  // テーマクラス
-  const themeClass = settings.theme === 'dark' ? 'dark' : ''
-
-  return (
-    /*
-      レスポンシブ戦略:
-      - モバイル（< 768px）: 全画面表示。角丸・余白なし。
-      - PC（>= 768px）: 背景 #1a1a2e の中央にカード表示。角丸44px・影付き。
-    */
-    <>
-      {/* PC用背景 */}
-      <div className="hidden md:block fixed inset-0 -z-10" style={{ background: '#1a1a2e' }} />
-
-      {/* アプリ外枠 */}
-      <div
-        className={`md:min-h-screen md:flex md:items-start md:justify-center md:py-8 md:px-4 ${themeClass}`}
-      >
-{/* フォンシェル：モバイル=全画面、PC=カード */}
-        <div
-          // 💡 親要素から overflow-hidden を削除
-          className={`relative w-full md:max-w-md ${themeClass}`} 
-          style={{
-            /* 💡 背景色の指定を削除し、透明にする */
-            /* モバイルでは最低画面高さいっぱい、PCでは内容に合わせる */
-            minHeight: '100svh',
-          }}
-        >
-          {/* PC時のみ角丸・影をインラインで付与（media queryの代わりにJS判定は使わない） */}
-          <style>{`
-            @media (min-width: 768px) {
-              .phone-shell-inner {
-                border-radius: 44px;
-                box-shadow: 0 32px 100px rgba(0,0,0,0.55);
-                min-height: unset !important;
-              }
-            }
-          `}</style>
-          <div
-            // 💡 ここに isolate を追加（丸い角を綺麗に切り抜くため）
-            className="phone-shell-inner w-full overflow-hidden isolate"
-            style={{
-              position: 'relative',
-              background: 'var(--bg-page)', // 背景は内側だけで描画する
-              transition: 'background 0.35s',
-              minHeight: '100svh',
-            }}
-          >
-        {/* Toast */}
-        <Toast message={toast.message} visible={toast.visible} />
-
-        {/* ドロワーメニュー */}
-        <DrawerMenu
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          onOpenNews={() => setNewsOpen(true)}
-          onOpenSettings={() => setSettingsOpen(true)}
-          onOpenHelp={() => setHelpOpen(true)}
-          onInitApp={handleInitApp}
-        />
-
-        {/* お知らせ */}
-        <NewsScreen open={newsOpen} onClose={() => setNewsOpen(false)} />
-
-        {/* 設定 */}
-        <SettingsScreen
-          open={settingsOpen}
-          settings={settings}
-          onClose={() => setSettingsOpen(false)}
-          onSetDefaultRoute={setDefaultRoute}
-          onSetTheme={setTheme}
-          onSetFontSize={setFontSize}
-        />
-
-        {/* ヘルプ */}
-        <HelpScreen open={helpOpen} onClose={() => setHelpOpen(false)} />
-
-        {/* ヘッダー */}
-        <header
-          className={route === 'campus_to_station' ? 'header campus' : 'header station'}
-          style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 20px) 22px 22px', transition: 'background 0.55s' }}
-        >
-          <div className="flex items-center justify-between mb-1">
-            {/* ハンバーガーボタン */}
-            <button
-              onClick={() => setDrawerOpen(true)}
-              className="flex flex-col gap-[4.5px] items-center justify-center"
-              style={{ width: 43, height: 43, borderRadius: '50%', background: 'rgba(255,255,255,0.26)', flexShrink: 0 }}
-            >
-              <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
-              <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
-              <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
-            </button>
-
-            {/* 中央：タイトル・日付・バッジ */}
-            <div className="flex-1 text-center">
-              <h1 className="text-[28px] font-bold text-white" style={{ letterSpacing: '-.4px' }}>
-                {timetable?.routes[route].origin ?? (route === 'campus_to_station' ? '大学発' : '松永発')}
-              </h1>
-              <div className="flex items-center justify-center gap-[7px] mt-1">
-                <span className="text-[18px] font-medium" style={{ color: 'rgba(255,255,255,0.88)' }}>
-                  {now.month() + 1}/{now.date()}（{DAYS_JA[now.day()]}）
-                </span>
-                <DayBadge type={diagramType} />
-              </div>
-            </div>
-
-            {/* 更新ボタン */}
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              style={{
-                width: 43, height: 43, borderRadius: '50%', background: 'rgba(255,255,255,0.26)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                transition: 'transform 0.7s linear',
-                transform: refreshing ? 'rotate(720deg)' : 'rotate(0deg)',
-              }}
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="23 4 23 10 17 10"/>
-                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-              </svg>
-            </button>
-          </div>
-
-          {/* セグメントコントロール */}
-          <RouteToggle route={route} onChange={setRoute} />
-        </header>
-
-        {/* メインコンテンツ */}
-        <main className="flex flex-col gap-[10px] p-[14px]" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 28px)' }}>
-
-          {/* ローディング */}
-          {loading && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <div className="w-8 h-8 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-              <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>時刻表を読み込み中...</p>
-            </div>
-          )}
-
-          {/* エラー */}
-          {error && !loading && (
-            <div className="rounded-[20px] p-5 text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
-              <p className="text-[14px] text-red-500 font-medium">{error}</p>
-              <p className="text-[12px] mt-2" style={{ color: 'var(--text-muted)' }}>キャッシュされた時刻表を使用しています</p>
-            </div>
-          )}
-
-          {/* 次のバス / 終バス後 */}
-          {!loading && currentRoute && (
-            <>
-              {isEndOfService ? (
-                <EndOfServiceCard
-                  tomorrowFirstBus={tomorrowFirstBus}
-                  tomorrowTimetableName={tomorrowTimetable?.name}
-                />
-              ) : (
-                <NextBusCard next={nextBus} route={route} fontSize={fontSize} />
-              )}
-
-              {/* 直近4本 */}
-              {!isEndOfService && nextBus && (
-                <UpcomingList
-                  buses={upcoming}
-                  route={route}
-                  nowMinutes={nowMinutes}
-                  fontSize={fontSize}
-                />
-              )}
-
-              {/* 全時刻表アコーディオン */}
-              <FullTimetable
-                schedule={schedule}
-                route={route}
-                currentDeparture={nextBus?.entry.departure}
-                nowMinutes={nowMinutes}
-              />
-            </>
-          )}
-
-          {/* 地図セクション */}
-          {!loading && currentRoute && (
-            <section>
-              <p className="text-[11px] font-bold tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
-                乗り場マップ
-              </p>
-              {isOnline ? (
-                <Suspense
-                  fallback={
-                    <div className="rounded-[20px] flex items-center justify-center" style={{ height: 220, background: 'var(--bg-card)' }}>
-                      <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>地図を読み込み中...</p>
-                    </div>
-                  }
-                >
-                  <BusStopMap
-                    coords={currentRoute.bus_stop_coords}
-                    stopName={currentRoute.bus_stop_name}
-                    route={route}
-                  />
-                </Suspense>
-              ) : (
-                // オフライン時: キャッシュ済みタイルを表示（BusStopMap は minZoom/maxZoom 制限済み）
-                <Suspense fallback={null}>
-                  <BusStopMap
-                    coords={currentRoute.bus_stop_coords}
-                    stopName={currentRoute.bus_stop_name}
-                    route={route}
-                  />
-                </Suspense>
-              )}
-            </section>
-          )}
-        </main>
-
-        {/* PWA更新通知バナー（registerType: 'prompt'） */}
-        {needRefresh && (
-          <UpdateBanner onUpdate={() => updateServiceWorker(true)} />
-        )}
-          </div>{/* phone-shell-inner */}
-        </div>{/* phone outer */}
-      </div>{/* app wrapper */}
-    </>
-  )
-}
-</file>
-
 <file path="src/components/BusStopMap.tsx">
 import { useEffect } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
@@ -1011,187 +679,6 @@ export function BusStopMap({ coords, stopName, route }: Props) {
         </svg>
         現在地からのルートを見る
       </a>
-    </div>
-  )
-}
-</file>
-
-<file path="src/components/DrawerMenu.tsx">
-interface Props {
-  open: boolean
-  onClose: () => void
-  onOpenNews: () => void
-  onOpenSettings: () => void
-  onOpenHelp: () => void
-  onInitApp: () => void
-}
-
-const LINKS = [
-  { icon: '🏫', title: '大学ホームページ', sub: 'fukuyama-u.ac.jp', bg: '#ede9fe', url: 'https://www.fukuyama-u.ac.jp/' },
-  { icon: '🚶', title: '通学情報', sub: 'スクールバス、駐車場・駐輪場', bg: '#dbeafe', url: 'https://www.fukuyama-u.ac.jp/campuslife/student-affairs/attending-school/' },
-  { icon: '💻', title: 'サークルホームページ', sub: 'fukupro.club',  bg: '#fef9c3', url: 'https://www.fukupro.club/' },
-]
-
-export function DrawerMenu({ open, onClose, onOpenNews, onOpenSettings, onOpenHelp, onInitApp }: Props) {
-  return (
-    <div
-      style={{
-        position: 'absolute', inset: 0, zIndex: 30, pointerEvents: open ? 'all' : 'none',
-        background: open ? 'rgba(0,0,0,0.38)' : 'rgba(0,0,0,0)',
-        transition: 'background 0.3s', borderRadius: '44px', overflow: 'hidden',
-      }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      {/* ドロワー本体 */}
-      <div
-        style={{
-          position: 'absolute', top: 0, left: 0, width: '82%', height: '100%',
-          background: 'var(--bg-card)',
-          transform: open ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.3s cubic-bezier(.4,0,.2,1), background 0.35s',
-          display: 'flex', flexDirection: 'column',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* ヘッダー */}
-        <div style={{ background: 'linear-gradient(160deg,#16a374,#34d399)', padding: '52px 22px 20px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: 46, height: 46, borderRadius: 14, background: 'rgba(255,255,255,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🚌</div>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>スクールバス</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>福山大学 時刻表アプリ</div>
-            </div>
-          </div>
-        </div>
-
-        {/* スクロールエリア */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px 20px', background: 'var(--bg-page)', transition: 'background 0.35s' }}>
-
-          {/* リンクセクション */}
-          <SectionLabel>リンク</SectionLabel>
-          {LINKS.map(link => (
-            <a key={link.title} href={link.url} target="_blank" rel="noopener noreferrer"
-               style={{ textDecoration: 'none' }} onClick={onClose}>
-              <DrawerItem icon={link.icon} iconBg={link.bg} title={link.title} sub={link.sub} chevron="↗" />
-            </a>
-          ))}
-
-          <Divider />
-
-          {/* アプリセクション */}
-          <SectionLabel>アプリ</SectionLabel>
-          <DrawerItem icon="📢" iconBg="#fef3c7" title="お知らせ" sub="バス運行情報・重要連絡" chevron="›"
-            onClick={() => { onClose(); onOpenNews() }} />
-
-          <Divider />
-
-          {/* その他セクション */}
-          <SectionLabel>その他</SectionLabel>
-          <DrawerItem icon="⚙️" iconBg="#f0f4ff" title="設定" sub="表示・通知オプション" chevron="›"
-            onClick={() => { onClose(); onOpenSettings() }} />
-          <DrawerItem icon="❓" iconBg="#f4f4f8" title="ヘルプ" sub="使い方・お問い合わせ" chevron="›"
-            onClick={() => { onClose(); onOpenHelp() }} />
-
-          {/* アプリの初期化ボタン */}
-          <DrawerItem icon="🔄" iconBg="#fef2f2" title="アプリの初期化" sub="キャッシュ・SWをリセット"
-            titleColor="#ef4444"
-            onClick={() => { onInitApp() }} />
-
-          <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', padding: '12px 0 4px' }}>
-            ver {__APP_VERSION__}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.2px', textTransform: 'uppercase', padding: '14px 10px 6px' }}>
-      {children}
-    </div>
-  )
-}
-
-function Divider() {
-  return <div style={{ height: '.5px', background: 'var(--border2)', margin: '4px 2px' }} />
-}
-
-interface DrawerItemProps {
-  icon: string
-  iconBg: string
-  title: string
-  sub: string
-  chevron?: string
-  onClick?: () => void
-  titleColor?: string
-}
-
-function DrawerItem({ icon, iconBg, title, sub, chevron, onClick, titleColor }: DrawerItemProps) {
-  return (
-    <div
-      style={{
-        display: 'flex', alignItems: 'center', gap: 13,
-        padding: '11px 12px', borderRadius: 14, cursor: 'pointer',
-        background: 'var(--bg-card)', marginBottom: 6,
-        transition: 'background 0.35s',
-      }}
-      onClick={onClick}
-    >
-      <div style={{ width: 36, height: 36, borderRadius: 11, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>
-        {icon}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: titleColor ?? 'var(--text-primary)' }}>{title}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{sub}</div>
-      </div>
-      {chevron && <span style={{ fontSize: 13, color: 'var(--text-muted)', flexShrink: 0 }}>{chevron}</span>}
-    </div>
-  )
-}
-</file>
-
-<file path="src/components/EndOfServiceCard.tsx">
-import type { ScheduleEntry } from '../types/timetable'
-
-interface Props {
-  tomorrowFirstBus: ScheduleEntry | null
-  tomorrowTimetableName?: string
-}
-
-export function EndOfServiceCard({ tomorrowFirstBus, tomorrowTimetableName }: Props) {
-  return (
-    <div
-      className="rounded-[22px] px-6 py-[22px] text-white"
-      style={{ background: 'linear-gradient(135deg, #374151, #4b5563)' }}
-    >
-      <p className="text-[15px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
-        次のバス
-      </p>
-      <p className="text-[60px] font-black text-white tracking-tight leading-none mb-[7px]">
-        --:--
-      </p>
-      <p className="text-[17px] text-white/90 font-semibold mb-4">
-        本日の運行は終了しました
-      </p>
-
-      {tomorrowFirstBus && (
-        <div className="bg-white/15 rounded-[16px] p-4">
-          <p className="text-[10px] font-bold tracking-widest uppercase text-white/60 mb-1">
-            明日の始発
-          </p>
-          {tomorrowTimetableName && (
-            <p className="text-[11px] text-white/50 mb-1">{tomorrowTimetableName}</p>
-          )}
-          <p className="text-[38px] font-black text-white tracking-tight leading-none">
-            {tomorrowFirstBus.departure}
-          </p>
-          {tomorrowFirstBus.note && (
-            <p className="text-[13px] text-white/70 mt-1">{tomorrowFirstBus.note}</p>
-          )}
-        </div>
-      )}
     </div>
   )
 }
@@ -1289,357 +776,6 @@ export function FullTimetable({ schedule, route, currentDeparture, nowMinutes }:
 }
 </file>
 
-<file path="src/components/HelpScreen.tsx">
-import { useState } from 'react'
-
-// ★ GoogleフォームのURLをここに設定するだけで接続完了
-const FEEDBACK_URL = '' // 例: 'https://forms.gle/xxxxxxxxxx'
-
-interface Props {
-  open: boolean
-  onClose: () => void
-}
-
-const FAQ = [
-  {
-    q: '時刻表が古い情報を表示している',
-    a: '右上の更新ボタン（↺）をタップしてください。NetworkFirstキャッシュを破棄して最新のデータを取得します。それでも改善しない場合はメニューの「アプリの初期化」をお試しください。',
-  },
-  {
-    q: 'オフラインでも時刻表は見られますか？',
-    a: 'はい。一度読み込んだ時刻表データはオフラインでも参照できます。地図もキャッシュ済みのタイルを表示します。ただしネット接続がない場合、更新ボタンによるデータ更新はご利用いただけません。',
-  },
-  {
-    q: 'ホーム画面への追加方法は？',
-    a: 'iOSの場合：Safariで開き、共有ボタン →「ホーム画面に追加」を選択してください。Androidの場合：Chromeのメニュー →「ホーム画面に追加」を選択してください。',
-  },
-  {
-    q: '現在地からのルート案内が開かない',
-    a: '「現在地からのルートを見る」ボタンはお使いのスマホの標準マップアプリ（Google マップ / Apple マップ）を起動します。マップアプリがインストールされていない場合はご利用いただけません。',
-  },
-]
-
-export function HelpScreen({ open, onClose }: Props) {
-  const [openFaqs, setOpenFaqs] = useState<Set<number>>(new Set())
-
-  const toggleFaq = (i: number) => {
-    setOpenFaqs(prev => {
-      const next = new Set(prev)
-      next.has(i) ? next.delete(i) : next.add(i)
-      return next
-    })
-  }
-
-  const handleFeedback = () => {
-    if (FEEDBACK_URL) {
-      window.open(FEEDBACK_URL, '_blank', 'noopener noreferrer')
-    } else {
-      alert('フィードバックフォームは現在準備中です。')
-    }
-  }
-
-  return (
-    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', borderRadius: 44, overflow: 'hidden' }}>
-      {/* ナビバー */}
-      <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
-        <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#10b981', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
-          <svg width="10" height="16" viewBox="0 0 10 16" fill="none"><path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          戻る
-        </button>
-        <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>ヘルプ</span>
-      </div>
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-        {/* バナー */}
-        <div style={{ background: 'linear-gradient(135deg,#0d9966,#34d399)', borderRadius: 20, padding: '25px 20px', color: '#fff', textAlign: 'center' }}>
-          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>スクールバス時刻表</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,.8)' }}>福山大学 ver {__APP_VERSION__}</div>
-        </div>
-
-        {/* FAQ */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>よくある質問</div>
-          <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>
-            {FAQ.map((faq, i) => (
-              <div key={i} style={{ borderBottom: i < FAQ.length - 1 ? '.5px solid var(--border)' : 'none' }}>
-                <div onClick={() => toggleFaq(i)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '15px 16px', cursor: 'pointer' }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>{faq.q}</span>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', transition: 'transform 0.22s', transform: openFaqs.has(i) ? 'rotate(180deg)' : '' }}>▼</span>
-                </div>
-                {openFaqs.has(i) && (
-                  <div style={{ padding: '0 16px 14px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                    {faq.a}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* フィードバック — Googleフォーム接続口 */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>お問い合わせ</div>
-          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: 20, transition: 'background 0.35s' }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>ご意見・不具合のご報告</p>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 16 }}>
-              アプリをより良くするためのご意見や、気になった不具合などをお気軽にお寄せください。いただいた内容は今後の改善に活用させていただきます。
-            </p>
-            <button
-              onClick={handleFeedback}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: 14, background: 'linear-gradient(135deg,#0d9966,#34d399)', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 14, border: 'none', cursor: 'pointer' }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-              </svg>
-              フィードバックを送る
-            </button>
-            <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
-              {FEEDBACK_URL ? 'Googleフォームで回答を受け付けます' : '回答はGoogleフォームで受け付けます（準備中）'}
-            </p>
-          </div>
-        </div>
-
-        <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', padding: '8px 0' }}>
-          福山大学 スクールバス時刻表アプリ ver 1.0.0
-        </p>
-      </div>
-    </div>
-  )
-}
-</file>
-
-<file path="src/components/NewsScreen.tsx">
-import { useState } from 'react'
-import { useNews } from '../hooks/useNews'
-import type { NewsItem } from '../types/timetable'
-
-const TAG_STYLES: Record<string, { bg: string; color: string }> = {
-  important: { bg: '#fee2e2', color: '#dc2626' },
-  info:      { bg: '#dbeafe', color: '#2563eb' },
-  change:    { bg: '#fef3c7', color: '#d97706' },
-  event:     { bg: '#ede9fe', color: '#7c3aed' },
-}
-
-interface Props {
-  open: boolean
-  onClose: () => void
-}
-
-function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#10b981', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}
-    >
-      <svg width="10" height="16" viewBox="0 0 10 16" fill="none">
-        <path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-      {label}
-    </button>
-  )
-}
-
-function NewsTag({ tag, tagLabel }: { tag: string; tagLabel: string }) {
-  const style = TAG_STYLES[tag] ?? TAG_STYLES.info
-  return (
-    <span style={{ ...style, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center' }}>
-      {tagLabel}
-    </span>
-  )
-}
-
-function NewsDetail({ item, onBack }: { item: NewsItem; onBack: () => void }) {
-  return (
-    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: 'none', display: 'flex', flexDirection: 'column', borderRadius: 44, overflow: 'hidden', zIndex: 10, transition: 'background 0.35s' }}>
-      <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
-        <BackButton label="お知らせ" onClick={onBack} />
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px 40px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <NewsTag tag={item.tag} tagLabel={item.tagLabel} />
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item.date}</span>
-        </div>
-        <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 16, letterSpacing: '-.3px' }}>
-          {item.title}
-        </p>
-        <div style={{ height: .5, background: 'var(--border2)', marginBottom: 16 }} />
-        <div
-          style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.8 }}
-          dangerouslySetInnerHTML={{ __html: item.body }}
-        />
-      </div>
-    </div>
-  )
-}
-
-export function NewsScreen({ open, onClose }: Props) {
-  const { news, loading, error } = useNews()
-  const [readIds, setReadIds] = useState<Set<number>>(new Set())
-  const [selected, setSelected] = useState<NewsItem | null>(null)
-
-  const openDetail = (item: NewsItem) => {
-    setReadIds(prev => new Set([...prev, item.id]))
-    setSelected(item)
-  }
-
-  return (
-    <div style={{
-      position: 'absolute', inset: 0, background: 'var(--bg-page)',
-      transform: open ? 'translateX(0)' : 'translateX(100%)',
-      transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s',
-      zIndex: 50, display: 'flex', flexDirection: 'column', borderRadius: 44, overflow: 'hidden',
-    }}>
-      {/* ナビバー */}
-      <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
-        <BackButton label="戻る" onClick={onClose} />
-        <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>お知らせ</span>
-      </div>
-
-      {/* リスト */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {loading && <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '32px 0' }}>読み込み中...</p>}
-        {error && <p style={{ textAlign: 'center', color: '#ef4444', fontSize: 13, padding: '32px 0' }}>{error}</p>}
-        {!loading && news.map(item => {
-          const isUnread = !readIds.has(item.id) && item.unread
-          return (
-            <div
-              key={item.id}
-              onClick={() => openDetail(item)}
-              style={{
-                background: 'var(--bg-card)', borderRadius: 18, padding: '16px 18px', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', gap: 8,
-                borderLeft: isUnread ? '4px solid #10b981' : '4px solid transparent',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <NewsTag tag={item.tag} tagLabel={item.tagLabel} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.date}</span>
-              </div>
-              <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>{item.title}</p>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                {item.preview}
-              </p>
-              {isUnread && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981' }} />
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* 詳細スクリーン */}
-      {selected && <NewsDetail item={selected} onBack={() => setSelected(null)} />}
-    </div>
-  )
-}
-</file>
-
-<file path="src/components/NextBusCard.tsx">
-import type { NextBusInfo, RouteKey } from '../types/timetable'
-import type { FontSize } from '../types/timetable'
-
-interface Props {
-  next: NextBusInfo | null
-  route: RouteKey
-  fontSize: FontSize
-}
-
-const FONT_SIZE_MAP: Record<FontSize, { time: string; text: string }> = {
-  small:  { time: 'text-5xl', text: 'text-xl' },
-  medium: { time: 'text-[60px]', text: 'text-[26px]' },
-  large:  { time: 'text-7xl', text: 'text-[31px]' },
-}
-
-export function NextBusCard({ next, route, fontSize }: Props) {
-  const isCampus = route === 'campus_to_station'
-  const gradientClass = isCampus
-    ? 'bg-gradient-to-br from-[#0d9966] to-[#34d399]'
-    : 'bg-gradient-to-br from-[#6c63d5] to-[#a78bfa]'
-  const endedGradient = 'linear-gradient(135deg, #374151, #4b5563)'
-
-  const fs = FONT_SIZE_MAP[fontSize]
-
-  if (!next) {
-    return (
-      <div
-        className="rounded-[22px] px-6 py-[22px] text-white relative overflow-hidden"
-        style={{ background: endedGradient }}
-      >
-        <Decoration />
-        <p className="text-[11px] font-bold tracking-widest uppercase text-white/75 mb-2">
-          次のバス
-        </p>
-        <p className={`${fs.time} font-black text-white tracking-tight leading-none mb-2`}>
-          --:--
-        </p>
-        <p className="text-[17px] text-white/90 font-semibold">
-          <b className="font-black text-white text-[22px]">本日の運行は終了しました</b>
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className={`${gradientClass} rounded-[22px] px-6 py-[22px] text-white relative overflow-hidden`}>
-      <Decoration />
-      <p className="text-[11px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
-        次のバス
-      </p>
-      <div className="flex items-baseline gap-3 mb-[7px]">
-        <p className={`${fs.time} font-black text-white tracking-tight leading-none`}>
-          {next.entry.departure}
-        </p>
-        {next.entry.note && (
-          <span className="text-sm text-white/80 bg-white/20 px-2 py-0.5 rounded-lg font-bold">
-            {next.entry.note}
-          </span>
-        )}
-      </div>
-      <p className="text-[17px] text-white/90 font-medium">
-        {next.minutesUntil >= 60 ? (
-          <>
-            あと{' '}
-            <b className="font-black text-white text-[22px]">{Math.floor(next.minutesUntil / 60)}</b>
-            {' '}時間{' '}
-            {next.minutesUntil % 60 > 0 && (
-              <>
-                <b className="font-black text-white text-[22px]">{next.minutesUntil % 60}</b>
-                {' '}分
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            あと{' '}
-            <b className="font-black text-white text-[22px]">{next.minutesUntil}</b>
-            {' '}分
-          </>
-        )}
-      </p>
-    </div>
-  )
-}
-
-function Decoration() {
-  return (
-    <div
-      className="absolute pointer-events-none"
-      style={{
-        right: '-24px',
-        top: '-24px',
-        width: '120px',
-        height: '120px',
-        borderRadius: '50%',
-        background: 'rgba(255,255,255,0.09)',
-      }}
-    />
-  )
-}
-</file>
-
 <file path="src/components/RouteToggle.tsx">
 import type { RouteKey } from '../types/timetable'
 
@@ -1681,165 +817,6 @@ export function RouteToggle({ route, onChange }: Props) {
           </button>
         )
       })}
-    </div>
-  )
-}
-</file>
-
-<file path="src/components/SettingsScreen.tsx">
-import { useState } from 'react'
-import type { AppSettings, DefaultRoute, Theme, FontSize } from '../types/timetable'
-
-interface Props {
-  open: boolean
-  settings: AppSettings
-  onClose: () => void
-  onSetDefaultRoute: (v: DefaultRoute) => void
-  onSetTheme: (v: Theme) => void
-  onSetFontSize: (v: FontSize) => void
-}
-
-type SelectKey = 'route' | 'theme' | 'font'
-
-function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#10b981', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
-      <svg width="10" height="16" viewBox="0 0 10 16" fill="none"><path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-      {label}
-    </button>
-  )
-}
-
-function NavBar({ title, onBack, backLabel = '戻る' }: { title: string; onBack: () => void; backLabel?: string }) {
-  return (
-    <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
-      <BackButton label={backLabel} onClick={onBack} />
-      <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>{title}</span>
-    </div>
-  )
-}
-
-function SettingRow({ icon, iconBg, title, sub, value, onClick }: { icon: string; iconBg: string; title: string; sub: string; value: string; onClick: () => void }) {
-  return (
-    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderBottom: '.5px solid var(--border)', cursor: 'pointer', transition: 'background 0.12s' }}>
-      <div style={{ width: 34, height: 34, borderRadius: 10, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{icon}</div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-        <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 500 }}>{value}</span>
-        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>›</span>
-      </div>
-    </div>
-  )
-}
-
-export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onSetTheme, onSetFontSize }: Props) {
-  const [selKey, setSelKey] = useState<SelectKey | null>(null)
-
-  const SELECTS: Record<SelectKey, { title: string; current: string; options: string[]; apply: (v: string) => void }> = {
-    route: {
-      title: 'デフォルトルート',
-      current: settings.defaultRoute === 'campus_to_station' ? '大学発' : '駅発',
-      options: ['大学発', '駅発'],
-      apply: (v) => onSetDefaultRoute(v === '大学発' ? 'campus_to_station' : 'station_to_campus'),
-    },
-    theme: {
-      title: 'カラーテーマ',
-      current: settings.theme === 'light' ? 'ライト' : 'ダーク',
-      options: ['ライト', 'ダーク'],
-      apply: (v) => onSetTheme(v === 'ライト' ? 'light' : 'dark'),
-    },
-    font: {
-      title: 'フォントサイズ',
-      current: settings.fontSize === 'small' ? '小' : settings.fontSize === 'large' ? '大' : '標準',
-      options: ['小', '標準', '大'],
-      apply: (v) => onSetFontSize(v === '小' ? 'small' : v === '大' ? 'large' : 'medium'),
-    },
-  }
-
-  const selectAndClose = (v: string) => {
-    if (!selKey) return
-    SELECTS[selKey].apply(v)
-    setTimeout(() => setSelKey(null), 200)
-  }
-
-  return (
-    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', borderRadius: 44, overflow: 'hidden' }}>
-      <NavBar title="設定" onBack={onClose} />
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-
-        {/* 表示セクション */}
-        <Section label="表示">
-          <SettingRow icon="🚌" iconBg="#d1fae5" title="デフォルトルート" sub="起動時に最初に表示するルート" value={SELECTS.route.current} onClick={() => setSelKey('route')} />
-          <SettingRow icon="🎨" iconBg="#ede9fe" title="カラーテーマ" sub="背景の表示モード" value={SELECTS.theme.current} onClick={() => setSelKey('theme')} />
-          <SettingRow icon="🔤" iconBg="#fef3c7" title="フォントサイズ" sub="時刻の文字の大きさ" value={SELECTS.font.current} onClick={() => setSelKey('font')} />
-        </Section>
-
-        {/* 通知セクション（将来拡張用） */}
-        <Section label="通知">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: '#fce7f3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🔔</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>発車リマインダー</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>発車X分前に通知</div>
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: 'var(--bg-input)', color: 'var(--text-muted)' }}>近日公開</span>
-          </div>
-        </Section>
-
-        {/* アプリ情報 */}
-        <Section label="アプリ情報">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: '#f0f4ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>ℹ️</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>バージョン</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>最新の状態です</div>
-            </div>
-            <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 500 }}>{__APP_VERSION__}</span>
-          </div>
-        </Section>
-      </div>
-
-      {/* 選択サブスクリーン */}
-      {selKey && (
-        <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: selKey ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.3s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 60, display: 'flex', flexDirection: 'column', borderRadius: 44, overflow: 'hidden' }}>
-          <NavBar title={SELECTS[selKey].title} onBack={() => setSelKey(null)} backLabel="設定" />
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px' }}>
-            <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>
-              {SELECTS[selKey].options.map((opt, i) => {
-                const isSelected = opt === SELECTS[selKey].current
-                return (
-                  <div
-                    key={opt}
-                    onClick={() => selectAndClose(opt)}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '16px 18px',
-                      borderBottom: i < SELECTS[selKey].options.length - 1 ? '.5px solid var(--border)' : 'none',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <span style={{ fontSize: 15, fontWeight: isSelected ? 700 : 500, color: isSelected ? '#10b981' : 'var(--text-primary)' }}>{opt}</span>
-                    <span style={{ fontSize: 17, color: '#10b981', opacity: isSelected ? 1 : 0, transition: 'opacity 0.15s' }}>✓</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>{label}</div>
-      <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>{children}</div>
     </div>
   )
 }
@@ -1971,58 +948,6 @@ export function UpcomingList({ buses, route, nowMinutes, fontSize }: Props) {
           )
         })}
       </div>
-    </div>
-  )
-}
-</file>
-
-<file path="src/components/UpdateBanner.tsx">
-interface UpdateBannerProps {
-  onUpdate: () => void
-}
-
-/**
- * 新しいService Workerが検知されたときに画面下部に表示するバナー
- * registerType: 'prompt' との組み合わせで使用する
- * 「更新」タップ時に updateServiceWorker(true) を呼び出しアプリを再起動
- */
-export function UpdateBanner({ onUpdate }: UpdateBannerProps) {
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: '32px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        background: 'rgba(15,23,42,0.92)',
-        color: 'white',
-        padding: '12px 20px',
-        borderRadius: '24px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        fontSize: '13px',
-        fontWeight: 600,
-        backdropFilter: 'blur(8px)',
-        zIndex: 9999,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      <span>新しいバージョンがあります</span>
-      <button
-        onClick={onUpdate}
-        style={{
-          color: '#34d399',
-          fontWeight: 800,
-          fontSize: '13px',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: 0,
-        }}
-      >
-        更新
-      </button>
     </div>
   )
 }
@@ -2571,6 +1496,666 @@ export default defineConfig({
 ]
 </file>
 
+<file path="src/App.tsx">
+import { useState, useCallback, lazy, Suspense } from 'react'
+import { useRegisterSW } from 'virtual:pwa-register/react'
+import type { RouteKey } from './types/timetable'
+import { useJSTClock } from './hooks/useJSTClock'
+import { useTimetable } from './hooks/useTimetable'
+import { useOnlineStatus } from './hooks/useOnlineStatus'
+import { useSettings } from './hooks/useSettings'
+import { findNextBus, findUpcomingBuses, findFirstBus } from './utils/findNextBus'
+import { RouteToggle } from './components/RouteToggle'
+import { NextBusCard } from './components/NextBusCard'
+import { UpcomingList } from './components/UpcomingList'
+import { FullTimetable } from './components/FullTimetable'
+import { EndOfServiceCard } from './components/EndOfServiceCard'
+import { DrawerMenu } from './components/DrawerMenu'
+import { NewsScreen } from './components/NewsScreen'
+import { SettingsScreen } from './components/SettingsScreen'
+import { HelpScreen } from './components/HelpScreen'
+import { Toast, useToast } from './components/Toast'
+import { UpdateBanner } from './components/UpdateBanner'
+import { DayBadge, resolveDiagramType } from './components/DayBadge'
+
+// 地図は遅延ロード（Leaflet はSSRに非対応のため）
+const BusStopMap = lazy(() =>
+  import('./components/BusStopMap').then(m => ({ default: m.BusStopMap }))
+)
+
+const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
+
+export default function App() {
+  const { settings, setDefaultRoute, setTheme, setFontSize } = useSettings()
+  const [route, setRoute] = useState<RouteKey>(settings.defaultRoute)
+
+  const now = useJSTClock()
+  const isOnline = useOnlineStatus()
+  const { timetable, tomorrowTimetable, loading, error, refresh } = useTimetable(now)
+  const { toast, showToast } = useToast()
+
+  // 画面表示状態
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [newsOpen, setNewsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+
+  // PWA更新検知（registerType: 'prompt'）
+  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW()
+
+  // 時刻計算
+  const currentRoute = timetable?.routes[route]
+  const schedule = currentRoute?.schedule ?? []
+  const nowMinutes = now.hour() * 60 + now.minute()
+  const nextBus = schedule.length > 0 ? findNextBus(schedule, now) : null
+  const upcoming = nextBus ? findUpcomingBuses(schedule, nextBus.index, 4) : []
+  const isEndOfService = schedule.length > 0 && nextBus === null
+  const tomorrowSchedule = tomorrowTimetable?.routes[route]?.schedule ?? []
+  const tomorrowFirstBus = findFirstBus(tomorrowSchedule)
+
+  // ダイヤ種別バッジ
+  const diagramType = timetable ? resolveDiagramType(timetable.id) : 'class'
+
+  // フォントサイズクラス（CSS変数経由ではなくコンポーネントprops渡し）
+  const fontSize = settings.fontSize
+
+  // 更新ボタン（window.location.reload() は使用しない）
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    showToast('⟳ 時刻データを更新しています...', 1600)
+    try {
+      await refresh()
+      showToast('✓ 最新の時刻データに更新しました')
+    } catch {
+      showToast('⚠ 更新に失敗しました（オフライン？）')
+    } finally {
+      setRefreshing(false)
+    }
+  }, [refresh, refreshing, showToast])
+
+  // アプリの初期化
+  const handleInitApp = useCallback(async () => {
+    const confirmed = window.confirm(
+      'アプリを初期化しますか？\nキャッシュが削除され、再読み込みされます。'
+    )
+    if (!confirmed) return
+
+    // 1. Service Worker の登録解除
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations()
+      for (const reg of registrations) {
+        await reg.unregister()
+      }
+    }
+
+    // 2. localStorage のクリア
+    localStorage.clear()
+
+    // 3. Cache Storage の完全削除（Workboxキャッシュ本体）
+    if ('caches' in window) {
+      const cacheKeys = await caches.keys()
+      await Promise.all(cacheKeys.map(key => caches.delete(key)))
+    }
+
+    // 4. 強制リロード（初期化時のみ reload を許可）
+    window.location.reload()
+  }, [])
+
+  // テーマクラス
+  const themeClass = settings.theme === 'dark' ? 'dark' : ''
+
+  return (
+    /*
+      レスポンシブ戦略:
+      - モバイル（< 768px）: 全画面表示。角丸・余白なし。
+      - PC（>= 768px）: 背景 #1a1a2e の中央にカード表示。角丸44px・影付き。
+    */
+    <>
+      {/* PC用背景 */}
+      <div className="hidden md:block fixed inset-0 -z-10" style={{ background: '#1a1a2e' }} />
+
+      {/* アプリ外枠 */}
+      <div
+        className={`md:min-h-screen md:flex md:items-start md:justify-center md:py-8 md:px-4 ${themeClass}`}
+      >
+{/* フォンシェル：モバイル=全画面、PC=カード */}
+        <div
+          // 💡 親要素から overflow-hidden を削除
+          className={`relative w-full md:max-w-md ${themeClass}`} 
+          style={{
+            /* 💡 背景色の指定を削除し、透明にする */
+            /* モバイルでは最低画面高さいっぱい、PCでは内容に合わせる */
+            minHeight: '100dvh',
+          }}
+        >
+          {/* PC時のみ角丸・影をインラインで付与（media queryの代わりにJS判定は使わない） */}
+          <style>{`
+            @media (min-width: 768px) {
+              .phone-shell-inner {
+                border-radius: 44px;
+                box-shadow: 0 32px 100px rgba(0,0,0,0.55);
+                min-height: unset !important;
+              }
+            }
+          `}</style>
+          <div
+            // 💡 ここに isolate を追加（丸い角を綺麗に切り抜くため）
+            className="phone-shell-inner w-full overflow-hidden isolate"
+            style={{
+              position: 'relative',
+              background: 'var(--bg-page)', // 背景は内側だけで描画する
+              transition: 'background 0.35s',
+              minHeight: '100dvh',
+            }}
+          >
+        {/* Toast */}
+        <Toast message={toast.message} visible={toast.visible} />
+
+        {/* ドロワーメニュー */}
+        <DrawerMenu
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          onOpenNews={() => setNewsOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenHelp={() => setHelpOpen(true)}
+          onInitApp={handleInitApp}
+        />
+
+        {/* お知らせ */}
+        <NewsScreen open={newsOpen} onClose={() => setNewsOpen(false)} />
+
+        {/* 設定 */}
+        <SettingsScreen
+          open={settingsOpen}
+          settings={settings}
+          onClose={() => setSettingsOpen(false)}
+          onSetDefaultRoute={setDefaultRoute}
+          onSetTheme={setTheme}
+          onSetFontSize={setFontSize}
+        />
+
+        {/* ヘルプ */}
+        <HelpScreen open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+        {/* ヘッダー */}
+        <header
+          className={route === 'campus_to_station' ? 'header campus' : 'header station'}
+          style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 20px) 22px 22px', transition: 'background 0.55s' }}
+        >
+          <div className="flex items-center justify-between mb-1">
+            {/* ハンバーガーボタン */}
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="flex flex-col gap-[4.5px] items-center justify-center"
+              style={{ width: 43, height: 43, borderRadius: '50%', background: 'rgba(255,255,255,0.26)', flexShrink: 0 }}
+            >
+              <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
+              <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
+              <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
+            </button>
+
+            {/* 中央：タイトル・日付・バッジ */}
+            <div className="flex-1 text-center">
+              <h1 className="text-[28px] font-bold text-white" style={{ letterSpacing: '-.4px' }}>
+                {timetable?.routes[route].origin ?? (route === 'campus_to_station' ? '大学発' : '松永発')}
+              </h1>
+              <div className="flex items-center justify-center gap-[7px] mt-1">
+                <span className="text-[18px] font-medium" style={{ color: 'rgba(255,255,255,0.88)' }}>
+                  {now.month() + 1}/{now.date()}（{DAYS_JA[now.day()]}）
+                </span>
+                <DayBadge type={diagramType} />
+              </div>
+            </div>
+
+            {/* 更新ボタン */}
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              style={{
+                width: 43, height: 43, borderRadius: '50%', background: 'rgba(255,255,255,0.26)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                transition: 'transform 0.7s linear',
+                transform: refreshing ? 'rotate(720deg)' : 'rotate(0deg)',
+              }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+            </button>
+          </div>
+
+          {/* セグメントコントロール */}
+          <RouteToggle route={route} onChange={setRoute} />
+        </header>
+
+        {/* メインコンテンツ */}
+        <main className="flex flex-col gap-[10px] p-[14px]" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 28px)' }}>
+
+          {/* ローディング */}
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="w-8 h-8 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+              <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>時刻表を読み込み中...</p>
+            </div>
+          )}
+
+          {/* エラー */}
+          {error && !loading && (
+            <div className="rounded-[20px] p-5 text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+              <p className="text-[14px] text-red-500 font-medium">{error}</p>
+              <p className="text-[12px] mt-2" style={{ color: 'var(--text-muted)' }}>キャッシュされた時刻表を使用しています</p>
+            </div>
+          )}
+
+          {/* 次のバス / 終バス後 */}
+          {!loading && currentRoute && (
+            <>
+              {isEndOfService ? (
+                <EndOfServiceCard
+                  tomorrowFirstBus={tomorrowFirstBus}
+                  tomorrowTimetableName={tomorrowTimetable?.name}
+                />
+              ) : (
+                <NextBusCard next={nextBus} route={route} fontSize={fontSize} />
+              )}
+
+              {/* 直近4本 */}
+              {!isEndOfService && nextBus && (
+                <UpcomingList
+                  buses={upcoming}
+                  route={route}
+                  nowMinutes={nowMinutes}
+                  fontSize={fontSize}
+                />
+              )}
+
+              {/* 全時刻表アコーディオン */}
+              <FullTimetable
+                schedule={schedule}
+                route={route}
+                currentDeparture={nextBus?.entry.departure}
+                nowMinutes={nowMinutes}
+              />
+            </>
+          )}
+
+          {/* 地図セクション */}
+          {!loading && currentRoute && (
+            <section>
+              <p className="text-[11px] font-bold tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
+                乗り場マップ
+              </p>
+              {isOnline ? (
+                <Suspense
+                  fallback={
+                    <div className="rounded-[20px] flex items-center justify-center" style={{ height: 220, background: 'var(--bg-card)' }}>
+                      <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>地図を読み込み中...</p>
+                    </div>
+                  }
+                >
+                  <BusStopMap
+                    coords={currentRoute.bus_stop_coords}
+                    stopName={currentRoute.bus_stop_name}
+                    route={route}
+                  />
+                </Suspense>
+              ) : (
+                // オフライン時: キャッシュ済みタイルを表示（BusStopMap は minZoom/maxZoom 制限済み）
+                <Suspense fallback={null}>
+                  <BusStopMap
+                    coords={currentRoute.bus_stop_coords}
+                    stopName={currentRoute.bus_stop_name}
+                    route={route}
+                  />
+                </Suspense>
+              )}
+            </section>
+          )}
+        </main>
+
+        {/* PWA更新通知バナー（registerType: 'prompt'） */}
+        {needRefresh && (
+          <UpdateBanner onUpdate={() => updateServiceWorker(true)} />
+        )}
+          </div>{/* phone-shell-inner */}
+        </div>{/* phone outer */}
+      </div>{/* app wrapper */}
+    </>
+  )
+}
+</file>
+
+<file path="src/components/EndOfServiceCard.tsx">
+import type { ScheduleEntry } from '../types/timetable'
+
+interface Props {
+  tomorrowFirstBus: ScheduleEntry | null
+  tomorrowTimetableName?: string
+}
+
+export function EndOfServiceCard({ tomorrowFirstBus, tomorrowTimetableName }: Props) {
+  return (
+    <div
+      className="rounded-[22px] px-6 py-[22px] text-white"
+      style={{ background: 'linear-gradient(135deg, #374151, #4b5563)' }}
+    >
+      <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
+        次のバス
+      </p>
+      <p className="text-[60px] font-black text-white tracking-tight leading-none mb-[7px]">
+        --:--
+      </p>
+      <p className="text-[17px] text-white/90 font-semibold mb-4">
+        本日の運行は終了しました
+      </p>
+
+      {tomorrowFirstBus && (
+        <div className="bg-white/15 rounded-[16px] p-4">
+          <p className="text-[10px] font-bold tracking-widest uppercase text-white/60 mb-1">
+            明日の始発
+          </p>
+          {tomorrowTimetableName && (
+            <p className="text-[11px] text-white/50 mb-1">{tomorrowTimetableName}</p>
+          )}
+          <p className="text-[38px] font-black text-white tracking-tight leading-none">
+            {tomorrowFirstBus.departure}
+          </p>
+          {tomorrowFirstBus.note && (
+            <p className="text-[13px] text-white/70 mt-1">{tomorrowFirstBus.note}</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+</file>
+
+<file path="src/components/NewsScreen.tsx">
+import { useState } from 'react'
+import { useNews } from '../hooks/useNews'
+import type { NewsItem } from '../types/timetable'
+
+const TAG_STYLES: Record<string, { bg: string; color: string }> = {
+  important: { bg: '#fee2e2', color: '#dc2626' },
+  info:      { bg: '#dbeafe', color: '#2563eb' },
+  change:    { bg: '#fef3c7', color: '#d97706' },
+  event:     { bg: '#ede9fe', color: '#7c3aed' },
+}
+
+interface Props {
+  open: boolean
+  onClose: () => void
+}
+
+function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#10b981', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}
+    >
+      <svg width="10" height="16" viewBox="0 0 10 16" fill="none">
+        <path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+      {label}
+    </button>
+  )
+}
+
+function NewsTag({ tag, tagLabel }: { tag: string; tagLabel: string }) {
+  const style = TAG_STYLES[tag] ?? TAG_STYLES.info
+  return (
+    <span style={{ ...style, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center' }}>
+      {tagLabel}
+    </span>
+  )
+}
+
+function NewsDetail({ item, onBack }: { item: NewsItem; onBack: () => void }) {
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: 'none', display: 'flex', flexDirection: 'column', borderRadius: 44, overflow: 'hidden', zIndex: 10, transition: 'background 0.35s' }}>
+      <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
+        <BackButton label="お知らせ" onClick={onBack} />
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px 40px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <NewsTag tag={item.tag} tagLabel={item.tagLabel} />
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item.date}</span>
+        </div>
+        <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 16, letterSpacing: '-.3px' }}>
+          {item.title}
+        </p>
+        <div style={{ height: .5, background: 'var(--border2)', marginBottom: 16 }} />
+        <div
+          style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.8 }}
+          dangerouslySetInnerHTML={{ __html: item.body }}
+        />
+      </div>
+    </div>
+  )
+}
+
+export function NewsScreen({ open, onClose }: Props) {
+  const { news, loading, error } = useNews()
+  const [readIds, setReadIds] = useState<Set<number>>(new Set())
+  const [selected, setSelected] = useState<NewsItem | null>(null)
+
+  const openDetail = (item: NewsItem) => {
+    setReadIds(prev => new Set([...prev, item.id]))
+    setSelected(item)
+  }
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, background: 'var(--bg-page)',
+      transform: open ? 'translateX(0)' : 'translateX(100%)',
+      transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s',
+      zIndex: 50, display: 'flex', flexDirection: 'column',
+    }}>
+      {/* ナビバー */}
+      <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
+        <BackButton label="戻る" onClick={onClose} />
+        <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>お知らせ</span>
+      </div>
+
+      {/* リスト */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {loading && <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '32px 0' }}>読み込み中...</p>}
+        {error && <p style={{ textAlign: 'center', color: '#ef4444', fontSize: 13, padding: '32px 0' }}>{error}</p>}
+        {!loading && news.map(item => {
+          const isUnread = !readIds.has(item.id) && item.unread
+          return (
+            <div
+              key={item.id}
+              onClick={() => openDetail(item)}
+              style={{
+                background: 'var(--bg-card)', borderRadius: 18, padding: '16px 18px', cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', gap: 8,
+                borderLeft: isUnread ? '4px solid #10b981' : '4px solid transparent',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <NewsTag tag={item.tag} tagLabel={item.tagLabel} />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.date}</span>
+              </div>
+              <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>{item.title}</p>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                {item.preview}
+              </p>
+              {isUnread && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981' }} />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* 詳細スクリーン */}
+      {selected && <NewsDetail item={selected} onBack={() => setSelected(null)} />}
+    </div>
+  )
+}
+</file>
+
+<file path="src/components/NextBusCard.tsx">
+import type { NextBusInfo, RouteKey } from '../types/timetable'
+import type { FontSize } from '../types/timetable'
+
+interface Props {
+  next: NextBusInfo | null
+  route: RouteKey
+  fontSize: FontSize
+}
+
+const FONT_SIZE_MAP: Record<FontSize, { time: string; text: string }> = {
+  small:  { time: 'text-5xl', text: 'text-xl' },
+  medium: { time: 'text-[60px]', text: 'text-[26px]' },
+  large:  { time: 'text-7xl', text: 'text-[31px]' },
+}
+
+export function NextBusCard({ next, route, fontSize }: Props) {
+  const isCampus = route === 'campus_to_station'
+  const gradientClass = isCampus
+    ? 'bg-gradient-to-br from-[#0d9966] to-[#34d399]'
+    : 'bg-gradient-to-br from-[#6c63d5] to-[#a78bfa]'
+  const endedGradient = 'linear-gradient(135deg, #374151, #4b5563)'
+
+  const fs = FONT_SIZE_MAP[fontSize]
+
+  if (!next) {
+    return (
+      <div
+        className="rounded-[22px] px-6 py-[22px] text-white relative overflow-hidden"
+        style={{ background: endedGradient }}
+      >
+        <Decoration />
+        <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-2">
+          次のバス
+        </p>
+        <p className={`${fs.time} font-black text-white tracking-tight leading-none mb-2`}>
+          --:--
+        </p>
+        <p className="text-[17px] text-white/90 font-semibold">
+          <b className="font-black text-white text-[22px]">本日の運行は終了しました</b>
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`${gradientClass} rounded-[22px] px-6 py-[22px] text-white relative overflow-hidden`}>
+      <Decoration />
+      <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
+        次のバス
+      </p>
+      <div className="flex items-baseline gap-3 mb-[7px]">
+        <p className={`${fs.time} font-black text-white tracking-tight leading-none`}>
+          {next.entry.departure}
+        </p>
+        {next.entry.note && (
+          <span className="text-sm text-white/80 bg-white/20 px-2 py-0.5 rounded-lg font-bold">
+            {next.entry.note}
+          </span>
+        )}
+      </div>
+      <p className="text-[17px] text-white/90 font-medium">
+        {next.minutesUntil >= 60 ? (
+          <>
+            あと{' '}
+            <b className="font-black text-white text-[22px]">{Math.floor(next.minutesUntil / 60)}</b>
+            {' '}時間{' '}
+            {next.minutesUntil % 60 > 0 && (
+              <>
+                <b className="font-black text-white text-[22px]">{next.minutesUntil % 60}</b>
+                {' '}分
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            あと{' '}
+            <b className="font-black text-white text-[22px]">{next.minutesUntil}</b>
+            {' '}分
+          </>
+        )}
+      </p>
+    </div>
+  )
+}
+
+function Decoration() {
+  return (
+    <div
+      className="absolute pointer-events-none"
+      style={{
+        right: '-24px',
+        top: '-24px',
+        width: '120px',
+        height: '120px',
+        borderRadius: '50%',
+        background: 'rgba(255,255,255,0.09)',
+      }}
+    />
+  )
+}
+</file>
+
+<file path="src/components/UpdateBanner.tsx">
+interface UpdateBannerProps {
+  onUpdate: () => void
+}
+
+/**
+ * 新しいService Workerが検知されたときに画面下部に表示するバナー
+ * registerType: 'prompt' との組み合わせで使用する
+ * 「更新」タップ時に updateServiceWorker(true) を呼び出しアプリを再起動
+ */
+export function UpdateBanner({ onUpdate }: UpdateBannerProps) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '32px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: 'rgba(15,23,42,0.92)',
+        color: 'white',
+        padding: '12px 20px',
+        borderRadius: '24px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        fontSize: '13px',
+        fontWeight: 600,
+        backdropFilter: 'blur(8px)',
+        zIndex: 9999,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span>更新データがあります</span>
+      <button
+        onClick={onUpdate}
+        style={{
+          color: '#34d399',
+          fontWeight: 800,
+          fontSize: '13px',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 0,
+        }}
+      >
+        更新
+      </button>
+    </div>
+  )
+}
+</file>
+
 <file path="src/components/DayBadge.tsx">
 import type { DiagramType } from '../types/timetable'
 
@@ -2604,10 +2189,215 @@ export function DayBadge({ type }: Props) {
       className="text-[13px] font-bold px-[9px] py-[3px] rounded-[20px] flex items-center gap-1"
       style={{ background: bg, color }}
     >
-      <span style={{ fontSize: '9px' }}>●</span>
+      <span style={{ fontSize: '7px' }}>●</span>
       {label}
     </span>
   )
+}
+</file>
+
+<file path="src/components/SettingsScreen.tsx">
+import { useState } from 'react'
+import type { AppSettings, DefaultRoute, Theme, FontSize } from '../types/timetable'
+
+interface Props {
+  open: boolean
+  settings: AppSettings
+  onClose: () => void
+  onSetDefaultRoute: (v: DefaultRoute) => void
+  onSetTheme: (v: Theme) => void
+  onSetFontSize: (v: FontSize) => void
+}
+
+type SelectKey = 'route' | 'theme' | 'font'
+
+function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#10b981', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
+      <svg width="10" height="16" viewBox="0 0 10 16" fill="none"><path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      {label}
+    </button>
+  )
+}
+
+function NavBar({ title, onBack, backLabel = '戻る' }: { title: string; onBack: () => void; backLabel?: string }) {
+  return (
+    <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
+      <BackButton label={backLabel} onClick={onBack} />
+      <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>{title}</span>
+    </div>
+  )
+}
+
+function SettingRow({ icon, iconBg, title, sub, value, onClick }: { icon: string; iconBg: string; title: string; sub: string; value: string; onClick: () => void }) {
+  return (
+    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderBottom: '.5px solid var(--border)', cursor: 'pointer', transition: 'background 0.12s' }}>
+      <div style={{ width: 34, height: 34, borderRadius: 10, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{icon}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 500 }}>{value}</span>
+        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>›</span>
+      </div>
+    </div>
+  )
+}
+
+export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onSetTheme, onSetFontSize }: Props) {
+  const [selKey, setSelKey] = useState<SelectKey | null>(null)
+
+  const SELECTS: Record<SelectKey, { title: string; current: string; options: string[]; apply: (v: string) => void }> = {
+    route: {
+      title: 'デフォルトルート',
+      current: settings.defaultRoute === 'campus_to_station' ? '大学発' : '松永発',
+      options: ['大学発', '松永発'],
+      apply: (v) => onSetDefaultRoute(v === '大学発' ? 'campus_to_station' : 'station_to_campus'),
+    },
+    theme: {
+      title: 'カラーテーマ',
+      current: settings.theme === 'light' ? 'ライト' : 'ダーク',
+      options: ['ライト', 'ダーク'],
+      apply: (v) => onSetTheme(v === 'ライト' ? 'light' : 'dark'),
+    },
+    font: {
+      title: 'フォントサイズ',
+      current: settings.fontSize === 'small' ? '小' : settings.fontSize === 'large' ? '大' : '標準',
+      options: ['小', '標準', '大'],
+      apply: (v) => onSetFontSize(v === '小' ? 'small' : v === '大' ? 'large' : 'medium'),
+    },
+  }
+
+  const selectAndClose = (v: string) => {
+    if (!selKey) return
+    SELECTS[selKey].apply(v)
+    setTimeout(() => setSelKey(null), 200)
+  }
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
+      <NavBar title="設定" onBack={onClose} />
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+        {/* 表示セクション */}
+        <Section label="表示">
+          <SettingRow icon="🚌" iconBg="#d1fae5" title="デフォルトルート" sub="起動時に最初に表示するルート" value={SELECTS.route.current} onClick={() => setSelKey('route')} />
+          <SettingRow icon="🎨" iconBg="#ede9fe" title="カラーテーマ" sub="背景の表示モード" value={SELECTS.theme.current} onClick={() => setSelKey('theme')} />
+          <SettingRow icon="🔤" iconBg="#fef3c7" title="フォントサイズ" sub="時刻の文字の大きさ" value={SELECTS.font.current} onClick={() => setSelKey('font')} />
+        </Section>
+
+        {/* 通知セクション（将来拡張用） */}
+        <Section label="通知">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: '#fce7f3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🔔</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>発車リマインダー</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>発車X分前に通知</div>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: 'var(--bg-input)', color: 'var(--text-muted)' }}>近日公開</span>
+          </div>
+        </Section>
+
+        {/* アプリ情報 */}
+        <Section label="アプリ情報">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: '#f0f4ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>ℹ️</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>バージョン</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>最新の状態です</div>
+            </div>
+            <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 500 }}>{__APP_VERSION__}</span>
+          </div>
+        </Section>
+      </div>
+
+      {/* 選択サブスクリーン */}
+      {selKey && (
+        <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: selKey ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.3s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 60, display: 'flex', flexDirection: 'column', borderRadius: 44, overflow: 'hidden' }}>
+          <NavBar title={SELECTS[selKey].title} onBack={() => setSelKey(null)} backLabel="設定" />
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>
+              {SELECTS[selKey].options.map((opt, i) => {
+                const isSelected = opt === SELECTS[selKey].current
+                return (
+                  <div
+                    key={opt}
+                    onClick={() => selectAndClose(opt)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '16px 18px',
+                      borderBottom: i < SELECTS[selKey].options.length - 1 ? '.5px solid var(--border)' : 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ fontSize: 15, fontWeight: isSelected ? 700 : 500, color: isSelected ? '#10b981' : 'var(--text-primary)' }}>{opt}</span>
+                    <span style={{ fontSize: 17, color: '#10b981', opacity: isSelected ? 1 : 0, transition: 'opacity 0.15s' }}>✓</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>{label}</div>
+      <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>{children}</div>
+    </div>
+  )
+}
+</file>
+
+<file path="src/hooks/useJSTClock.ts">
+import { useState, useEffect } from 'react'
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
+
+const JST = 'Asia/Tokyo'
+
+/**
+ * 1分ごとに更新されるJSTのdayjsオブジェクトを返す
+ * カウントダウンは分のみ表示のため秒更新は不要
+ */
+export function useJSTClock(): dayjs.Dayjs {
+  const [now, setNow] = useState(() => dayjs().tz(JST))
+  // 1. テストしたい日時を文字列で指定する（例: 2026年4月1日の朝8時30分）
+  // const [now, setNow] = useState(() => dayjs('2026-04-01T08:30:00').tz(JST))
+
+  useEffect(() => {
+    // 次の分の00秒に同期してから1分ごとに更新
+
+    //
+    const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000
+    let intervalId: ReturnType<typeof setInterval>
+
+    const timeoutId = setTimeout(() => {
+      setNow(dayjs().tz(JST))
+      intervalId = setInterval(() => {
+        setNow(dayjs().tz(JST))
+      }, 60_000)
+    }, msUntilNextMinute)
+
+    return () => {
+      clearTimeout(timeoutId)
+      clearInterval(intervalId)
+    }
+      //
+      
+  }, [])
+
+  return now
 }
 </file>
 
@@ -2690,8 +2480,8 @@ html {
 
 body {
   min-height: 100%;
-  min-height: -webkit-fill-available;
-  background: #1a1a2e;
+  /*min-height: -webkit-fill-available;*/
+  background: var(--bg-page);
 }
 
 html, body {
@@ -2737,49 +2527,258 @@ html, body {
 .leaflet-control      { z-index: 10 !important; }
 </file>
 
-<file path="src/hooks/useJSTClock.ts">
-import { useState, useEffect } from 'react'
-import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
+<file path="src/components/DrawerMenu.tsx">
+interface Props {
+  open: boolean
+  onClose: () => void
+  onOpenNews: () => void
+  onOpenSettings: () => void
+  onOpenHelp: () => void
+  onInitApp: () => void
+}
 
-dayjs.extend(utc)
-dayjs.extend(timezone)
+const LINKS = [
+  { icon: '🏫', title: '大学ホームページ', sub: 'fukuyama-u.ac.jp', bg: '#ede9fe', url: 'https://www.fukuyama-u.ac.jp/' },
+  { icon: '🚶', title: '通学情報', sub: 'スクールバス、駐車場・駐輪場', bg: '#dbeafe', url: 'https://www.fukuyama-u.ac.jp/campuslife/student-affairs/attending-school/' },
+  { icon: '💻', title: 'サークルホームページ', sub: 'fukupro.club',  bg: '#fef9c3', url: 'https://www.fukupro.club/' },
+]
 
-const JST = 'Asia/Tokyo'
+export function DrawerMenu({ open, onClose, onOpenNews, onOpenSettings, onOpenHelp, onInitApp }: Props) {
+  return (
+    <div
+      style={{
+        position: 'absolute', inset: 0, zIndex: 30, pointerEvents: open ? 'all' : 'none',
+        background: open ? 'rgba(0,0,0,0.38)' : 'rgba(0,0,0,0)',
+        transition: 'background 0.3s',
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      {/* ドロワー本体 */}
+      <div
+        style={{
+          position: 'absolute', top: 0, left: 0, width: '82%', height: '100%',
+          background: 'var(--bg-card)',
+          transform: open ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.3s cubic-bezier(.4,0,.2,1), background 0.35s',
+          display: 'flex', flexDirection: 'column',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* ヘッダー */}
+        <div style={{ backgroundColor: '#E9ECEF', padding: '52px 22px 20px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div>
+              <div style={{ fontSize: 25, fontWeight: 800, color: '#295057' }}>バスNAVI</div>
+              <div style={{ fontSize: 16, color: 'rgba(0,0,0,.55)', marginTop: 2 }}>スクールバス時刻表アプリ</div>
+            </div>
+          </div>
+        </div>
 
-/**
- * 1分ごとに更新されるJSTのdayjsオブジェクトを返す
- * カウントダウンは分のみ表示のため秒更新は不要
- */
-export function useJSTClock(): dayjs.Dayjs {
-  const [now, setNow] = useState(() => dayjs().tz(JST))
-  // 1. テストしたい日時を文字列で指定する（例: 2026年4月1日の朝8時30分）
-  // const [now, setNow] = useState(() => dayjs('2026-04-01T08:30:00').tz(JST))
+        {/* スクロールエリア */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px 20px', background: 'var(--bg-page)', transition: 'background 0.35s' }}>
 
-  useEffect(() => {
-    // 次の分の00秒に同期してから1分ごとに更新
+          {/* リンクセクション */}
+          <SectionLabel>リンク</SectionLabel>
+          {LINKS.map(link => (
+            <a key={link.title} href={link.url} target="_blank" rel="noopener noreferrer"
+               style={{ textDecoration: 'none' }} onClick={onClose}>
+              <DrawerItem icon={link.icon} iconBg={link.bg} title={link.title} sub={link.sub} chevron="↗" />
+            </a>
+          ))}
 
-    //
-    const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000
-    let intervalId: ReturnType<typeof setInterval>
+          <Divider />
 
-    const timeoutId = setTimeout(() => {
-      setNow(dayjs().tz(JST))
-      intervalId = setInterval(() => {
-        setNow(dayjs().tz(JST))
-      }, 60_000)
-    }, msUntilNextMinute)
+          {/* アプリセクション */}
+          <SectionLabel>アプリ</SectionLabel>
+          <DrawerItem icon="📢" iconBg="#fef3c7" title="お知らせ" sub="バス運行情報・重要連絡" chevron="›"
+            onClick={() => { onClose(); onOpenNews() }} />
 
-    return () => {
-      clearTimeout(timeoutId)
-      clearInterval(intervalId)
+          <Divider />
+
+          {/* その他セクション */}
+          <SectionLabel>その他</SectionLabel>
+          <DrawerItem icon="⚙️" iconBg="#f0f4ff" title="設定" sub="表示・通知オプション" chevron="›"
+            onClick={() => { onClose(); onOpenSettings() }} />
+          <DrawerItem icon="❓" iconBg="#f4f4f8" title="ヘルプ" sub="使い方・お問い合わせ" chevron="›"
+            onClick={() => { onClose(); onOpenHelp() }} />
+
+          {/* アプリの初期化ボタン */}
+          <DrawerItem icon="🔄" iconBg="#fef2f2" title="アプリの初期化" sub="キャッシュ・SWをリセット"
+            titleColor="#ef4444"
+            onClick={() => { onInitApp() }} />
+
+          <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', padding: '12px 0 4px' }}>
+            ver {__APP_VERSION__}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.2px', textTransform: 'uppercase', padding: '14px 10px 6px' }}>
+      {children}
+    </div>
+  )
+}
+
+function Divider() {
+  return <div style={{ height: '.5px', background: 'var(--border2)', margin: '4px 2px' }} />
+}
+
+interface DrawerItemProps {
+  icon: string
+  iconBg: string
+  title: string
+  sub: string
+  chevron?: string
+  onClick?: () => void
+  titleColor?: string
+}
+
+function DrawerItem({ icon, iconBg, title, sub, chevron, onClick, titleColor }: DrawerItemProps) {
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', gap: 13,
+        padding: '11px 12px', borderRadius: 14, cursor: 'pointer',
+        background: 'var(--bg-card)', marginBottom: 6,
+        transition: 'background 0.35s',
+      }}
+      onClick={onClick}
+    >
+      <div style={{ width: 36, height: 36, borderRadius: 11, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: titleColor ?? 'var(--text-primary)' }}>{title}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{sub}</div>
+      </div>
+      {chevron && <span style={{ fontSize: 13, color: 'var(--text-muted)', flexShrink: 0 }}>{chevron}</span>}
+    </div>
+  )
+}
+</file>
+
+<file path="src/components/HelpScreen.tsx">
+import { useState } from 'react'
+
+// ★ GoogleフォームのURLをここに設定するだけで接続完了
+const FEEDBACK_URL = '' // 例: 'https://forms.gle/xxxxxxxxxx'
+
+interface Props {
+  open: boolean
+  onClose: () => void
+}
+
+const FAQ = [
+  {
+    q: '時刻表が古い情報を表示している',
+    a: '右上の更新ボタン（↺）をタップしてください。NetworkFirstキャッシュを破棄して最新のデータを取得します。それでも改善しない場合はメニューの「アプリの初期化」をお試しください。',
+  },
+  {
+    q: 'オフラインでも時刻表は見られますか？',
+    a: 'はい。一度読み込んだ時刻表データはオフラインでも参照できます。地図もキャッシュ済みのタイルを表示します。ただしネット接続がない場合、更新ボタンによるデータ更新はご利用いただけません。',
+  },
+  {
+    q: 'ホーム画面への追加方法は？',
+    a: 'iOSの場合：Safariで開き、共有ボタン →「ホーム画面に追加」を選択してください。Androidの場合：Chromeのメニュー →「ホーム画面に追加」を選択してください。',
+  },
+  {
+    q: '現在地からのルート案内が開かない',
+    a: '「現在地からのルートを見る」ボタンはお使いのスマホの標準マップアプリ（Google マップ / Apple マップ）を起動します。マップアプリがインストールされていない場合はご利用いただけません。',
+  },
+]
+
+export function HelpScreen({ open, onClose }: Props) {
+  const [openFaqs, setOpenFaqs] = useState<Set<number>>(new Set())
+
+  const toggleFaq = (i: number) => {
+    setOpenFaqs(prev => {
+      const next = new Set(prev)
+      next.has(i) ? next.delete(i) : next.add(i)
+      return next
+    })
+  }
+
+  const handleFeedback = () => {
+    if (FEEDBACK_URL) {
+      window.open(FEEDBACK_URL, '_blank', 'noopener noreferrer')
+    } else {
+      alert('フィードバックフォームは現在準備中です。')
     }
-      //
-      
-  }, [])
+  }
 
-  return now
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
+      {/* ナビバー */}
+      <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
+        <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#10b981', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
+          <svg width="10" height="16" viewBox="0 0 10 16" fill="none"><path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          戻る
+        </button>
+        <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>ヘルプ</span>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* バナー */}
+        <div style={{ background: 'linear-gradient(135deg,#0d9966,#34d399)', borderRadius: 20, padding: '25px 20px', color: '#fff', textAlign: 'center' }}>
+          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>スクールバス時刻表</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,.8)' }}>ver {__APP_VERSION__}</div>
+        </div>
+
+        {/* FAQ */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>よくある質問</div>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>
+            {FAQ.map((faq, i) => (
+              <div key={i} style={{ borderBottom: i < FAQ.length - 1 ? '.5px solid var(--border)' : 'none' }}>
+                <div onClick={() => toggleFaq(i)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '15px 16px', cursor: 'pointer' }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>{faq.q}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', transition: 'transform 0.22s', transform: openFaqs.has(i) ? 'rotate(180deg)' : '' }}>▼</span>
+                </div>
+                {openFaqs.has(i) && (
+                  <div style={{ padding: '0 16px 14px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* フィードバック — Googleフォーム接続口 */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>お問い合わせ</div>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: 20, transition: 'background 0.35s' }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>ご意見・不具合のご報告</p>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 16 }}>
+              アプリをより良くするためのご意見や、気になった不具合などをお気軽にお寄せください。いただいた内容は今後の改善に活用させていただきます。
+            </p>
+            <button
+              onClick={handleFeedback}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: 14, background: 'linear-gradient(135deg,#0d9966,#34d399)', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 14, border: 'none', cursor: 'pointer' }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              フィードバックを送る
+            </button>
+            <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+              {FEEDBACK_URL ? 'Googleフォームで回答を受け付けます' : '回答はGoogleフォームで受け付けます（準備中）'}
+            </p>
+          </div>
+        </div>
+
+        <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', padding: '8px 0' }}>
+          スクールバス時刻表アプリ ver {__APP_VERSION__}
+        </p>
+      </div>
+    </div>
+  )
 }
 </file>
 
