@@ -11,7 +11,7 @@ export function EndOfServiceCard({ tomorrowFirstBus, tomorrowTimetableName }: Pr
       className="rounded-[22px] px-6 py-[22px] text-white"
       style={{ background: 'linear-gradient(135deg, #374151, #4b5563)' }}
     >
-      <p className="text-[15px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
+      <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
         次のバス
       </p>
       <p className="text-[60px] font-black text-white tracking-tight leading-none mb-[7px]">

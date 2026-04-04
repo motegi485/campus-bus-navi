@@ -29,7 +29,7 @@ export function NextBusCard({ next, route, fontSize }: Props) {
         style={{ background: endedGradient }}
       >
         <Decoration />
-        <p className="text-[11px] font-bold tracking-widest uppercase text-white/75 mb-2">
+        <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-2">
           次のバス
         </p>
         <p className={`${fs.time} font-black text-white tracking-tight leading-none mb-2`}>
@@ -45,7 +45,7 @@ export function NextBusCard({ next, route, fontSize }: Props) {
   return (
     <div className={`${gradientClass} rounded-[22px] px-6 py-[22px] text-white relative overflow-hidden`}>
       <Decoration />
-      <p className="text-[11px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
+      <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
         次のバス
       </p>
       <div className="flex items-baseline gap-3 mb-[7px]">

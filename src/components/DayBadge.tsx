@@ -30,7 +30,7 @@ export function DayBadge({ type }: Props) {
       className="text-[13px] font-bold px-[9px] py-[3px] rounded-[20px] flex items-center gap-1"
       style={{ background: bg, color }}
     >
-      <span style={{ fontSize: '9px' }}>●</span>
+      <span style={{ fontSize: '7px' }}>●</span>
       {label}
     </span>
   )
