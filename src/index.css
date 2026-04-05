@@ -121,3 +121,22 @@ html, body {
 .leaflet-tooltip-pane { z-index: 8 !important; }
 .leaflet-popup-pane   { z-index: 9 !important; }
 .leaflet-control      { z-index: 10 !important; }
+
+/* ============================================================
+   レスポンシブ対応（lg: 1024px以上）
+   ============================================================ */
+
+/* PC表示時: phone-shell-inner の角丸・影を解除 */
+@media (min-width: 1024px) {
+  .phone-shell-inner {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+}
+
+/* PC表示時: Leaflet地図の高さを拡大 */
+@media (min-width: 1024px) {
+  .leaflet-container {
+    height: 400px !important;
+  }
+}

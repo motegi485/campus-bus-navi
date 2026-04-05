@@ -43,7 +43,7 @@ export function FullTimetable({ schedule, route, currentDeparture, nowMinutes }:
       </button>
 
       {open && (
-        <div className="mt-4 grid grid-cols-3 gap-[7px]">
+        <div className="mt-4 grid grid-cols-3 lg:grid-cols-6 gap-[7px]">
           {schedule.map((bus, i) => {
             const isPast = toMin(bus.departure) <= nowMinutes
             const isCurrent = bus.departure === currentDeparture
