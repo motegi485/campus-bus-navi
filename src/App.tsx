@@ -115,16 +115,16 @@ export default function App() {
     */
     <>
       {/* PC用背景 */}
-      <div className="hidden md:block lg:hidden fixed inset-0 -z-10" style={{ background: '#1a1a2e' }} />
+      <div className="hidden fixed inset-0 -z-10" style={{ background: '#1a1a2e' }} />
 
       {/* アプリ外枠 */}
       <div
-        className={`md:min-h-screen md:flex md:items-start md:justify-center md:py-8 md:px-4 lg:block lg:p-0 ${themeClass}`}
+        className={`${themeClass}`}
       >
 {/* フォンシェル：モバイル=全画面、PC=カード */}
         <div
           // 💡 親要素から overflow-hidden を削除
-          className={`relative w-full md:max-w-md lg:max-w-none ${themeClass}`} 
+          className={`relative w-full ${themeClass}`} 
           style={{
             /* 💡 背景色の指定を削除し、透明にする */
             /* モバイルでは最低画面高さいっぱい、PCでは内容に合わせる */
@@ -133,7 +133,7 @@ export default function App() {
         >
           {/* PC時のみ角丸・影をインラインで付与（media queryの代わりにJS判定は使わない） */}
           <style>{`
-            @media (min-width: 768px) {
+            @media (min-width: 9999px) {
               .phone-shell-inner {
                 border-radius: 44px;
                 box-shadow: 0 32px 100px rgba(0,0,0,0.55);
@@ -233,13 +233,13 @@ export default function App() {
         </header>
 
         {/* メインコンテンツ */}
-        <main className="flex flex-col gap-[10px] p-[14px] lg:p-6" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 28px)' }}>
+        <main className="flex flex-col gap-[10px] p-[14px] md:p-6" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 28px)' }}>
 
-          {/* lg: 左右2カラムエリア */}
-          <div className="flex flex-col gap-[10px] lg:flex-row lg:gap-6 lg:items-start">
+          {/* md: 左右2カラムエリア */}
+          <div className="flex flex-col gap-[10px] md:flex-row md:gap-6 md:items-start">
 
             {/* 左カラム: ローディング / エラー / 時刻カード群 */}
-            <div className="flex flex-col gap-[10px] lg:flex-1 lg:min-w-0">
+            <div className="flex flex-col gap-[10px] md:flex-1 md:min-w-0">
 
               {/* ローディング */}
               {loading && (
@@ -284,7 +284,7 @@ export default function App() {
 
             {/* 右カラム: 地図 */}
             {!loading && currentRoute && (
-              <div className="lg:flex-1 lg:min-w-0">
+              <div className="md:flex-1 md:min-w-0">
                 <section>
                   <p className="text-[11px] font-bold tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
                     乗り場マップ

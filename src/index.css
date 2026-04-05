@@ -127,7 +127,7 @@ html, body {
    ============================================================ */
 
 /* PC表示時: phone-shell-inner の角丸・影を解除 */
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .phone-shell-inner {
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -135,7 +135,7 @@ html, body {
 }
 
 /* PC表示時: Leaflet地図の高さを拡大 */
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .leaflet-container {
     height: 400px !important;
   }
