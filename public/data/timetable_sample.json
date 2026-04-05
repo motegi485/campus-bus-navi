@@ -1,0 +1,49 @@
+{
+  "_comment": "これはデータ構造を示すためのサンプルファイルです。実際のデータはGitOpsで管理される別ファイルに存在します。",
+  "id": "timetable_weekday",
+  "name": "授業日ダイヤ",
+  "routes": {
+    "station_to_campus": {
+      "origin": "松永発",
+      "destination": "大学行き",
+      "bus_stop_name": "松永 バス乗り場",
+      "bus_stop_coords": { "lat": 34.45118558593484, "lng": 133.25675322125554 },
+      "schedule": [
+        { "departure": "07:45", "note": "" },
+        { "departure": "08:40", "note": "" },
+        { "departure": "09:30", "note": "" },
+        { "departure": "10:50", "note": "" },
+        { "departure": "11:30", "note": "" },
+        { "departure": "12:10", "note": "" },
+        { "departure": "13:40", "note": "" },
+        { "departure": "14:20", "note": "" },
+        { "departure": "15:00", "note": "" },
+        { "departure": "16:20", "note": "" },
+        { "departure": "17:00", "note": "" },
+        { "departure": "18:20", "note": "" },
+        { "departure": "19:00", "note": "最終" }
+      ]
+    },
+    "campus_to_station": {
+      "origin": "大学発",
+      "destination": "松永行き",
+      "bus_stop_name": "大学 バス乗り場",
+      "bus_stop_coords": { "lat": 34.459281686471684, "lng": 133.23183492499786 },
+      "schedule": [
+        { "departure": "08:30", "note": "" },
+        { "departure": "09:10", "note": "" },
+        { "departure": "10:30", "note": "" },
+        { "departure": "11:50", "note": "" },
+        { "departure": "12:30", "note": "" },
+        { "departure": "13:50", "note": "" },
+        { "departure": "14:30", "note": "" },
+        { "departure": "15:50", "note": "" },
+        { "departure": "16:30", "note": "" },
+        { "departure": "17:50", "note": "" },
+        { "departure": "18:30", "note": "" },
+        { "departure": "19:10", "note": "" },
+        { "departure": "20:30", "note": "最終" }
+      ]
+    }
+  }
+}
