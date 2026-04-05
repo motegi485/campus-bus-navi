@@ -110,13 +110,10 @@ export default function App() {
   return (
     /*
       レスポンシブ戦略:
-      - モバイル（< 768px）: 全画面表示。角丸・余白なし。
-      - PC（>= 768px）: 背景 #1a1a2e の中央にカード表示。角丸44px・影付き。
+      - モバイル（< 768px）: 全画面縦1カラム表示
+      - PC（>= 768px）: 時刻表（左）・地図（右）の2カラム表示。全時刻表は全幅展開
     */
     <>
-      {/* PC用背景 */}
-      <div className="hidden fixed inset-0 -z-10" style={{ background: '#1a1a2e' }} />
-
       {/* アプリ外枠 */}
       <div
         className={`${themeClass}`}
@@ -280,6 +277,17 @@ export default function App() {
                   )}
                 </>
               )}
+              {/* モバイルのみ表示: 全時刻表をマップより上に配置 */}
+              {!loading && currentRoute && (
+                <div className="md:hidden">
+                  <FullTimetable
+                    schedule={schedule}
+                    route={route}
+                    currentDeparture={nextBus?.entry.departure}
+                    nowMinutes={nowMinutes}
+                  />
+                </div>
+              )}
             </div>{/* / 左カラム */}
 
             {/* 右カラム: 地図 */}
@@ -318,14 +326,16 @@ export default function App() {
 
           </div>{/* / 2カラムエリア */}
 
-          {/* 全幅: 全時刻表アコーディオン（2カラムの外・全幅展開） */}
+          {/* PC版のみ表示: 全幅展開（2カラムの下） */}
           {!loading && currentRoute && (
-            <FullTimetable
-              schedule={schedule}
-              route={route}
-              currentDeparture={nextBus?.entry.departure}
-              nowMinutes={nowMinutes}
-            />
+            <div className="hidden md:block">
+              <FullTimetable
+                schedule={schedule}
+                route={route}
+                currentDeparture={nextBus?.entry.departure}
+                nowMinutes={nowMinutes}
+              />
+            </div>
           )}
 
         </main>
