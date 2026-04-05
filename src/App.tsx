@@ -110,21 +110,18 @@ export default function App() {
   return (
     /*
       レスポンシブ戦略:
-      - モバイル（< 768px）: 全画面表示。角丸・余白なし。
-      - PC（>= 768px）: 背景 #1a1a2e の中央にカード表示。角丸44px・影付き。
+      - モバイル（< 768px）: 全画面縦1カラム表示
+      - PC（>= 768px）: 時刻表（左）・地図（右）の2カラム表示。全時刻表は全幅展開
     */
     <>
-      {/* PC用背景 */}
-      <div className="hidden md:block fixed inset-0 -z-10" style={{ background: '#1a1a2e' }} />
-
       {/* アプリ外枠 */}
       <div
-        className={`md:min-h-screen md:flex md:items-start md:justify-center md:py-8 md:px-4 ${themeClass}`}
+        className={`${themeClass}`}
       >
 {/* フォンシェル：モバイル=全画面、PC=カード */}
         <div
           // 💡 親要素から overflow-hidden を削除
-          className={`relative w-full md:max-w-md ${themeClass}`} 
+          className={`relative w-full ${themeClass}`} 
           style={{
             /* 💡 背景色の指定を削除し、透明にする */
             /* モバイルでは最低画面高さいっぱい、PCでは内容に合わせる */
@@ -133,7 +130,7 @@ export default function App() {
         >
           {/* PC時のみ角丸・影をインラインで付与（media queryの代わりにJS判定は使わない） */}
           <style>{`
-            @media (min-width: 768px) {
+            @media (min-width: 9999px) {
               .phone-shell-inner {
                 border-radius: 44px;
                 box-shadow: 0 32px 100px rgba(0,0,0,0.55);
@@ -233,88 +230,114 @@ export default function App() {
         </header>
 
         {/* メインコンテンツ */}
-        <main className="flex flex-col gap-[10px] p-[14px]" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 28px)' }}>
+        <main className="flex flex-col gap-[10px] p-[14px] md:p-6" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 28px)' }}>
 
-          {/* ローディング */}
-          {loading && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <div className="w-8 h-8 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-              <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>時刻表を読み込み中...</p>
-            </div>
-          )}
+          {/* md: 左右2カラムエリア */}
+          <div className="flex flex-col gap-[10px] md:flex-row md:gap-6 md:items-start">
 
-          {/* エラー */}
-          {error && !loading && (
-            <div className="rounded-[20px] p-5 text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
-              <p className="text-[14px] text-red-500 font-medium">{error}</p>
-              <p className="text-[12px] mt-2" style={{ color: 'var(--text-muted)' }}>キャッシュされた時刻表を使用しています</p>
-            </div>
-          )}
+            {/* 左カラム: ローディング / エラー / 時刻カード群 */}
+            <div className="flex flex-col gap-[10px] md:flex-1 md:min-w-0">
 
-          {/* 次のバス / 終バス後 */}
+              {/* ローディング */}
+              {loading && (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <div className="w-8 h-8 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                  <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>時刻表を読み込み中...</p>
+                </div>
+              )}
+
+              {/* エラー */}
+              {error && !loading && (
+                <div className="rounded-[20px] p-5 text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                  <p className="text-[14px] text-red-500 font-medium">{error}</p>
+                  <p className="text-[12px] mt-2" style={{ color: 'var(--text-muted)' }}>キャッシュされた時刻表を使用しています</p>
+                </div>
+              )}
+
+              {/* 次のバス / 終バス後 */}
+              {!loading && currentRoute && (
+                <>
+                  {isEndOfService ? (
+                    <EndOfServiceCard
+                      tomorrowFirstBus={tomorrowFirstBus}
+                      tomorrowTimetableName={tomorrowTimetable?.name}
+                    />
+                  ) : (
+                    <NextBusCard next={nextBus} route={route} fontSize={fontSize} />
+                  )}
+
+                  {/* 直近4本 */}
+                  {!isEndOfService && nextBus && (
+                    <UpcomingList
+                      buses={upcoming}
+                      route={route}
+                      nowMinutes={nowMinutes}
+                      fontSize={fontSize}
+                    />
+                  )}
+                </>
+              )}
+              {/* モバイルのみ表示: 全時刻表をマップより上に配置 */}
+              {!loading && currentRoute && (
+                <div className="md:hidden">
+                  <FullTimetable
+                    schedule={schedule}
+                    route={route}
+                    currentDeparture={nextBus?.entry.departure}
+                    nowMinutes={nowMinutes}
+                  />
+                </div>
+              )}
+            </div>{/* / 左カラム */}
+
+            {/* 右カラム: 地図 */}
+            {!loading && currentRoute && (
+              <div className="md:flex-1 md:min-w-0">
+                <section>
+                  <p className="text-[11px] font-bold tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
+                    乗り場マップ
+                  </p>
+                  {isOnline ? (
+                    <Suspense
+                      fallback={
+                        <div className="rounded-[20px] flex items-center justify-center" style={{ height: 220, background: 'var(--bg-card)' }}>
+                          <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>地図を読み込み中...</p>
+                        </div>
+                      }
+                    >
+                      <BusStopMap
+                        coords={currentRoute.bus_stop_coords}
+                        stopName={currentRoute.bus_stop_name}
+                        route={route}
+                      />
+                    </Suspense>
+                  ) : (
+                    <Suspense fallback={null}>
+                      <BusStopMap
+                        coords={currentRoute.bus_stop_coords}
+                        stopName={currentRoute.bus_stop_name}
+                        route={route}
+                      />
+                    </Suspense>
+                  )}
+                </section>
+              </div>
+            )}{/* / 右カラム */}
+
+          </div>{/* / 2カラムエリア */}
+
+          {/* PC版のみ表示: 全幅展開（2カラムの下） */}
           {!loading && currentRoute && (
-            <>
-              {isEndOfService ? (
-                <EndOfServiceCard
-                  tomorrowFirstBus={tomorrowFirstBus}
-                  tomorrowTimetableName={tomorrowTimetable?.name}
-                />
-              ) : (
-                <NextBusCard next={nextBus} route={route} fontSize={fontSize} />
-              )}
-
-              {/* 直近4本 */}
-              {!isEndOfService && nextBus && (
-                <UpcomingList
-                  buses={upcoming}
-                  route={route}
-                  nowMinutes={nowMinutes}
-                  fontSize={fontSize}
-                />
-              )}
-
-              {/* 全時刻表アコーディオン */}
+            <div className="hidden md:block">
               <FullTimetable
                 schedule={schedule}
                 route={route}
                 currentDeparture={nextBus?.entry.departure}
                 nowMinutes={nowMinutes}
               />
-            </>
+            </div>
           )}
 
-          {/* 地図セクション */}
-          {!loading && currentRoute && (
-            <section>
-              <p className="text-[11px] font-bold tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
-                乗り場マップ
-              </p>
-              {isOnline ? (
-                <Suspense
-                  fallback={
-                    <div className="rounded-[20px] flex items-center justify-center" style={{ height: 220, background: 'var(--bg-card)' }}>
-                      <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>地図を読み込み中...</p>
-                    </div>
-                  }
-                >
-                  <BusStopMap
-                    coords={currentRoute.bus_stop_coords}
-                    stopName={currentRoute.bus_stop_name}
-                    route={route}
-                  />
-                </Suspense>
-              ) : (
-                // オフライン時: キャッシュ済みタイルを表示（BusStopMap は minZoom/maxZoom 制限済み）
-                <Suspense fallback={null}>
-                  <BusStopMap
-                    coords={currentRoute.bus_stop_coords}
-                    stopName={currentRoute.bus_stop_name}
-                    route={route}
-                  />
-                </Suspense>
-              )}
-            </section>
-          )}
         </main>
 
         {/* PWA更新通知バナー（registerType: 'prompt'） */}
