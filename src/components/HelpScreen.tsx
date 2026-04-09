@@ -107,10 +107,6 @@ export function HelpScreen({ open, onClose }: Props) {
             </p>
           </div>
         </div>
-
-        <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', padding: '8px 0' }}>
-          スクールバス時刻表アプリ ver {__APP_VERSION__}
-        </p>
       </div>
     </div>
   )
