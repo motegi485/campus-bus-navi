@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-// ★ GoogleフォームのURLをここに設定するだけで接続完了
+// GoogleフォームのURLを設定すると接続
 const FEEDBACK_URL = '' // 例: 'https://forms.gle/xxxxxxxxxx'
 
 interface Props {
@@ -107,10 +107,6 @@ export function HelpScreen({ open, onClose }: Props) {
             </p>
           </div>
         </div>
-
-        <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', padding: '8px 0' }}>
-          スクールバス時刻表アプリ ver {__APP_VERSION__}
-        </p>
       </div>
     </div>
   )
