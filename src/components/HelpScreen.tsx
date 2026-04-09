@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-// ★ GoogleフォームのURLをここに設定するだけで接続完了
+// GoogleフォームのURLを設定すると接続
 const FEEDBACK_URL = '' // 例: 'https://forms.gle/xxxxxxxxxx'
 
 interface Props {
