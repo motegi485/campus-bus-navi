@@ -12,7 +12,7 @@ const OPTIONS: { key: RouteKey; label: string; icon: string }[] = [
 
 export function RouteToggle({ route, onChange }: Props) {
   return (
-    <div className="flex bg-white/20 rounded-[13px] p-[3px] gap-[2px] mt-4 md:w-[64%] md:mx-auto">
+    <div className="flex bg-white/20 rounded-full p-[3px] gap-[2px] mt-4 md:w-[64%] md:mx-auto">
       {OPTIONS.map((opt) => {
         const active = route === opt.key
         const colorClass = opt.key === 'campus_to_station'
@@ -23,7 +23,7 @@ export function RouteToggle({ route, onChange }: Props) {
             key={opt.key}
             onClick={() => onChange(opt.key)}
             className={[
-              'flex-1 rounded-[10px] py-[9px] px-[6px] flex items-center justify-center gap-[5px]',
+              'flex-1 rounded-full py-[9px] px-[6px] flex items-center justify-center gap-[5px]',
               'text-[13px] font-semibold transition-all duration-200 select-none',
               active ? 'bg-white shadow-md' : 'text-white/70',
             ].join(' ')}
