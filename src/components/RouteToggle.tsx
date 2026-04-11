@@ -6,8 +6,8 @@ interface Props {
 }
 
 const OPTIONS: { key: RouteKey; label: string; icon: string }[] = [
-  { key: 'campus_to_station', label: '大学発', icon: '🏫' },
-  { key: 'station_to_campus', label: '松永発', icon: '🚉' },
+  { key: 'campus_to_station', label: '大学発', icon: '' },
+  { key: 'station_to_campus', label: '松永発', icon: '' },
 ]
 
 export function RouteToggle({ route, onChange }: Props) {
