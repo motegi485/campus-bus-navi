@@ -25,7 +25,7 @@ export function DrawerMenu({ open, onClose, onOpenNews, onOpenSettings, onOpenHe
     >
       {/* ドロワー本体 */}
       <div
-        className="w-[80%] md:w-[35%]"
+        className="w-[80%] md:w-[40%]"
         style={{
           position: 'absolute', top: 0, left: 0, height: '100%',
           background: 'var(--bg-card)',
