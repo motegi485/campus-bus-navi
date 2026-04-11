@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 // GoogleフォームのURLを設定すると接続
-const FEEDBACK_URL = '' // 例: 'https://forms.gle/xxxxxxxxxx'
+const FEEDBACK_URL = 'https://forms.gle/CD5qh8MpFZZVubTw5'
 
 interface Props {
   open: boolean
@@ -103,7 +103,7 @@ export function HelpScreen({ open, onClose }: Props) {
               フィードバックを送る
             </button>
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
-              {FEEDBACK_URL ? 'Googleフォームで回答を受け付けます' : '回答はGoogleフォームで受け付けます（準備中）'}
+              {FEEDBACK_URL ? 'Googleフォームで回答を受け付けます' : '回答はGoogleフォームで受け付けます'}
             </p>
           </div>
         </div>
