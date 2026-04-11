@@ -25,8 +25,9 @@ export function DrawerMenu({ open, onClose, onOpenNews, onOpenSettings, onOpenHe
     >
       {/* ドロワー本体 */}
       <div
+        className="w-[80%] md:w-[35%]"
         style={{
-          position: 'absolute', top: 0, left: 0, width: '82%', height: '100%',
+          position: 'absolute', top: 0, left: 0, height: '100%',
           background: 'var(--bg-card)',
           transform: open ? 'translateX(0)' : 'translateX(-100%)',
           transition: 'transform 0.3s cubic-bezier(.4,0,.2,1), background 0.35s',
