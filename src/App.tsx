@@ -43,7 +43,27 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false)
 
   // PWA更新検知（registerType: 'prompt'）
-  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW()
+  const { 
+    needRefresh: [needRefresh], updateServiceWorker 
+  } = useRegisterSW({
+    onRegistered(r) {
+      // Service Worker が登録されたら、Page Visibility API のイベントリスナーを設定
+      if (r) {
+        document.addEventListener('visibilitychange', () => {
+          // アプリが再び画面に表示された（フォアグラウンドになった）瞬間に判定
+          if (document.visibilityState === 'visible') {
+            console.log('アプリが復帰しました。更新をチェックします...');
+            r.update().catch((err) => {
+               console.error('更新チェック中にエラーが発生しました:', err);
+            });
+          }
+        });
+      }
+    },
+    onRegisterError(error) {
+      console.error('SW registration error', error);
+    },
+  })
 
   // 時刻計算
   const currentRoute = timetable?.routes[route]
