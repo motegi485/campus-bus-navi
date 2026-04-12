@@ -201,9 +201,9 @@ npm run preview  # 本番ビルドのローカル確認
 - **読み込み:** `BusStopMap` は `App.tsx` から **`React.lazy` で動的 import**。Leaflet は SSR に不向きなためです。
 - **タイル:** `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`、帰属表示あり。Service Worker 側のマッチは `a` / `b` / `c` サブドメイン向けの正規表現です。
 - **表示:** 高さ 220px、**初期ズーム 17**、`minZoom` 14 / **`maxZoom` 18**。ルート切替時は `flyTo` で中心移動（約 1.2 秒、ズーム 17）。
-- **マーカー:** Leaflet 既定アイコンの URL は CDN 上の画像で補正（Vite バンドル時の欠落対策）。乗り場は **SVG ベースの `divIcon`**（バスモチーフのピン）。
+- **マーカー:** Leaflet 既定クラスの `_getIconUrl` を削除し、CDN 上の既定 PNG（Retina/標準/影）を `mergeOptions` で指定（Vite バンドル時の欠落対策）。乗り場は **`L.divIcon`** で、インライン HTML/CSS から **ティアドロップ型のピン**（ローズ色 `#E11D48`、回転した角丸四角＋中央の白丸、48×48 の配置枠、`filter: drop-shadow` で影）を描画します。
 - **重なり:** 親に `isolation: 'isolate'` と `z-index` を与え、ドロワーがタイルレイヤより下に潜る問題を防ぎます。
-- **ナビ連携:** `buildMapUrl.ts` — **iOS**（`iPad` / `iPhone` / `iPod` の UA）は `maps://`（Apple マップ・徒歩）。**それ以外** は Google マップのルート URL（`travelmode=walking`）。ラベルはクエリ用にエンコードします。
+- **ナビ連携:** `buildMapUrl.ts` — **iOS**（`iPad` / `iPhone` / `iPod` の UA）は `maps://`（Apple マップ・徒歩）。**それ以外** は Google マップの徒歩ルート（`https://www.google.com/maps/dir/?api=1&destination={lat},{lng}&destination_place_id={encodeURIComponent(label)}&travelmode=walking` の形。`label` は停留所名）。「現在地からのルートを見る」の文字色はルートに応じて切り替わります（`campus_to_station` は `#10b981`、`station_to_campus` は `#6c63d5`）。
 - **オフライン:** オンライン・オフラインで同じ `BusStopMap` を表示します。タイルは SW の CacheFirst により、**既にキャッシュされた範囲は表示できる**ことがあります。未キャッシュ領域は取得に失敗することがあります。
 
 ---
