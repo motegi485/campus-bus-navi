@@ -30,7 +30,7 @@ const busStopIcon = L.divIcon({
 function MapFlyTo({ coords }: { coords: BusStopCoords }) {
   const map = useMap()
   useEffect(() => {
-    map.flyTo([coords.lat, coords.lng], 16, { duration: 1.2 })
+    map.flyTo([coords.lat, coords.lng], 17, { duration: 1.2 })
   }, [coords.lat, coords.lng, map])
   return null
 }
@@ -53,9 +53,9 @@ export function BusStopMap({ coords, stopName, route }: Props) {
       <div style={{ position: 'relative', zIndex: 0, isolation: 'isolate' }}>
         <MapContainer
           center={[coords.lat, coords.lng]}
-          zoom={16}
+          zoom={17}
           minZoom={14}
-          maxZoom={17}
+          maxZoom={18}
           style={{ height: '220px', width: '100%' }}
           zoomControl={true}
           attributionControl={true}
