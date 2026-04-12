@@ -14,27 +14,35 @@ L.Icon.Default.mergeOptions({
 
 // カスタムバス停ピン
 const busStopIcon = L.divIcon({
-  className: '',
-  html: `<svg width="44" height="60" viewBox="0 0 50 66" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <filter id="pin-shadow" x="-35%" y="-10%" width="170%" height="165%">
-        <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#881337" flood-opacity="0.28"/>
-      </filter>
-    </defs>
-    <path d="M25 2C13.4 2 4 11.4 4 23C4 38 25 64 25 64C25 64 46 38 46 23C46 11.4 36.6 2 25 2Z"
-          fill="#be123c" filter="url(#pin-shadow)"/>
-    <circle cx="25" cy="23" r="15" fill="#fff1f2"/>
-    <circle cx="25" cy="23" r="15" fill="none" stroke="#fda4af" stroke-width="1"/>
-    <rect x="16" y="17" width="18" height="12.5" rx="2.5" fill="#881337"/>
-    <rect x="17" y="19" width="5.5" height="4.5"  rx="1.2" fill="#fff1f2"/>
-    <rect x="24.5" y="19" width="5.5" height="4.5" rx="1.2" fill="#fff1f2"/>
-    <rect x="16" y="27" width="18" height="1.8"   rx="0.9" fill="#fb7185"/>
-    <circle cx="20" cy="32" r="2.3" fill="#881337"/>
-    <circle cx="30" cy="32" r="2.3" fill="#881337"/>
-  </svg>`,
-  iconSize: [48, 66],
-  iconAnchor: [22, 60],
-  popupAnchor: [0, -68],
+  className: '', // デフォルトの白い背景などを消すために空にしておく
+  html: `<div style="
+      /* 影が途切れないように一回り大きい枠（48x48）を作る */
+      width: 48px; height: 48px;
+      display: flex; align-items: center; justify-content: center;
+      /* ここでピン全体に対して真下に影を落とす */
+      filter: drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.4));
+    ">
+    <div style="
+        background:#E11D48;
+        border-radius:50% 50% 50% 0;
+        transform:rotate(-45deg);
+        width:34px; height:34px;
+        position:relative;
+      ">
+      <span style="
+        position:absolute;
+        width:14px;height:14px;
+        background:#fff;
+        border-radius:50%;
+        top:50%;left:50%;
+        transform:translate(-50%,-50%);
+      "></span>
+    </div>
+  </div>`,
+  // 全体の枠サイズ（48x48）に合わせて数値を再設定
+  iconSize:    [48, 48], 
+  iconAnchor:  [24, 46], // 48x48の中心下部（ピンの先端）に座標を合わせる
+  popupAnchor: [0, -46], 
 })
 
 /** ルート変更時に地図の中心を滑らかに移動 */
