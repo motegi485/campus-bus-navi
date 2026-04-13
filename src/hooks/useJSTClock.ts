@@ -14,13 +14,8 @@ const JST = 'Asia/Tokyo'
  */
 export function useJSTClock(): dayjs.Dayjs {
   const [now, setNow] = useState(() => dayjs().tz(JST))
-  // 1. テストしたい日時を文字列で指定する（例: 2026年4月1日の朝8時30分）
-  // const [now, setNow] = useState(() => dayjs('2026-04-01T08:30:00').tz(JST))
 
   useEffect(() => {
-    // 次の分の00秒に同期してから1分ごとに更新
-
-    //
     const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000
     let intervalId: ReturnType<typeof setInterval>
 
@@ -31,12 +26,18 @@ export function useJSTClock(): dayjs.Dayjs {
       }, 60_000)
     }, msUntilNextMinute)
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setNow(dayjs().tz(JST))
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
       clearTimeout(timeoutId)
       clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-      //
-      
   }, [])
 
   return now
