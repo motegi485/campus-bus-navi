@@ -1548,6 +1548,166 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 }
 </file>
 
+<file path="src/components/BusStopMap.tsx">
+import { useEffect } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import L from 'leaflet'
+import type { BusStopCoords, RouteKey } from '../types/timetable'
+import { buildMapUrl } from '../utils/buildMapUrl'
+
+// Leaflet デフォルトアイコン修正（Viteビルド対策）
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+})
+
+// カスタムバス停ピン
+const busStopIcon = L.divIcon({
+  className: '', // デフォルトの白い背景などを消すために空にしておく
+  html: `<div style="
+      /* 影が途切れないように一回り大きい枠（48x48）を作る */
+      width: 48px; height: 48px;
+      display: flex; align-items: center; justify-content: center;
+      /* ここでピン全体に対して真下に影を落とす */
+      filter: drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.4));
+    ">
+    <div style="
+        background:#E11D48;
+        border-radius:50% 50% 50% 0;
+        transform:rotate(-45deg);
+        width:34px; height:34px;
+        position:relative;
+      ">
+      <span style="
+        position:absolute;
+        width:14px;height:14px;
+        background:#fff;
+        border-radius:50%;
+        top:50%;left:50%;
+        transform:translate(-50%,-50%);
+      "></span>
+    </div>
+  </div>`,
+  // 全体の枠サイズ（48x48）に合わせて数値を再設定
+  iconSize:    [48, 48], 
+  iconAnchor:  [24, 46], // 48x48の中心下部（ピンの先端）に座標を合わせる
+  popupAnchor: [0, -46], 
+})
+
+/** ルート変更時に地図の中心を滑らかに移動 */
+function MapFlyTo({ coords }: { coords: BusStopCoords }) {
+  const map = useMap()
+  useEffect(() => {
+    map.flyTo([coords.lat, coords.lng], 17, { duration: 1.2 })
+  }, [coords.lat, coords.lng, map])
+  return null
+}
+
+interface Props {
+  coords: BusStopCoords
+  stopName: string
+  route: RouteKey
+}
+
+export function BusStopMap({ coords, stopName, route }: Props) {
+  const mapUrl = buildMapUrl(coords, stopName)
+  const isCampus = route === 'campus_to_station'
+  const btnColor = isCampus ? '#10b981' : '#6c63d5'
+
+  return (
+    <div className="bg-[var(--bg-card)] rounded-[20px] overflow-hidden transition-[background] duration-300">
+      {/* isolation: isolate でLeaflet内部のz-indexをこのコンテナ内に閉じ込める
+          これによりドロワー（z-index:30）がLeafletタイル（z-index:400+）の下に潜るバグを防ぐ */}
+      <div style={{ position: 'relative', zIndex: 0, isolation: 'isolate' }}>
+        <MapContainer
+          center={[coords.lat, coords.lng]}
+          zoom={17}
+          minZoom={14}
+          maxZoom={18}
+          style={{ height: '220px', width: '100%' }}
+          zoomControl={true}
+          attributionControl={true}
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          />
+          <Marker position={[coords.lat, coords.lng]} icon={busStopIcon}>
+            <Popup>
+              <span className="font-bold">{stopName}</span>
+            </Popup>
+          </Marker>
+          <MapFlyTo coords={coords} />
+        </MapContainer>
+      </div>
+
+      {/* ルート案内ボタン */}
+      <a
+        href={mapUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 w-full py-4 font-bold text-[14px] border-t border-[var(--border)] select-none"
+        style={{ color: btnColor }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="10" r="3" />
+          <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8z" />
+        </svg>
+        現在地からのルートを見る
+      </a>
+    </div>
+  )
+}
+</file>
+
+<file path="src/components/RouteToggle.tsx">
+import type { RouteKey } from '../types/timetable'
+
+interface Props {
+  route: RouteKey
+  onChange: (route: RouteKey) => void
+}
+
+const OPTIONS: { key: RouteKey; label: string; icon: string }[] = [
+  { key: 'campus_to_station', label: '大学発', icon: '' },
+  { key: 'station_to_campus', label: '松永発', icon: '' },
+]
+
+export function RouteToggle({ route, onChange }: Props) {
+  return (
+    <div className="flex bg-white/20 rounded-full p-[3px] gap-[2px] mt-4 md:w-[64%] md:mx-auto">
+      {OPTIONS.map((opt) => {
+        const active = route === opt.key
+        const colorClass = opt.key === 'campus_to_station'
+          ? 'text-emerald-600'
+          : 'text-indigo-600'
+        return (
+          <button
+            key={opt.key}
+            onClick={() => onChange(opt.key)}
+            className={[
+              'flex-1 rounded-full py-[9px] px-[6px] flex items-center justify-center gap-[5px]',
+              'text-[13px] font-semibold transition-all duration-200 select-none',
+              active ? 'bg-white shadow-md' : 'text-white/70',
+            ].join(' ')}
+          >
+            <span className="text-[14px] leading-none pointer-events-none">{opt.icon}</span>
+            <span className={[
+              'font-bold text-[13px] pointer-events-none',
+              active ? colorClass : '',
+            ].join(' ')}>
+              {opt.label}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+</file>
+
 <file path="src/hooks/useJSTClock.ts">
 import { useState, useEffect } from 'react'
 import dayjs from 'dayjs'
@@ -1565,13 +1725,8 @@ const JST = 'Asia/Tokyo'
  */
 export function useJSTClock(): dayjs.Dayjs {
   const [now, setNow] = useState(() => dayjs().tz(JST))
-  // 1. テストしたい日時を文字列で指定する（例: 2026年4月1日の朝8時30分）
-  // const [now, setNow] = useState(() => dayjs('2026-04-01T08:30:00').tz(JST))
 
   useEffect(() => {
-    // 次の分の00秒に同期してから1分ごとに更新
-
-    //
     const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000
     let intervalId: ReturnType<typeof setInterval>
 
@@ -1582,12 +1737,18 @@ export function useJSTClock(): dayjs.Dayjs {
       }, 60_000)
     }, msUntilNextMinute)
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setNow(dayjs().tz(JST))
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
       clearTimeout(timeoutId)
       clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-      //
-      
   }, [])
 
   return now
@@ -1809,8 +1970,7 @@ npm run preview  # 本番ビルドのローカル確認
 
 - **基準タイムゾーン:** すべて **日本標準時（JST）**。Day.js の `timezone` で `Asia/Tokyo` を使用します。
 - **端末設定:** 「今日」「今何時か」の判定は JST に揃える実装です（端末のタイムゾーン設定に依存しない意図）。
-- **`useJSTClock`:** 初回マウント時、**端末時計の秒**を使って「次の分の 0 秒付近」まで待ってから `now` を更新し、以降 **60 秒ごと**に更新します。カウントダウン文言は分単位のため、秒単位の再描画は行いません。
-- **デバッグ:** `useJSTClock.ts` 内のコメントに、特定日時に固定する `useState` 初期化の差し替え例があります。
+- **`useJSTClock`:** 初回マウント時、**端末時計の秒**を使って「次の分の 0 秒付近」まで待ってから `now` を更新し、以降 **60 秒ごと**に更新します。また、タブが非表示→表示に戻ったとき（`visibilitychange`）にも即時に `now` を更新します。カウントダウン文言は分単位のため、秒単位の再描画は行いません。
 - **時刻表データ:** `departure` は `HH:mm` 文字列。当日の分単位比較で次便・終バスを判定（`findNextBus.ts` など）。
 
 ---
@@ -1842,166 +2002,6 @@ npm run preview  # 本番ビルドのローカル確認
 | OpenStreetMap データ | [ODbL](https://www.openstreetmap.org/copyright) |
 
 各パッケージの詳細は `node_modules` 内または各公式リポジトリを参照してください。
-</file>
-
-<file path="src/components/BusStopMap.tsx">
-import { useEffect } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
-import L from 'leaflet'
-import type { BusStopCoords, RouteKey } from '../types/timetable'
-import { buildMapUrl } from '../utils/buildMapUrl'
-
-// Leaflet デフォルトアイコン修正（Viteビルド対策）
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-})
-
-// カスタムバス停ピン
-const busStopIcon = L.divIcon({
-  className: '', // デフォルトの白い背景などを消すために空にしておく
-  html: `<div style="
-      /* 影が途切れないように一回り大きい枠（48x48）を作る */
-      width: 48px; height: 48px;
-      display: flex; align-items: center; justify-content: center;
-      /* ここでピン全体に対して真下に影を落とす */
-      filter: drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.4));
-    ">
-    <div style="
-        background:#E11D48;
-        border-radius:50% 50% 50% 0;
-        transform:rotate(-45deg);
-        width:34px; height:34px;
-        position:relative;
-      ">
-      <span style="
-        position:absolute;
-        width:14px;height:14px;
-        background:#fff;
-        border-radius:50%;
-        top:50%;left:50%;
-        transform:translate(-50%,-50%);
-      "></span>
-    </div>
-  </div>`,
-  // 全体の枠サイズ（48x48）に合わせて数値を再設定
-  iconSize:    [48, 48], 
-  iconAnchor:  [24, 46], // 48x48の中心下部（ピンの先端）に座標を合わせる
-  popupAnchor: [0, -46], 
-})
-
-/** ルート変更時に地図の中心を滑らかに移動 */
-function MapFlyTo({ coords }: { coords: BusStopCoords }) {
-  const map = useMap()
-  useEffect(() => {
-    map.flyTo([coords.lat, coords.lng], 17, { duration: 1.2 })
-  }, [coords.lat, coords.lng, map])
-  return null
-}
-
-interface Props {
-  coords: BusStopCoords
-  stopName: string
-  route: RouteKey
-}
-
-export function BusStopMap({ coords, stopName, route }: Props) {
-  const mapUrl = buildMapUrl(coords, stopName)
-  const isCampus = route === 'campus_to_station'
-  const btnColor = isCampus ? '#10b981' : '#6c63d5'
-
-  return (
-    <div className="bg-[var(--bg-card)] rounded-[20px] overflow-hidden transition-[background] duration-300">
-      {/* isolation: isolate でLeaflet内部のz-indexをこのコンテナ内に閉じ込める
-          これによりドロワー（z-index:30）がLeafletタイル（z-index:400+）の下に潜るバグを防ぐ */}
-      <div style={{ position: 'relative', zIndex: 0, isolation: 'isolate' }}>
-        <MapContainer
-          center={[coords.lat, coords.lng]}
-          zoom={17}
-          minZoom={14}
-          maxZoom={18}
-          style={{ height: '220px', width: '100%' }}
-          zoomControl={true}
-          attributionControl={true}
-        >
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          />
-          <Marker position={[coords.lat, coords.lng]} icon={busStopIcon}>
-            <Popup>
-              <span className="font-bold">{stopName}</span>
-            </Popup>
-          </Marker>
-          <MapFlyTo coords={coords} />
-        </MapContainer>
-      </div>
-
-      {/* ルート案内ボタン */}
-      <a
-        href={mapUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 w-full py-4 font-bold text-[14px] border-t border-[var(--border)] select-none"
-        style={{ color: btnColor }}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="10" r="3" />
-          <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8z" />
-        </svg>
-        現在地からのルートを見る
-      </a>
-    </div>
-  )
-}
-</file>
-
-<file path="src/components/RouteToggle.tsx">
-import type { RouteKey } from '../types/timetable'
-
-interface Props {
-  route: RouteKey
-  onChange: (route: RouteKey) => void
-}
-
-const OPTIONS: { key: RouteKey; label: string; icon: string }[] = [
-  { key: 'campus_to_station', label: '大学発', icon: '' },
-  { key: 'station_to_campus', label: '松永発', icon: '' },
-]
-
-export function RouteToggle({ route, onChange }: Props) {
-  return (
-    <div className="flex bg-white/20 rounded-full p-[3px] gap-[2px] mt-4 md:w-[64%] md:mx-auto">
-      {OPTIONS.map((opt) => {
-        const active = route === opt.key
-        const colorClass = opt.key === 'campus_to_station'
-          ? 'text-emerald-600'
-          : 'text-indigo-600'
-        return (
-          <button
-            key={opt.key}
-            onClick={() => onChange(opt.key)}
-            className={[
-              'flex-1 rounded-full py-[9px] px-[6px] flex items-center justify-center gap-[5px]',
-              'text-[13px] font-semibold transition-all duration-200 select-none',
-              active ? 'bg-white shadow-md' : 'text-white/70',
-            ].join(' ')}
-          >
-            <span className="text-[14px] leading-none pointer-events-none">{opt.icon}</span>
-            <span className={[
-              'font-bold text-[13px] pointer-events-none',
-              active ? colorClass : '',
-            ].join(' ')}>
-              {opt.label}
-            </span>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
 </file>
 
 <file path="src/index.css">
