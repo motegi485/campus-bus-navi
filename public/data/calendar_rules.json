@@ -9,13 +9,15 @@
     "6": "timetable_holiday"
   },
   "overrides": {
-    "2026-03-29": "timetable_spring_vac_hld_2026",
-    "2026-03-30": "timetable_spring_vac_wd_2026",
-    "2026-03-31": "timetable_spring_vac_wd_2026",
-    "2026-04-01": "timetable_spring_vac_wd_2026",
-    "2026-04-02": "timetable_spring_vac_wd_2026",
-    "2026-04-03": "timetable_spring_vac_wd_2026",
-    "2026-04-04": "timetable_spring_vac_hld_2026",
-    "2026-04-05": "timetable_spring_vac_hld_2026"
+    "2026-04-29": "timetable_holiday",
+    "2026-05-02": "timetable_weekday",
+    "2026-05-04": "timetable_holiday",
+    "2026-05-05": "timetable_holiday",
+    "2026-05-06": "timetable_holiday",
+    "2026-05-09": "timetable_weekday",
+    "2026-05-15": "timetable_holiday",
+    "2026-05-16": "timetable_weekday",
+    "2026-07-20": "timetable_holiday",
+    "2026-07-25": "timetable_weekday"
   }
 }
