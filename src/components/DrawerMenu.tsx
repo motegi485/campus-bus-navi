@@ -10,6 +10,7 @@ interface Props {
 const LINKS = [
   { icon: '🏫', title: '大学ホームページ', sub: 'fukuyama-u.ac.jp', bg: '#ede9fe', url: 'https://www.fukuyama-u.ac.jp/' },
   { icon: '🚶', title: '通学情報', sub: 'スクールバス、駐車場・駐輪場', bg: '#dbeafe', url: 'https://www.fukuyama-u.ac.jp/campuslife/student-affairs/attending-school/' },
+  { icon: '🚉', title: 'JR松永駅時刻表', sub: '糸崎・三原方面 / 岡山・福山方面', bg: '#dcfce7', url: 'https://transit.yahoo.co.jp/timetable/27407' },
   { icon: '💻', title: 'サークルホームページ', sub: 'fukupro.club',  bg: '#fef9c3', url: 'https://www.fukupro.club/' },
 ]
 
