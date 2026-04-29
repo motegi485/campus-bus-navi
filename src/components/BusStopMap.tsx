@@ -92,7 +92,7 @@ export function BusStopMap({ coords, stopName, route }: Props) {
             ref={markerRef}
             position={[coords.lat, coords.lng]}
             icon={busStopIcon}
-            eventHandlers={{ add: (e) => (e.target as L.Marker).openPopup() }}
+            eventHandlers={{ add: (e) => setTimeout(() => (e.target as L.Marker).openPopup(), 0) }}
           >
             <Popup>
               <span className="font-bold">{stopName}</span>
