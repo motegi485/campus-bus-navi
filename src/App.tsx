@@ -18,6 +18,8 @@ import { HelpScreen } from './components/HelpScreen'
 import { Toast, useToast } from './components/Toast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { DayBadge, resolveDiagramType } from './components/DayBadge'
+import { useInstallPrompt } from './hooks/useInstallPrompt'
+import { AddToHomeScreen } from './components/AddToHomeScreen'
 
 // 地図は遅延ロード（Leaflet はSSRに非対応のため）
 const BusStopMap = lazy(() =>
@@ -41,6 +43,11 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+
+  // PWA インストール促進バナー
+  const { shouldShow: shouldShowInstallBanner } = useInstallPrompt()
+  const [installBannerVisible, setInstallBannerVisible] = useState(true)
+  const [helpFaqIndex, setHelpFaqIndex] = useState<number | undefined>(undefined)
 
   // PWA更新検知（registerType: 'prompt'）
   const { 
@@ -95,6 +102,12 @@ export default function App() {
       setRefreshing(false)
     }
   }, [refresh, refreshing, showToast])
+
+  const handleOpenHelpAtFaq = useCallback((faqIndex: number) => {
+    setHelpFaqIndex(faqIndex)
+    setHelpOpen(true)
+    setInstallBannerVisible(false)
+  }, [])
 
   // アプリの初期化
   const handleInitApp = useCallback(async () => {
@@ -195,7 +208,11 @@ export default function App() {
         />
 
         {/* ヘルプ */}
-        <HelpScreen open={helpOpen} onClose={() => setHelpOpen(false)} />
+        <HelpScreen
+          open={helpOpen}
+          onClose={() => { setHelpOpen(false); setHelpFaqIndex(undefined) }}
+          openFaqIndex={helpFaqIndex}
+        />
 
         {/* ヘッダー */}
         <header
@@ -359,6 +376,14 @@ export default function App() {
           )}
 
         </main>
+
+        {/* ホーム画面追加バナー */}
+        {shouldShowInstallBanner && installBannerVisible && (
+          <AddToHomeScreen
+            onDismiss={() => setInstallBannerVisible(false)}
+            onTap={() => handleOpenHelpAtFaq(2)}
+          />
+        )}
 
         {/* PWA更新通知バナー（registerType: 'prompt'） */}
         {needRefresh && (

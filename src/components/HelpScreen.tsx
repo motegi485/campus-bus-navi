@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 // GoogleフォームのURLを設定すると接続
 const FEEDBACK_URL = 'https://forms.gle/CD5qh8MpFZZVubTw5'
@@ -6,6 +6,7 @@ const FEEDBACK_URL = 'https://forms.gle/CD5qh8MpFZZVubTw5'
 interface Props {
   open: boolean
   onClose: () => void
+  openFaqIndex?: number
 }
 
 const FAQ = [
@@ -27,8 +28,10 @@ const FAQ = [
   },
 ]
 
-export function HelpScreen({ open, onClose }: Props) {
+export function HelpScreen({ open, onClose, openFaqIndex }: Props) {
   const [openFaqs, setOpenFaqs] = useState<Set<number>>(new Set())
+  const faqRefs = useRef<(HTMLDivElement | null)[]>([])
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
   const toggleFaq = (i: number) => {
     setOpenFaqs(prev => {
@@ -46,6 +49,26 @@ export function HelpScreen({ open, onClose }: Props) {
     }
   }
 
+  useEffect(() => {
+    if (!open) {
+      setOpenFaqs(new Set())
+      return
+    }
+    if (openFaqIndex === undefined) return
+
+    setOpenFaqs(new Set([openFaqIndex]))
+
+    const timer = setTimeout(() => {
+      const el = faqRefs.current[openFaqIndex]
+      const container = scrollContainerRef.current
+      if (el && container) {
+        container.scrollTop = el.offsetTop - 12
+      }
+    }, 420)
+
+    return () => clearTimeout(timer)
+  }, [open, openFaqIndex])
+
   return (
     <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
       {/* ナビバー */}
@@ -57,7 +80,7 @@ export function HelpScreen({ open, onClose }: Props) {
         <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>ヘルプ</span>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* バナー */}
         <div style={{ background: 'linear-gradient(135deg,#0d9966,#34d399)', borderRadius: 20, padding: '25px 20px', color: '#fff', textAlign: 'center' }}>
@@ -70,7 +93,11 @@ export function HelpScreen({ open, onClose }: Props) {
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>よくある質問</div>
           <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>
             {FAQ.map((faq, i) => (
-              <div key={i} style={{ borderBottom: i < FAQ.length - 1 ? '.5px solid var(--border)' : 'none' }}>
+              <div
+                key={i}
+                ref={el => { faqRefs.current[i] = el }}
+                style={{ borderBottom: i < FAQ.length - 1 ? '.5px solid var(--border)' : 'none' }}
+              >
                 <div onClick={() => toggleFaq(i)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '15px 16px', cursor: 'pointer' }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>{faq.q}</span>
                   <span style={{ fontSize: 10, color: 'var(--text-muted)', transition: 'transform 0.22s', transform: openFaqs.has(i) ? 'rotate(180deg)' : '' }}>▼</span>
