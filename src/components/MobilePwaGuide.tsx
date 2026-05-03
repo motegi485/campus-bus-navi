@@ -4,7 +4,12 @@ const STORAGE_KEY = 'campusBusNaviMobilePwaDismissed'
 
 function isIOS(): boolean {
   if (typeof navigator === 'undefined') return false
-  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+  if (/iPhone|iPod/.test(navigator.userAgent)) return true
+  if (/iPad/.test(navigator.userAgent)) return true
+  // iPadOS 13+ はデスクトップ UA ("Macintosh") を送るため UA だけでは判定不可。
+  // タッチ対応 Mac は存在しないので maxTouchPoints で補完する。
+  if (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) return true
+  return false
 }
 
 function isAndroid(): boolean {
@@ -81,6 +86,17 @@ function StepNumber({ n }: { n: number }) {
   )
 }
 
+function MoreHorizontalIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      {/* cx (X座標) を 5, 12, 19 と横に並べています */}
+      <circle cx="5" cy="12" r="1.7" />
+      <circle cx="12" cy="12" r="1.7" />
+      <circle cx="19" cy="12" r="1.7" />
+    </svg>
+  )
+}
+
 export function MobilePwaGuide() {
   // 初期表示時のチラつきを避けるため lazy initializer で判定
   const [open, setOpen] = useState<boolean>(() => shouldShow())
@@ -132,12 +148,12 @@ export function MobilePwaGuide() {
         }}
       >
         <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 10, letterSpacing: '-.3px' }}>
-          {android ? 'アプリをインストールして使う' : 'ホーム画面に追加して使う'}
+          {android ? 'アプリをインストールして使う' : 'アプリをインストールして使う'}
         </h2>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 18 }}>
           {android
-            ? 'ホーム画面から素早く起動できるようにアプリとしてインストールできます。'
-            : 'ホーム画面に追加すると、アプリのように素早く起動できます。'}
+            ? 'ホーム画面に追加（インストール）すると、モバイルアプリとして使用できます。'
+            : 'ホーム画面に追加（インストール）すると、モバイルアプリとして使用できます。'}
         </p>
 
         <ol style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13.5, marginBottom: 18 }}>
@@ -146,7 +162,7 @@ export function MobilePwaGuide() {
               <li style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                 <StepNumber n={1} />
                 <span>
-                  Safari の共有ボタン <ShareIcon /> をタップ
+                  Safari のメニュー<MoreHorizontalIcon/>から共有<ShareIcon /> をタップ
                 </span>
               </li>
               <li style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
