@@ -168,12 +168,7 @@ export function MobilePwaGuide() {
               <li style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                 <StepNumber n={2} />
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span>
-                    「アプリをインストール」 <DownloadIcon /> を選択
-                  </span>
-                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                    ※「ホーム画面に追加」ではなく「アプリをインストール」を選んでください
-                  </span>
+                  「ホーム画面に追加（インストール）」 <DownloadIcon /> を選択
                 </span>
               </li>
             </>
