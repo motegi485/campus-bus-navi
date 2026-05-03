@@ -70,7 +70,6 @@ src/hooks/
   useSettings.ts         ← 路線/テーマ/フォントサイズの localStorage 管理
   useNews.ts             ← news.json 取得・既読状態管理
   useOnlineStatus.ts     ← オンライン/オフライン検知
-  useInstallPrompt.ts    ← ホーム画面追加（A2HS）プロンプト管理
 src/utils/
   findNextBus.ts         ← findNextBus / findUpcomingBuses / findFirstBus（翌日始発）を export
   resolveCalendar.ts     ← 日付 → 時刻表 ID のマッピング
