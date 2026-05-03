@@ -1,9 +1,11 @@
 import dayjs from 'dayjs'
 import type { ScheduleEntry, NextBusInfo } from '../types/timetable'
+import { parseHHmmToMinutes } from './parseTime'
 
 /**
  * JST現在時刻と時刻表リストから次発バスを返す
  * 全便通過（運行終了）の場合は null を返す
+ * 不正な departure フォーマットの便はスキップする
  */
 export function findNextBus(
   schedule: ScheduleEntry[],
@@ -12,8 +14,11 @@ export function findNextBus(
   const nowMinutes = now.hour() * 60 + now.minute()
 
   for (let i = 0; i < schedule.length; i++) {
-    const [h, m] = schedule[i].departure.split(':').map(Number)
-    const depMinutes = h * 60 + m
+    const depMinutes = parseHHmmToMinutes(schedule[i].departure)
+    if (depMinutes === null) {
+      console.warn(`不正な departure をスキップしました: "${schedule[i].departure}"`)
+      continue
+    }
     if (depMinutes > nowMinutes) {
       return {
         entry: schedule[i],

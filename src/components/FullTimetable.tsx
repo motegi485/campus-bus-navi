@@ -1,16 +1,12 @@
 import { useState } from 'react'
 import type { ScheduleEntry, RouteKey } from '../types/timetable'
+import { parseHHmmToMinutes } from '../utils/parseTime'
 
 interface Props {
   schedule: ScheduleEntry[]
   route: RouteKey
   currentDeparture?: string
   nowMinutes: number
-}
-
-function toMin(t: string): number {
-  const [h, m] = t.split(':').map(Number)
-  return h * 60 + m
 }
 
 export function FullTimetable({ schedule, route, currentDeparture, nowMinutes }: Props) {
@@ -45,7 +41,9 @@ export function FullTimetable({ schedule, route, currentDeparture, nowMinutes }:
       {open && (
         <div className="mt-4 grid grid-cols-3 md:grid-cols-6 gap-[7px]">
           {schedule.map((bus, i) => {
-            const isPast = toMin(bus.departure) <= nowMinutes
+            const depMin = parseHHmmToMinutes(bus.departure)
+            // 不正な departure はパース失敗 → 過去扱いせずグレー（中立）で表示
+            const isPast = depMin !== null && depMin <= nowMinutes
             const isCurrent = bus.departure === currentDeparture
             return (
               <div

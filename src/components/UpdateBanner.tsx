@@ -25,7 +25,8 @@ export function UpdateBanner({ onUpdate }: UpdateBannerProps) {
         fontSize: '13px',
         fontWeight: 600,
         backdropFilter: 'blur(8px)',
-        zIndex: 9999,
+        // レイヤー: DrawerMenu(z-30) < NewsScreen(50) < MobilePwaGuide(100) < UpdateBanner(110)
+        zIndex: 110,
         whiteSpace: 'nowrap',
       }}
     >

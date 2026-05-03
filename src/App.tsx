@@ -1,4 +1,4 @@
-import { useState, useCallback, lazy, Suspense } from 'react'
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import type { RouteKey } from './types/timetable'
 import { useJSTClock } from './hooks/useJSTClock'
@@ -44,27 +44,32 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false)
 
   // PWA更新検知（registerType: 'prompt'）
-  const { 
-    needRefresh: [needRefresh], updateServiceWorker 
+  const swRegRef = useRef<ServiceWorkerRegistration | null>(null)
+  const {
+    needRefresh: [needRefresh], updateServiceWorker
   } = useRegisterSW({
     onRegistered(r) {
-      // Service Worker が登録されたら、Page Visibility API のイベントリスナーを設定
-      if (r) {
-        document.addEventListener('visibilitychange', () => {
-          // アプリが再び画面に表示された（フォアグラウンドになった）瞬間に判定
-          if (document.visibilityState === 'visible') {
-            console.log('アプリが復帰しました。更新をチェックします...');
-            r.update().catch((err) => {
-               console.error('更新チェック中にエラーが発生しました:', err);
-            });
-          }
-        });
-      }
+      if (r) swRegRef.current = r
     },
     onRegisterError(error) {
-      console.error('SW registration error', error);
+      console.error('SW registration error', error)
     },
   })
+
+  // アプリがフォアグラウンド復帰したタイミングで SW 更新チェックを走らせる
+  // （addEventListener はマウント中のみ。アンマウント時に確実に外す）
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      const reg = swRegRef.current
+      if (!reg) return
+      reg.update().catch((err) => {
+        console.error('更新チェック中にエラーが発生しました:', err)
+      })
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
 
   // 時刻計算
   const currentRoute = timetable?.routes[route]
@@ -336,13 +341,17 @@ export default function App() {
                       />
                     </Suspense>
                   ) : (
-                    <Suspense fallback={null}>
-                      <BusStopMap
-                        coords={currentRoute.bus_stop_coords}
-                        stopName={currentRoute.bus_stop_name}
-                        route={route}
-                      />
-                    </Suspense>
+                    <div
+                      className="rounded-[20px] flex flex-col items-center justify-center gap-2 p-5 text-center"
+                      style={{ height: 220, background: 'var(--bg-card)' }}
+                    >
+                      <p className="text-[13px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                        オフラインのため地図を表示できません
+                      </p>
+                      <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                        乗り場：{currentRoute.bus_stop_name}
+                      </p>
+                    </div>
                   )}
                 </section>
               </div>
