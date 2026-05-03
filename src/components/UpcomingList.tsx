@@ -1,4 +1,5 @@
 import type { ScheduleEntry, RouteKey, FontSize } from '../types/timetable'
+import { parseHHmmToMinutes } from '../utils/parseTime'
 
 interface Props {
   buses: ScheduleEntry[]
@@ -11,11 +12,6 @@ const FONT_SIZE_MAP: Record<FontSize, string> = {
   small:  'text-xl',
   medium: 'text-[26px]',
   large:  'text-[31px]',
-}
-
-function toMin(t: string): number {
-  const [h, m] = t.split(':').map(Number)
-  return h * 60 + m
 }
 
 function formatDiff(diff: number): string {
@@ -44,7 +40,9 @@ export function UpcomingList({ buses, route, nowMinutes, fontSize }: Props) {
       </p>
       <div className="flex flex-col">
         {buses.map((bus, i) => {
-          const diff = toMin(bus.departure) - nowMinutes
+          const depMin = parseHHmmToMinutes(bus.departure)
+          if (depMin === null) return null
+          const diff = depMin - nowMinutes
           return (
             <div
               key={bus.departure + i}

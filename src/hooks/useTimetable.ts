@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import dayjs from 'dayjs'
 import type { CalendarRules, Timetable } from '../types/timetable'
 import { resolveCalendar } from '../utils/resolveCalendar'
@@ -28,13 +28,22 @@ export function useTimetable(now: dayjs.Dayjs): UseTimetableResult {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const load = async (bustCache = false) => {
+  // 最新の now を ref で保持。load クロージャは ref 経由で参照することで
+  // 「now が毎分変わるが、再フェッチは日付変化時のみ」を満たす
+  const nowRef = useRef(now)
+  nowRef.current = now
+
+  // 日付キー。再フェッチのトリガーになる
+  const dateKey = useMemo(() => now.format('YYYY-MM-DD'), [now])
+
+  const load = useCallback(async (bustCache = false) => {
     setLoading(true)
     setError(null)
     try {
       const rules = await fetchJSON<CalendarRules>('/data/calendar_rules.json', bustCache)
-      const todayId = resolveCalendar(rules, now)
-      const tomorrowId = resolveCalendar(rules, now.add(1, 'day'))
+      const current = nowRef.current
+      const todayId = resolveCalendar(rules, current)
+      const tomorrowId = resolveCalendar(rules, current.add(1, 'day'))
 
       const [todayData, tomorrowData] = await Promise.all([
         fetchJSON<Timetable>(`/data/${todayId}.json`, bustCache),
@@ -48,15 +57,15 @@ export function useTimetable(now: dayjs.Dayjs): UseTimetableResult {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   // 日付が変わったときのみ通常フェッチ（SW NetworkFirst が機能する）
   useEffect(() => {
     void load(false)
-  }, [now.format('YYYY-MM-DD')]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dateKey, load])
 
   // 更新ボタン用: キャッシュバスター付きで強制再取得
-  const refresh = () => load(true)
+  const refresh = useCallback(() => load(true), [load])
 
   return { timetable, tomorrowTimetable, loading, error, refresh }
 }

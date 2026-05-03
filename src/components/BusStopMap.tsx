@@ -54,13 +54,12 @@ function MapFlyTo({ coords }: { coords: BusStopCoords }) {
   return null
 }
 
-/** 初回マウント時にコンテナサイズを再計算してからポップアップを開く */
-function MapAutoPopup({ markerRef }: { markerRef: { current: L.Marker | null } }) {
+/** 初回マウント時にコンテナサイズを再計算する。ポップアップ表示は親の useEffect に一本化 */
+function MapInvalidateOnMount() {
   const map = useMap()
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       map.invalidateSize()
-      markerRef.current?.openPopup()
     })
     return () => cancelAnimationFrame(raf)
   }, [map])
@@ -107,7 +106,7 @@ export function BusStopMap({ coords, stopName, route }: Props) {
             </Popup>
           </Marker>
           <MapFlyTo coords={coords} />
-          <MapAutoPopup markerRef={markerRef} />
+          <MapInvalidateOnMount />
         </MapContainer>
       </div>
 

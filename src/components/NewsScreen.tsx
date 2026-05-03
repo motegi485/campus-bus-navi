@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNews } from '../hooks/useNews'
 import type { NewsItem } from '../types/timetable'
 
+// news.json は Git 管理の信頼できる静的ソース前提。CMS 等の動的ソースに切り替える場合は body のサニタイズ（DOMPurify 等）を必須にすること。
+
 const TAG_STYLES: Record<string, { bg: string; color: string }> = {
   important: { bg: '#fee2e2', color: '#dc2626' },
   info:      { bg: '#dbeafe', color: '#2563eb' },
@@ -62,12 +64,11 @@ function NewsDetail({ item, onBack }: { item: NewsItem; onBack: () => void }) {
 }
 
 export function NewsScreen({ open, onClose }: Props) {
-  const { news, loading, error } = useNews()
-  const [readIds, setReadIds] = useState<Set<number>>(new Set())
+  const { news, loading, error, readIds, markAsRead } = useNews()
   const [selected, setSelected] = useState<NewsItem | null>(null)
 
   const openDetail = (item: NewsItem) => {
-    setReadIds(prev => new Set([...prev, item.id]))
+    markAsRead(item.id)
     setSelected(item)
   }
 
