@@ -20,7 +20,7 @@ const FAQ = [
   },
   {
     q: 'ホーム画面への追加方法は？',
-    a: 'iOSの場合：Safariで開き、共有ボタン →「ホーム画面に追加」を選択してください。Androidの場合：Chromeのメニュー →「ホーム画面に追加」を選択してください。',
+    a: 'iOSの場合：Safariで開き、共有ボタン →「ホーム画面に追加」を選択してください。\nAndroidの場合：Chromeのメニュー →「ホーム画面に追加」を選択してください。',
   },
   {
     q: '現在地からのルート案内が開かない',
@@ -103,7 +103,7 @@ export function HelpScreen({ open, onClose, openFaqIndex }: Props) {
                   <span style={{ fontSize: 10, color: 'var(--text-muted)', transition: 'transform 0.22s', transform: openFaqs.has(i) ? 'rotate(180deg)' : '' }}>▼</span>
                 </div>
                 {openFaqs.has(i) && (
-                  <div style={{ padding: '0 16px 14px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                  <div style={{ padding: '0 16px 14px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap'}}>
                     {faq.a}
                   </div>
                 )}
