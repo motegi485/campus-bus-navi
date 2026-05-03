@@ -18,6 +18,7 @@ import { HelpScreen } from './components/HelpScreen'
 import { Toast, useToast } from './components/Toast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { DayBadge, resolveDiagramType } from './components/DayBadge'
+import { MobilePwaGuide } from './components/MobilePwaGuide'
 
 // 地図は遅延ロード（Leaflet はSSRに非対応のため）
 const BusStopMap = lazy(() =>
@@ -367,6 +368,9 @@ export default function App() {
         {needRefresh && (
           <UpdateBanner onUpdate={() => updateServiceWorker(true)} />
         )}
+
+        {/* モバイル端末向け：ホーム画面追加 / アプリインストール案内 */}
+        <MobilePwaGuide />
           </div>{/* phone-shell-inner */}
         </div>{/* phone outer */}
       </div>{/* app wrapper */}
