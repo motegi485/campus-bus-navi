@@ -27,6 +27,7 @@ npx tsc --noEmit  # ビルドせずに型チェックのみ実行
 2. **`useJSTClock`** は `Asia/Tokyo` の Day.js オブジェクトを返す。次の `:00` 秒境界に同期後、60秒ごとに更新。タブの表示状態変化時に再同期する。
 3. **`App.tsx`** これらのフックを合成し、クロックの更新ごとに `findNextBus()` / `findUpcomingBuses()` を実行。当日の発車便がなくなると `isEndOfService = true` になる。`visibilitychange` でフォアグラウンド復帰時に SW の新バージョンを確認する。
 4. 設定（路線・テーマ・フォントサイズ）は `useSettings` 経由で **localStorage** に保存される。
+5. **`useNews`** が `/public/data/news.json` を取得し、既読状態を localStorage で管理する。
 
 ### 静的データファイル
 
@@ -49,9 +50,11 @@ npx tsc --noEmit  # ビルドせずに型チェックのみ実行
 - OSM 地図タイル → CacheFirst（オフライン動作）
 - JS/CSS/アセット → Workbox プレキャッシュ
 
+**SW キャッシュ URL パターンの注意点:** 時刻表 JSON の `urlPattern` は `/\/data\/.*\.json(\?.*)?$/`。`useTimetable` が手動更新時に `?t=timestamp` のキャッシュバスター付き URL でフェッチするため末尾の `(\?.*)?` が必要。`/\.json$/` に変えるとキャッシュバスター付き URL がマッチせず NetworkFirst が適用されない。
+
 **地図:** Leaflet は動的インポート（lazy）でSSR 問題を回避。iOS 端末（UA に `iPad|iPhone|iPod`）は Apple Maps リンク、それ以外は Google Maps リンクでナビを開く。
 
-**ダイヤ種別** は時刻表 ID 文字列から推定：`holiday` を含む → `'holiday'`、`vac` → `'vacation'`、`event` → `'event'`、それ以外 → `'class'`。
+**ダイヤ種別** は時刻表 ID 文字列から推定：`holiday` を含む → `'holiday'`、`vac` → `'vacation'`、`event` → `'event'`、それ以外 → `'class'`。推定ロジックは `DayBadge.tsx` の `resolveDiagramType()` に実装されている。
 
 **路線:** 2路線のみ — `station_to_campus`（松永駅→大学）と `campus_to_station`（大学→松永駅）。`RouteKey` 型は `src/types/timetable.d.ts` で定義。
 
@@ -69,11 +72,12 @@ src/hooks/
   useOnlineStatus.ts     ← オンライン/オフライン検知
   useInstallPrompt.ts    ← ホーム画面追加（A2HS）プロンプト管理
 src/utils/
-  findNextBus.ts         ← 次の便・直近4便・翌日始発の計算（純粋関数）
+  findNextBus.ts         ← findNextBus / findUpcomingBuses / findFirstBus（翌日始発）を export
   resolveCalendar.ts     ← 日付 → 時刻表 ID のマッピング
   buildMapUrl.ts         ← iOS / Android 向けナビ URL 生成
 src/components/          ← UI コンポーネント（NextBusCard, UpcomingList,
-                            FullTimetable, BusStopMap, DrawerMenu 等）
+                            FullTimetable, BusStopMap, DrawerMenu,
+                            AddToHomeScreen, Toast 等）
 src/types/
   timetable.d.ts         ← 共通 TypeScript 型定義
 ```
