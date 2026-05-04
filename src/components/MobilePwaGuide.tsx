@@ -183,8 +183,8 @@ export function MobilePwaGuide() {
               </li>
               <li style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                 <StepNumber n={2} />
-                <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  「ホーム画面に追加（インストール）」 <DownloadIcon /> を選択
+                <span>
+                  ホーム画面に追加 <DownloadIcon /> からインストールを選択
                 </span>
               </li>
             </>
@@ -194,12 +194,6 @@ export function MobilePwaGuide() {
             <span>ホーム画面のアイコンから起動</span>
           </li>
         </ol>
-
-        {android && (
-          <p style={{ fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 14 }}>
-            「アプリをインストール」が表示されない場合は、アドレスバー右側のインストールアイコンをタップしてください。
-          </p>
-        )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 4 }}>
           <button
