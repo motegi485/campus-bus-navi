@@ -41,6 +41,7 @@
 | お知らせ・設定・ヘルプ | ドロワーから `NewsScreen` / `SettingsScreen` / `HelpScreen` を表示。お知らせは `news.json`（HTML 本文可） |
 | 設定 | デフォルトルート、テーマ（ライト/ダーク）、フォントサイズ（`localStorage`） |
 | PWA | ホーム画面追加、`standalone` 表示、Service Worker によるアセット・データ・タイルのキャッシュ |
+| ホーム画面追加ガイド | `MobilePwaGuide` がモバイルブラウザ向けにホーム画面への追加手順をガイド |
 | 時刻データの手動更新 | ヘッダーの更新ボタンで JSON を再取得（`?t=` キャッシュバスター + `cache: 'reload'`）。**ページはリロードせず**、結果は `Toast` で通知 |
 | アプリ初期化 | ドロワーから実行。SW 登録解除 → `localStorage` 全削除 → Cache Storage 全削除のあと **`location.reload()`**（トラブル時のリセット用） |
 | バージョン表示 | `package.json` の `version` をビルド時に `__APP_VERSION__` として注入。ドロワー・設定・ヘルプに表示 |
@@ -70,47 +71,50 @@
 campus-bus-navi/
 ├── public/
 │   ├── data/
-│   │   ├── calendar_rules.json          # 曜日デフォルト + 日付上書き → 適用する時刻表ファイル名（拡張子なし ID）
-│   │   ├── timetable_weekday.json       # 授業日ダイヤ（例）
-│   │   ├── timetable_holiday.json       # 休日ダイヤ（例）
+│   │   ├── calendar_rules.json              # 曜日デフォルト + 日付上書き → 適用する時刻表ファイル名（拡張子なし ID）
+│   │   ├── timetable_weekday.json           # 授業日ダイヤ
+│   │   ├── timetable_holiday.json           # 休日ダイヤ
 │   │   ├── timetable_spring_vac_wd_2026.json
 │   │   ├── timetable_spring_vac_hld_2026.json
-│   │   ├── timetable_event_example.json # イベント用サンプル
-│   │   ├── timetable_sample.json        # 汎用サンプル
-│   │   └── news.json                    # お知らせ（JSON 配列）
-│   ├── icons/                           # PWA / favicon 用 PNG
-│   └── manifest.json                    # PWA マニフェスト
+│   │   ├── _examples/                       # サンプル・参考用（本番では読み込まれない）
+│   │   │   ├── timetable_sample.json        # 汎用サンプル
+│   │   │   └── timetable_event_example.json # イベント用サンプル
+│   │   └── news.json                        # お知らせ（JSON 配列）
+│   ├── icons/                               # PWA / favicon 用 PNG
+│   └── manifest.json                        # PWA マニフェスト
 ├── src/
 │   ├── components/
-│   │   ├── BusStopMap.tsx               # 乗り場マップ（Leaflet）
-│   │   ├── DayBadge.tsx                 # ダイヤ種別バッジ + resolveDiagramType
+│   │   ├── BusStopMap.tsx                   # 乗り場マップ（Leaflet）
+│   │   ├── DayBadge.tsx                     # ダイヤ種別バッジ + resolveDiagramType
 │   │   ├── DrawerMenu.tsx
 │   │   ├── EndOfServiceCard.tsx
 │   │   ├── FullTimetable.tsx
 │   │   ├── HelpScreen.tsx
+│   │   ├── MobilePwaGuide.tsx               # モバイル向けホーム画面追加ガイド
 │   │   ├── NewsScreen.tsx
 │   │   ├── NextBusCard.tsx
 │   │   ├── RouteToggle.tsx
 │   │   ├── SettingsScreen.tsx
-│   │   ├── Toast.tsx                    # 時刻データ更新などの短い通知
+│   │   ├── Toast.tsx                        # 時刻データ更新などの短い通知
 │   │   ├── UpcomingList.tsx
-│   │   └── UpdateBanner.tsx             # 新 SW 検知時の更新バナー
+│   │   └── UpdateBanner.tsx                 # 新 SW 検知時の更新バナー
 │   ├── hooks/
-│   │   ├── useJSTClock.ts               # JST の現在時刻（分境界付近に同期 + 1 分間隔）
-│   │   ├── useTimetable.ts              # カレンダー解決 + 時刻表 JSON 取得
+│   │   ├── useJSTClock.ts                   # JST の現在時刻（分境界付近に同期 + 1 分間隔）
+│   │   ├── useTimetable.ts                  # カレンダー解決 + 時刻表 JSON 取得
 │   │   ├── useNews.ts
 │   │   ├── useOnlineStatus.ts
 │   │   └── useSettings.ts
 │   ├── utils/
 │   │   ├── resolveCalendar.ts
 │   │   ├── findNextBus.ts
-│   │   └── buildMapUrl.ts               # ナビ用 URL（iOS / それ以外で分岐）
+│   │   ├── parseTime.ts                     # HH:mm 文字列を分単位の数値に変換
+│   │   └── buildMapUrl.ts                   # ナビ用 URL（iOS / それ以外で分岐）
 │   ├── types/timetable.d.ts
 │   ├── App.tsx
 │   ├── main.tsx
 │   └── index.css
-├── _headers                             # Cloudflare: キャッシュ制御
-├── _redirects                           # SPA: `/*` → `/index.html`（200）
+├── _headers                                 # Cloudflare: キャッシュ制御
+├── _redirects                               # SPA: `/*` → `/index.html`（200）
 ├── index.html
 ├── vite.config.ts
 ├── tsconfig.json
@@ -129,6 +133,8 @@ campus-bus-navi/
   - `id`, `name`, `routes` を持つ。`routes` は `station_to_campus` / `campus_to_station` それぞれに `origin`, `destination`, `bus_stop_name`, `bus_stop_coords`, `schedule`（`departure`: `HH:mm`, `note`）を定義。
 - **`news.json`**
   - お知らせの **配列**。各要素の形は `src/types/timetable.d.ts` の `NewsItem`（`id`, `tag`, `tagLabel`, `date`, `title`, `preview`, `body`, `unread` など）に合わせます。
+- **`_examples/`**
+  - `timetable_sample.json`・`timetable_event_example.json` は新規ダイヤ作成時の参考用サンプルです。`calendar_rules.json` から参照されないため本番には影響しません。
 - **取得ロジック:** `useTimetable` が `calendar_rules.json` を読み、当日・翌日のダイヤ ID を解決してから `/data/{id}.json` を並列取得します。JST の日付が変わったときだけ通常フェッチが走ります（`now.format('YYYY-MM-DD')` 依存の `useEffect`）。手動更新では `?t=タイムスタンプ` と `cache: 'reload'` でキャッシュを避けます。フェッチに失敗した場合はエラー文のほか「キャッシュされた時刻表を使用しています」という案内が出ます（SW 経由で古いレスポンスが残っている場合など）。
 
 ---
@@ -213,7 +219,7 @@ npm run preview  # 本番ビルドのローカル確認
 - **基準タイムゾーン:** すべて **日本標準時（JST）**。Day.js の `timezone` で `Asia/Tokyo` を使用します。
 - **端末設定:** 「今日」「今何時か」の判定は JST に揃える実装です（端末のタイムゾーン設定に依存しない意図）。
 - **`useJSTClock`:** 初回マウント時、**端末時計の秒**を使って「次の分の 0 秒付近」まで待ってから `now` を更新し、以降 **60 秒ごと**に更新します。また、タブが非表示→表示に戻ったとき（`visibilitychange`）にも即時に `now` を更新します。カウントダウン文言は分単位のため、秒単位の再描画は行いません。
-- **時刻表データ:** `departure` は `HH:mm` 文字列。当日の分単位比較で次便・終バスを判定（`findNextBus.ts` など）。
+- **時刻表データ:** `departure` は `HH:mm` 文字列。`parseTime.ts` で分単位の数値に変換し、当日の比較で次便・終バスを判定（`findNextBus.ts` など）。
 
 ---
 
