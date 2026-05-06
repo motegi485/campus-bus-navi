@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { useEffect } from 'react'
+import { MapContainer, TileLayer, Marker, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import type { BusStopCoords, RouteKey } from '../types/timetable'
 import { buildMapUrl } from '../utils/buildMapUrl'
@@ -40,9 +40,10 @@ const busStopIcon = L.divIcon({
     </div>
   </div>`,
   // 全体の枠サイズ（48x48）に合わせて数値を再設定
-  iconSize:    [48, 48],
-  iconAnchor:  [24, 46], // 48x48の中心下部（ピンの先端）に座標を合わせる
-  popupAnchor: [0, -46],
+  iconSize:      [48, 48],
+  iconAnchor:    [24, 46], // 48x48の中心下部（ピンの先端）に座標を合わせる
+  popupAnchor:   [0, -46],
+  tooltipAnchor: [0, -46], // popupAnchor と同じ位置にツールチップを表示
 })
 
 /** ルート変更時に地図の中心を滑らかに移動 */
@@ -54,7 +55,7 @@ function MapFlyTo({ coords }: { coords: BusStopCoords }) {
   return null
 }
 
-/** 初回マウント時にコンテナサイズを再計算する。ポップアップ表示は親の useEffect に一本化 */
+/** 初回マウント時にコンテナサイズを再計算する */
 function MapInvalidateOnMount() {
   const map = useMap()
   useEffect(() => {
@@ -76,11 +77,6 @@ export function BusStopMap({ coords, stopName, route }: Props) {
   const mapUrl = buildMapUrl(coords, stopName)
   const isCampus = route === 'campus_to_station'
   const btnColor = isCampus ? '#10b981' : '#6c63d5'
-  const markerRef = useRef<L.Marker>(null)
-
-  useEffect(() => {
-    markerRef.current?.openPopup()
-  }, [coords.lat, coords.lng])
 
   return (
     <div className="bg-[var(--bg-card)] rounded-[20px] overflow-hidden transition-[background] duration-300">
@@ -100,10 +96,11 @@ export function BusStopMap({ coords, stopName, route }: Props) {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
-          <Marker ref={markerRef} position={[coords.lat, coords.lng]} icon={busStopIcon}>
-            <Popup>
+          <Marker position={[coords.lat, coords.lng]} icon={busStopIcon}>
+            {/* Popup は openPopup() のタイミング制御が複雑なため permanent Tooltip に変更 */}
+            <Tooltip permanent direction="top">
               <span className="font-bold">{stopName}</span>
-            </Popup>
+            </Tooltip>
           </Marker>
           <MapFlyTo coords={coords} />
           <MapInvalidateOnMount />
