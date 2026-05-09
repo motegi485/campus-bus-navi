@@ -44,7 +44,12 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false)
 
   // PWA更新検知（registerType: 'prompt'）
+  // コールドスタート時(=起動から COLD_START_GRACE_MS 以内)に新SWを検知した場合は
+  // 自動で skipWaiting + reload を行う。それ以降の検知は UpdateBanner で手動更新。
+  const COLD_START_GRACE_MS = 5000
+  const launchTimeRef = useRef(Date.now())
   const swRegRef = useRef<ServiceWorkerRegistration | null>(null)
+  const [showUpdateBanner, setShowUpdateBanner] = useState(false)
   const {
     needRefresh: [needRefresh], updateServiceWorker
   } = useRegisterSW({
@@ -55,6 +60,44 @@ export default function App() {
       console.error('SW registration error', error)
     },
   })
+
+  // needRefresh が立った時の分岐:
+  //   コールドスタート相当 → 自動適用
+  //   セッション中         → UpdateBanner 表示
+  useEffect(() => {
+    if (!needRefresh) return
+    const elapsed = Date.now() - launchTimeRef.current
+    if (elapsed < COLD_START_GRACE_MS) {
+      updateServiceWorker(true)
+    } else {
+      setShowUpdateBanner(true)
+    }
+  }, [needRefresh, updateServiceWorker])
+
+  // 起動時フォールバック: useRegisterSW の通知に依存せず、既に waiting 状態の
+  // SW を直接検出して skipWaiting する。iOS PWA の standalone モードで
+  // needRefresh が発火しないケースを救済する目的。
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    let reloaded = false
+    const onControllerChange = () => {
+      if (reloaded) return
+      const elapsed = Date.now() - launchTimeRef.current
+      if (elapsed < COLD_START_GRACE_MS) {
+        reloaded = true
+        window.location.reload()
+      }
+    }
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange)
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      if (reg?.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+      }
+    }).catch(() => { /* noop */ })
+    return () => {
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange)
+    }
+  }, [])
 
   // アプリがフォアグラウンド復帰したタイミングで SW 更新チェックを走らせる
   // （addEventListener はマウント中のみ。アンマウント時に確実に外す）
@@ -374,7 +417,8 @@ export default function App() {
         </main>
 
         {/* PWA更新通知バナー（registerType: 'prompt'） */}
-        {needRefresh && (
+        {/* コールドスタート時は自動適用されるため、セッション中の更新検知時のみ表示 */}
+        {showUpdateBanner && (
           <UpdateBanner onUpdate={() => updateServiceWorker(true)} />
         )}
 
