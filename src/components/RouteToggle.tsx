@@ -12,7 +12,7 @@ const OPTIONS: { key: RouteKey; label: string; icon: string }[] = [
 
 export function RouteToggle({ route, onChange }: Props) {
   return (
-    <div className="flex bg-white/20 rounded-full p-[3px] gap-[2px] mt-4 md:w-[64%] md:mx-auto">
+    <div className="flex bg-white/20 rounded-full p-[3px] gap-[2px] mt-4 bp:w-[64%] bp:mx-auto">
       {OPTIONS.map((opt) => {
         const active = route === opt.key
         const colorClass = opt.key === 'campus_to_station'

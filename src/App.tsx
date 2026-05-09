@@ -259,13 +259,13 @@ export default function App() {
         </header>
 
         {/* メインコンテンツ */}
-        <main className="flex flex-col gap-[10px] p-[14px] md:p-6" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 28px)' }}>
+        <main className="flex flex-col gap-[10px] p-[14px] bp:p-6" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 28px)' }}>
 
-          {/* md: 左右2カラムエリア */}
-          <div className="flex flex-col gap-[10px] md:flex-row md:gap-6 md:items-start">
+          {/* bp: 左右2カラムエリア */}
+          <div className="flex flex-col gap-[10px] bp:flex-row bp:gap-6 bp:items-start">
 
             {/* 左カラム: ローディング / エラー / 時刻カード群 */}
-            <div className="flex flex-col gap-[10px] md:flex-1 md:min-w-0">
+            <div className="flex flex-col gap-[10px] bp:flex-1 bp:min-w-0">
 
               {/* ローディング */}
               {loading && (
@@ -308,7 +308,7 @@ export default function App() {
               )}
               {/* モバイルのみ表示: 全時刻表をマップより上に配置 */}
               {!loading && currentRoute && (
-                <div className="md:hidden">
+                <div className="bp:hidden">
                   <FullTimetable
                     schedule={schedule}
                     route={route}
@@ -321,7 +321,7 @@ export default function App() {
 
             {/* 右カラム: 地図 */}
             {!loading && currentRoute && (
-              <div className="md:flex-1 md:min-w-0">
+              <div className="bp:flex-1 bp:min-w-0">
                 <section>
                   <p className="text-[11px] font-bold tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
                     乗り場マップ
@@ -361,7 +361,7 @@ export default function App() {
 
           {/* PC版のみ表示: 全幅展開（2カラムの下） */}
           {!loading && currentRoute && (
-            <div className="hidden md:block">
+            <div className="hidden bp:block">
               <FullTimetable
                 schedule={schedule}
                 route={route}
