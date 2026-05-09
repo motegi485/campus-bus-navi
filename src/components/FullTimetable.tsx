@@ -39,7 +39,7 @@ export function FullTimetable({ schedule, route, currentDeparture, nowMinutes }:
       </button>
 
       {open && (
-        <div className="mt-4 grid grid-cols-3 md:grid-cols-6 gap-[7px]">
+        <div className="mt-4 grid grid-cols-3 bp:grid-cols-6 gap-[7px]">
           {schedule.map((bus, i) => {
             const depMin = parseHHmmToMinutes(bus.departure)
             // 不正な departure はパース失敗 → 過去扱いせずグレー（中立）で表示
