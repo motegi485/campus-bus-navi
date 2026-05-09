@@ -12,6 +12,13 @@
   --font-sans: 'Noto Sans JP', -apple-system, 'Hiragino Sans', sans-serif;
 }
 
+/* モバイル横向き(480px以上) または PC(1024px以上) でPC/横向きデザインを適用 */
+@custom-variant bp {
+  @media (min-width: 1024px), (min-width: 480px) and (orientation: landscape) {
+    @slot;
+  }
+}
+
 /* ============================================================
    CSS カスタムプロパティ（テーマ変数）
    ============================================================ */
@@ -136,16 +143,16 @@ html, body {
    レスポンシブ対応（lg: 1024px以上）
    ============================================================ */
 
-/* PC表示時: phone-shell-inner の角丸・影を解除 */
-@media (min-width: 768px) {
+/* PC/横向き表示時: phone-shell-inner の角丸・影を解除 */
+@media (min-width: 1024px), (min-width: 480px) and (orientation: landscape) {
   .phone-shell-inner {
     border-radius: 0 !important;
     box-shadow: none !important;
   }
 }
 
-/* PC表示時: Leaflet地図の高さを拡大 */
-@media (min-width: 768px) {
+/* PC/横向き表示時: Leaflet地図の高さを拡大 */
+@media (min-width: 1024px), (min-width: 480px) and (orientation: landscape) {
   .leaflet-container {
     height: 400px !important;
   }
