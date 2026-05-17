@@ -67,6 +67,28 @@ function MapInvalidateOnMount() {
   return null
 }
 
+/** コンテナサイズの変化を監視して Leaflet に通知する */
+function MapInvalidateOnResize() {
+  const map = useMap()
+  useEffect(() => {
+    const container = map.getContainer()
+    let raf = 0
+    const observer = new ResizeObserver(() => {
+      // ResizeObserver は連続発火するため次フレームで一度だけ実行
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        map.invalidateSize()
+      })
+    })
+    observer.observe(container)
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(raf)
+    }
+  }, [map])
+  return null
+}
+
 interface Props {
   coords: BusStopCoords
   stopName: string
@@ -104,6 +126,7 @@ export function BusStopMap({ coords, stopName, route }: Props) {
           </Marker>
           <MapFlyTo coords={coords} />
           <MapInvalidateOnMount />
+          <MapInvalidateOnResize /> 
         </MapContainer>
       </div>
 
