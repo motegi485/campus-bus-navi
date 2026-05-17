@@ -148,12 +148,10 @@ export function MobilePwaGuide() {
         }}
       >
         <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 10, letterSpacing: '-.3px' }}>
-          {android ? 'アプリをインストールして使う' : 'アプリをインストールして使う'}
+          アプリをインストールして使う
         </h2>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 18 }}>
-          {android
-            ? 'ホーム画面に追加（インストール）すると、モバイルアプリとして使用できます。'
-            : 'ホーム画面に追加（インストール）すると、モバイルアプリとして使用できます。'}
+          ホーム画面に追加（インストール）すると、モバイルアプリとして使用できます。
         </p>
 
         <ol style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13.5, marginBottom: 18 }}>
