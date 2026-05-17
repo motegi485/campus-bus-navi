@@ -38,7 +38,7 @@
 | ルート切り替え | `station_to_campus`（松永方面→大学）と `campus_to_station`（大学→松永方面）を切り替え |
 | 直近 4 本・全時刻表 | `findUpcomingBuses` で次発以降最大 4 本を表示。全便は `FullTimetable` で一覧（モバイルは地図の上、768px 以上は下段フル幅） |
 | 終バス後の案内 | 当日の運行が終了している場合、翌日の始発などを `EndOfServiceCard` で表示 |
-| 乗り場マップ | `react-leaflet` + OSM。ポップアップ、「現在地からのルートを見る」で外部ナビ起動 |
+| 乗り場マップ | `react-leaflet` + OSM。マーカーに永続ツールチップで乗り場名表示、「現在地からのルートを見る」で外部ナビ起動。オフライン時は乗り場名プレースホルダーを表示 |
 | ダイヤ切り替え | 曜日デフォルト + 日付単位の上書き（春休みダイヤなど） |
 | お知らせ・設定・ヘルプ | ドロワーから `NewsScreen` / `SettingsScreen` / `HelpScreen` を表示。お知らせは `news.json`（HTML 本文可） |
 | 設定 | デフォルトルート、テーマ（ライト/ダーク）、フォントサイズ（`localStorage`） |
@@ -194,6 +194,8 @@ npm run preview  # 本番ビルドのローカル確認
 | 項目 | 内容 |
 |------|------|
 | 登録方式 | `registerType: 'prompt'`。新しい SW を検知すると `UpdateBanner` を表示し、ユーザーが「更新」を選ぶまで強制更新しません。 |
+| コールドスタート自動更新 | アプリ起動から **5 秒以内**（`COLD_START_GRACE_MS = 5000`）に新 SW を検知した場合は `updateServiceWorker(true)` を自動適用。セッション中の検知は `UpdateBanner` で手動更新。 |
+| iOS PWA フォールバック | `standalone` モードで `useRegisterSW` の `needRefresh` が発火しない場合のため、`navigator.serviceWorker.getRegistration()` で `waiting` 状態の SW を直接検出し `SKIP_WAITING` メッセージを送る。`controllerchange` イベントで起動直後なら自動リロード。 |
 | フォアグラウンド復帰 | `App.tsx` で `visibilitychange` 時に `registration.update()` を呼び、バックグラウンドから戻ったあとにも更新を確認します。 |
 | マニフェスト | `manifest: false` により **`public/manifest.json` をそのまま利用**（プラグイン生成マニフェストは使わない） |
 | プリキャッシュ | Workbox の `globPatterns` で JS/CSS/HTML/画像/JSON 等をビルド成果物からキャッシュ |
@@ -210,9 +212,11 @@ npm run preview  # 本番ビルドのローカル確認
 - **タイル:** `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`、帰属表示あり。Service Worker 側のマッチは `a` / `b` / `c` サブドメイン向けの正規表現です。
 - **表示:** 高さ 220px、**初期ズーム 17**、`minZoom` 14 / **`maxZoom` 18**。ルート切替時は `flyTo` で中心移動（約 1.2 秒、ズーム 17）。
 - **マーカー:** Leaflet 既定クラスの `_getIconUrl` を削除し、CDN 上の既定 PNG（Retina/標準/影）を `mergeOptions` で指定（Vite バンドル時の欠落対策）。乗り場は **`L.divIcon`** で、インライン HTML/CSS から **ティアドロップ型のピン**（ローズ色 `#E11D48`、回転した角丸四角＋中央の白丸、48×48 の配置枠、`filter: drop-shadow` で影）を描画します。
+- **ラベル表示:** マーカーには **`Tooltip permanent direction="top"`** で乗り場名を常時表示します（以前の `Popup` から変更。クリックなしで常に見えるため）。
+- **サイズ再計算:** `MapInvalidateOnMount`（初回マウント後 `requestAnimationFrame` で `invalidateSize` 呼び出し）と `MapInvalidateOnResize`（`ResizeObserver` でコンテナサイズ変化を監視して `invalidateSize` 呼び出し）により、レイアウト変化でタイルが欠けるバグを防いでいます。
 - **重なり:** 親に `isolation: 'isolate'` と `z-index` を与え、ドロワーがタイルレイヤより下に潜る問題を防ぎます。
 - **ナビ連携:** `buildMapUrl.ts` — **iOS**（`iPad` / `iPhone` / `iPod` の UA）は `maps://`（Apple マップ・徒歩）。**それ以外** は Google マップの徒歩ルート（`https://www.google.com/maps/dir/?api=1&destination={lat},{lng}&destination_place_id={encodeURIComponent(label)}&travelmode=walking` の形。`label` は停留所名）。「現在地からのルートを見る」の文字色はルートに応じて切り替わります（`campus_to_station` は `#10b981`、`station_to_campus` は `#6c63d5`）。
-- **オフライン:** オンライン・オフラインで同じ `BusStopMap` を表示します。タイルは SW の CacheFirst により、**既にキャッシュされた範囲は表示できる**ことがあります。未キャッシュ領域は取得に失敗することがあります。
+- **オフライン:** `useOnlineStatus` でオフラインを検知した場合、`BusStopMap` は表示されず **乗り場名を示すプレースホルダーカード**を表示します。オンライン復帰後は地図に切り替わります。SW の CacheFirst によりキャッシュ済みタイルは表示されることがありますが、地図コンポーネント自体のマウントはオンライン時のみです。
 
 ---
 
