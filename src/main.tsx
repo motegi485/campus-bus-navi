@@ -5,12 +5,21 @@ import App from './App'
 
 function syncBpActiveClass() {
   // iPadOS PWA バグ対策:
-  // window.innerWidth は再起動直後に誤った値（実際820pxなのに1280px等）に膨張する。
-  // screen.width / screen.height / screen.orientation.type は OS レベルで信頼できる。
+  // - window.innerWidth はビューポート膨張バグで誤った値を返す（実際820pxなのに1280px等）
+  // - screen.orientation.type は 2 回目以降の起動時に前回セッションの古い値を返すことがある
+  // - 複数ソースで AND 条件を取り、すべて landscape の時のみ landscape と判定する（誤検出回避）
 
-  const isLandscape = screen.orientation
-    ? screen.orientation.type.startsWith('landscape')
-    : screen.width > screen.height  // fallback
+  const signals: boolean[] = []
+  if (typeof window.matchMedia === 'function') {
+    signals.push(window.matchMedia('(orientation: landscape)').matches)
+  }
+  if (screen.orientation?.type) {
+    signals.push(screen.orientation.type.startsWith('landscape'))
+  }
+
+  const isLandscape = signals.length > 0
+    ? signals.every(s => s)  // 全シグナル一致時のみ landscape（一つでも portrait なら portrait 扱い）
+    : screen.width > screen.height  // API 未提供時の最終フォールバック
 
   // screen.width/height の回転挙動はブラウザ差があるため、長辺・短辺で扱う
   const longSide = Math.max(screen.width, screen.height)
@@ -21,6 +30,13 @@ function syncBpActiveClass() {
   const shouldApplyBp = currentWidth >= 1024 || (isLandscape && currentWidth >= 480)
 
   document.documentElement.classList.toggle('bp-active', shouldApplyBp)
+}
+
+function resyncBp() {
+  syncBpActiveClass()
+  // iPad PWA は再起動直後 screen.* / matchMedia の値が遅れて更新されることがあるため、
+  // 次フレームでも再評価して取りこぼしを防ぐ
+  requestAnimationFrame(syncBpActiveClass)
 }
 
 async function main() {
@@ -53,8 +69,26 @@ async function main() {
     }
   }
 
-  syncBpActiveClass()
+  resyncBp()
+
+  // orientation 変化（回転）
   screen.orientation?.addEventListener('change', syncBpActiveClass)
+
+  // matchMedia の変化（orientation / breakpoint しきい値）
+  window.matchMedia('(orientation: portrait)').addEventListener('change', syncBpActiveClass)
+  window.matchMedia('(min-width: 1024px)').addEventListener('change', syncBpActiveClass)
+
+  // viewport サイズ変更（ウィンドウリサイズ等）
+  window.addEventListener('resize', syncBpActiveClass)
+
+  // PWA が前面に出るたびに再評価
+  // iPad PWA で 2 回目以降の起動時に screen.* が前回セッションの古い値を返す問題への対策
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') resyncBp()
+  })
+
+  // pageshow（BFCache からの復元時も含めて発火）
+  window.addEventListener('pageshow', resyncBp)
 
   const rootElement = document.getElementById('root')
   if (!rootElement) {
