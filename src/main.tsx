@@ -3,6 +3,61 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
 
+// === 一時デバッグ: ビューポート計測オーバーレイ（原因確定後に削除） ===
+function mountViewportDebugOverlay() {
+  const box = document.createElement('pre')
+  box.style.cssText = [
+    'position:fixed','top:0','left:0','z-index:99999','margin:0','padding:6px 8px',
+    'max-width:100vw','box-sizing:border-box','font:10px/1.35 ui-monospace,monospace',
+    'white-space:pre-wrap','word-break:break-all','color:#0f0',
+    'background:rgba(0,0,0,.82)','pointer-events:none',
+  ].join(';')
+  document.body.appendChild(box)
+
+  const vv = () => window.visualViewport
+  const mm = (q: string) => window.matchMedia(q).matches
+  const appH = () => getComputedStyle(document.documentElement).getPropertyValue('--app-height').trim() || '(unset)'
+  const log: string[] = []
+
+  function snap(label: string) {
+    const shell = document.querySelector('.phone-shell-inner') as HTMLElement | null
+    const r = shell?.getBoundingClientRect()
+    log.unshift(
+      `[${new Date().toLocaleTimeString()}] ${label}\n` +
+      ` inner ${window.innerWidth}x${window.innerHeight} client ${document.documentElement.clientWidth}x${document.documentElement.clientHeight}\n` +
+      ` vv ${Math.round(vv()?.width ?? -1)}x${Math.round(vv()?.height ?? -1)} scale ${vv()?.scale ?? '-'} offTop ${Math.round(vv()?.offsetTop ?? -1)}\n` +
+      ` screen ${screen.width}x${screen.height} avail ${screen.availWidth}x${screen.availHeight} dpr ${window.devicePixelRatio}\n` +
+      ` orient ${screen.orientation?.type ?? '-'}(${screen.orientation?.angle ?? '-'}) mmLand ${mm('(orientation: landscape)')} mm1024 ${mm('(min-width:1024px)')}\n` +
+      ` bp-active ${document.documentElement.classList.contains('bp-active')} --app-height ${appH()} standalone ${(navigator as any).standalone}\n` +
+      ` shell ${r ? Math.round(r.width) + 'x' + Math.round(r.height) : '-'}`
+    )
+    if (log.length > 8) log.length = 8
+    box.textContent = log.join('\n----\n')
+  }
+
+  snap('init')
+  requestAnimationFrame(() => snap('raf'))
+  ;[100, 300, 600, 1200].forEach(ms => setTimeout(() => snap('t+' + ms), ms))
+  window.addEventListener('resize', () => snap('resize'))
+  window.addEventListener('orientationchange', () => setTimeout(() => snap('orientationchange'), 300))
+  vv()?.addEventListener('resize', () => snap('vv-resize'))
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return
+    snap('visible'); requestAnimationFrame(() => snap('visible+raf'))
+    ;[200, 600, 1200].forEach(ms => setTimeout(() => snap('visible+' + ms), ms))
+  })
+  window.addEventListener('pageshow', (e) => snap('pageshow persisted=' + (e as PageTransitionEvent).persisted))
+}
+
+// iOS/iPadOS: 復帰時に viewport を揺さぶってレイアウト再計算を強制する
+function forceViewportRecalc() {
+  const meta = document.querySelector('meta[name="viewport"]')
+  const original = meta?.getAttribute('content') || ''
+  if (!meta || !original.includes('viewport-fit=cover')) return
+  meta.setAttribute('content', original.replace('viewport-fit=cover', 'viewport-fit=auto'))
+  requestAnimationFrame(() => meta.setAttribute('content', original))
+}
+
 function syncBpActiveClass() {
   // iPadOS PWA バグ対策:
   // - window.innerWidth はビューポート膨張バグで誤った値を返す（実際820pxなのに1280px等）
@@ -53,6 +108,7 @@ function resync() {
 }
 
 async function main() {
+  mountViewportDebugOverlay()
   // iOS PWA では SW バックグラウンド更新が届きにくく、旧 CSS（@media クエリ含む）が
   // キャッシュに残り続けることがある。React mount 前に待機 SW を検出して即座に適用し、
   // 旧 CSS が画面に表示される前に新 SW へ切り替える。
@@ -82,6 +138,11 @@ async function main() {
     }
   }
 
+  forceViewportRecalc()
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { forceViewportRecalc(); resync() }
+  })
+  window.addEventListener('pageshow', () => { forceViewportRecalc(); resync() })
   resync()
 
   // 回転・しきい値変化 → bp と高さの両方を再評価
@@ -94,12 +155,6 @@ async function main() {
 
   // visualViewport の変化(より早く確定する) → 高さを反映
   window.visualViewport?.addEventListener('resize', syncAppHeight)
-
-  // 前面復帰 / BFCache 復元 → 再評価(縦潰れの主因に対処)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') resync()
-  })
-  window.addEventListener('pageshow', resync)
 
   const rootElement = document.getElementById('root')
   if (!rootElement) {
