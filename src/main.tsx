@@ -32,11 +32,24 @@ function syncBpActiveClass() {
   document.documentElement.classList.toggle('bp-active', shouldApplyBp)
 }
 
-function resyncBp() {
+// 実ビューポート高さ(px)を CSS 変数 --app-height に反映する。
+// iOS/iPadOS の standalone PWA では 100dvh が(再)起動直後に正しく初期化されず、
+// 回転 or リロードまで誤った高さのままになる(= UI が縦に潰れて見える主因)。
+// window.innerHeight / visualViewport.height は確定後は正しいので、これを採用する。
+function syncAppHeight() {
+  const h = window.visualViewport?.height ?? window.innerHeight
+  if (h > 0) {
+    document.documentElement.style.setProperty('--app-height', `${Math.round(h)}px`)
+  }
+}
+
+function resync() {
   syncBpActiveClass()
-  // iPad PWA は再起動直後 screen.* / matchMedia の値が遅れて更新されることがあるため、
-  // 次フレームでも再評価して取りこぼしを防ぐ
-  requestAnimationFrame(syncBpActiveClass)
+  syncAppHeight()
+  // iPad PWA は前面復帰直後 screen.* / innerHeight が遅れて確定するため、
+  // 次フレーム + 250ms 後にも再評価して取りこぼし(縦潰れ)を防ぐ
+  requestAnimationFrame(() => { syncBpActiveClass(); syncAppHeight() })
+  setTimeout(() => { syncBpActiveClass(); syncAppHeight() }, 250)
 }
 
 async function main() {
@@ -69,26 +82,24 @@ async function main() {
     }
   }
 
-  resyncBp()
+  resync()
 
-  // orientation 変化（回転）
-  screen.orientation?.addEventListener('change', syncBpActiveClass)
-
-  // matchMedia の変化（orientation / breakpoint しきい値）
-  window.matchMedia('(orientation: portrait)').addEventListener('change', syncBpActiveClass)
+  // 回転・しきい値変化 → bp と高さの両方を再評価
+  screen.orientation?.addEventListener('change', resync)
+  window.matchMedia('(orientation: portrait)').addEventListener('change', resync)
   window.matchMedia('(min-width: 1024px)').addEventListener('change', syncBpActiveClass)
 
-  // viewport サイズ変更（ウィンドウリサイズ等）
-  window.addEventListener('resize', syncBpActiveClass)
+  // リサイズ(Split View / Stage Manager 含む) → 即時に bp と高さを反映
+  window.addEventListener('resize', () => { syncBpActiveClass(); syncAppHeight() })
 
-  // PWA が前面に出るたびに再評価
-  // iPad PWA で 2 回目以降の起動時に screen.* が前回セッションの古い値を返す問題への対策
+  // visualViewport の変化(より早く確定する) → 高さを反映
+  window.visualViewport?.addEventListener('resize', syncAppHeight)
+
+  // 前面復帰 / BFCache 復元 → 再評価(縦潰れの主因に対処)
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') resyncBp()
+    if (document.visibilityState === 'visible') resync()
   })
-
-  // pageshow（BFCache からの復元時も含めて発火）
-  window.addEventListener('pageshow', resyncBp)
+  window.addEventListener('pageshow', resync)
 
   const rootElement = document.getElementById('root')
   if (!rootElement) {

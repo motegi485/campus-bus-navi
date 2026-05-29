@@ -194,7 +194,7 @@ export default function App() {
           style={{
             /* 💡 背景色の指定を削除し、透明にする */
             /* モバイルでは最低画面高さいっぱい、PCでは内容に合わせる */
-            minHeight: '100dvh',
+            minHeight: 'var(--app-height, 100vh)',
           }}
         >
           {/* PC時のみ角丸・影をインラインで付与（media queryの代わりにJS判定は使わない） */}
@@ -214,7 +214,7 @@ export default function App() {
               position: 'relative',
               background: 'var(--bg-page)', // 背景は内側だけで描画する
               transition: 'background 0.35s',
-              minHeight: '100dvh',
+              minHeight: 'var(--app-height, 100vh)',
             }}
           >
         {/* Toast */}
