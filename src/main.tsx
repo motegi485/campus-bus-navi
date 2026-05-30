@@ -49,13 +49,16 @@ function mountViewportDebugOverlay() {
   window.addEventListener('pageshow', (e) => snap('pageshow persisted=' + (e as PageTransitionEvent).persisted))
 }
 
-// iOS/iPadOS: 復帰時に viewport を揺さぶってレイアウト再計算を強制する
-function forceViewportRecalc() {
-  const meta = document.querySelector('meta[name="viewport"]')
-  const original = meta?.getAttribute('content') || ''
-  if (!meta || !original.includes('viewport-fit=cover')) return
-  meta.setAttribute('content', original.replace('viewport-fit=cover', 'viewport-fit=auto'))
-  requestAnimationFrame(() => meta.setAttribute('content', original))
+// iOS/iPadOS standalone PWA: 再起動時にレイアウトビューポートが膨張(inner≫screen)し、
+// scale<1 で全体が縮小描画される問題への対策。
+// meta[viewport] を作り直して倍率を 1 に固定し、ズームアウトを禁止する
+// → レイアウト幅が device-width(=実画面幅) に戻り、scale も 1 に戻る。
+function fixViewportScale() {
+  document.querySelector('meta[name="viewport"]')?.remove()
+  const meta = document.createElement('meta')
+  meta.name = 'viewport'
+  meta.content = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover'
+  document.head.appendChild(meta)
 }
 
 function syncBpActiveClass() {
@@ -138,22 +141,23 @@ async function main() {
     }
   }
 
-  forceViewportRecalc()
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') { forceViewportRecalc(); resync() }
-  })
-  window.addEventListener('pageshow', () => { forceViewportRecalc(); resync() })
+// 起動直後にも一度スケールを正常化
+  fixViewportScale()
   resync()
 
-  // 回転・しきい値変化 → bp と高さの両方を再評価
+  // 前面復帰 / BFCache 復元 → viewport を作り直してスケールを戻してから再評価
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { fixViewportScale(); resync() }
+  })
+  window.addEventListener('pageshow', () => { fixViewportScale(); resync() })
+
+  // 回転・しきい値変化
   screen.orientation?.addEventListener('change', resync)
   window.matchMedia('(orientation: portrait)').addEventListener('change', resync)
   window.matchMedia('(min-width: 1024px)').addEventListener('change', syncBpActiveClass)
 
-  // リサイズ(Split View / Stage Manager 含む) → 即時に bp と高さを反映
+  // リサイズ(Split View / Stage Manager 含む)
   window.addEventListener('resize', () => { syncBpActiveClass(); syncAppHeight() })
-
-  // visualViewport の変化(より早く確定する) → 高さを反映
   window.visualViewport?.addEventListener('resize', syncAppHeight)
 
   const rootElement = document.getElementById('root')
