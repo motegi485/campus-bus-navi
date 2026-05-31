@@ -3,12 +3,21 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
 
-function syncBpActiveClass() {
-  // iPadOS PWA バグ対策:
-  // - window.innerWidth はビューポート膨張バグで誤った値を返す（実際820pxなのに1280px等）
-  // - screen.orientation.type は 2 回目以降の起動時に前回セッションの古い値を返すことがある
-  // - 複数ソースで AND 条件を取り、すべて landscape の時のみ landscape と判定する（誤検出回避）
+/*
+  iPad(WebKit) 縦潰れ不具合の対処メモ:
+    真因 = Safari の「shrink-to-fit」。再起動後に一瞬 820px を超える要素が描画されると、
+           iOS がレイアウト幅を広げ(1280) ページ全体を縮小描画(scale≈0.64)していた。
+    対処 = index.html の viewport メタに「shrink-to-fit=no」を付与（← これが実際の修正本体）。
+           <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, shrink-to-fit=no" />
+  このファイル側では bp-active(横2カラム判定) と --app-height(実高さ) の同期のみを担当する。
+*/
 
+// bp-active（PC/横向き2カラム）判定
+//   iPadOS PWA バグ対策:
+//   - window.innerWidth はビューポート膨張バグで誤った値を返すことがある（実820pxなのに1280px等）
+//   - screen.orientation.type は 2 回目以降の起動時に前回セッションの古い値を返すことがある
+//   - 複数ソースで AND 条件を取り、すべて landscape の時のみ landscape と判定する（誤検出回避）
+function syncBpActiveClass() {
   const signals: boolean[] = []
   if (typeof window.matchMedia === 'function') {
     signals.push(window.matchMedia('(orientation: landscape)').matches)
@@ -33,9 +42,7 @@ function syncBpActiveClass() {
 }
 
 // 実ビューポート高さ(px)を CSS 変数 --app-height に反映する。
-// iOS/iPadOS の standalone PWA では 100dvh が(再)起動直後に正しく初期化されず、
-// 回転 or リロードまで誤った高さのままになる(= UI が縦に潰れて見える主因)。
-// window.innerHeight / visualViewport.height は確定後は正しいので、これを採用する。
+// App.tsx 側は min-height: var(--app-height, 100vh) を使用する。
 function syncAppHeight() {
   const h = window.visualViewport?.height ?? window.innerHeight
   if (h > 0) {
@@ -43,11 +50,11 @@ function syncAppHeight() {
   }
 }
 
+// bp と 高さ をまとめて再評価。iPad PWA は復帰直後に値が遅れて確定するため、
+// 次フレーム + 250ms 後にも再評価して取りこぼしを防ぐ。
 function resync() {
   syncBpActiveClass()
   syncAppHeight()
-  // iPad PWA は前面復帰直後 screen.* / innerHeight が遅れて確定するため、
-  // 次フレーム + 250ms 後にも再評価して取りこぼし(縦潰れ)を防ぐ
   requestAnimationFrame(() => { syncBpActiveClass(); syncAppHeight() })
   setTimeout(() => { syncBpActiveClass(); syncAppHeight() }, 250)
 }
@@ -72,6 +79,7 @@ async function main() {
           }, { once: true })
           waiting.postMessage({ type: 'SKIP_WAITING' })
         })
+        // 初期化フローのみ reload を許可（待機 SW を確実に反映するため）
         window.location.reload()
         return
       }
@@ -82,24 +90,23 @@ async function main() {
     }
   }
 
+  // 初期同期
   resync()
 
-  // 回転・しきい値変化 → bp と高さの両方を再評価
+  // 回転・しきい値変化 → bp と高さを再評価
   screen.orientation?.addEventListener('change', resync)
   window.matchMedia('(orientation: portrait)').addEventListener('change', resync)
   window.matchMedia('(min-width: 1024px)').addEventListener('change', syncBpActiveClass)
 
-  // リサイズ(Split View / Stage Manager 含む) → 即時に bp と高さを反映
+  // リサイズ(Split View / Stage Manager 含む) / visualViewport 変化
   window.addEventListener('resize', () => { syncBpActiveClass(); syncAppHeight() })
-
-  // visualViewport の変化(より早く確定する) → 高さを反映
   window.visualViewport?.addEventListener('resize', syncAppHeight)
 
-  // 前面復帰 / BFCache 復元 → 再評価(縦潰れの主因に対処)
+  // 前面復帰 / BFCache 復元 → 再評価
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') resync()
   })
-  window.addEventListener('pageshow', resync)
+  window.addEventListener('pageshow', () => resync())
 
   const rootElement = document.getElementById('root')
   if (!rootElement) {
