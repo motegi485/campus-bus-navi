@@ -178,37 +178,26 @@ export default function App() {
 
   return (
     /*
-      レスポンシブ戦略:
-      - モバイル（< 768px）: 全画面縦1カラム表示
-      - PC（>= 768px）: 時刻表（左）・地図（右）の2カラム表示。全時刻表は全幅展開
+      レスポンシブ戦略（ブレークポイント判定は CSS メディアクエリではなく
+      main.tsx の syncBpActiveClass が付与する html.bp-active クラスで行う。
+      条件: 画面幅 1024px 以上、または landscape かつ 480px 以上）:
+      - モバイル（bp 未満）        : 全画面・縦1カラム表示
+      - PC/横向き（html.bp-active）: 時刻表（左）・地図（右）の2カラム + 全時刻表は下段フル幅
     */
     <>
-      {/* アプリ外枠 */}
-      <div
-        className={`${themeClass}`}
-      >
-{/* フォンシェル：モバイル=全画面、PC=カード */}
+      {/* アプリ外枠（テーマクラスを付与） */}
+      <div className={themeClass}>
+        {/* シェル: モバイル=全画面、PC/横向き=全幅 */}
         <div
-          // 💡 親要素から overflow-hidden を削除
-          className={`relative w-full ${themeClass}`} 
+          className={`relative w-full ${themeClass}`}
           style={{
-            /* 💡 背景色の指定を削除し、透明にする */
-            /* モバイルでは最低画面高さいっぱい、PCでは内容に合わせる */
+            // 実ビューポート高さ(--app-height)を下限に。未設定環境では 100vh にフォールバック
             minHeight: 'var(--app-height, 100vh)',
           }}
         >
-          {/* PC時のみ角丸・影をインラインで付与（media queryの代わりにJS判定は使わない） */}
-          <style>{`
-            @media (min-width: 9999px) {
-              .phone-shell-inner {
-                border-radius: 44px;
-                box-shadow: 0 32px 100px rgba(0,0,0,0.55);
-                min-height: unset !important;
-              }
-            }
-          `}</style>
+          {/* 角丸・影の付与/解除は index.css の html.bp-active .phone-shell-inner で制御する */}
           <div
-            // 💡 ここに isolate を追加（丸い角を綺麗に切り抜くため）
+            // isolate: 子要素の z-index をこのコンテナ内に閉じ込め、角丸クリップと重なり順を安定させる
             className="phone-shell-inner w-full overflow-hidden isolate"
             style={{
               position: 'relative',
@@ -258,6 +247,7 @@ export default function App() {
             {/* ハンバーガーボタン */}
             <button
               onClick={() => setDrawerOpen(true)}
+              aria-label="メニューを開く"
               className="flex flex-col gap-[4.5px] items-center justify-center"
               style={{ width: 43, height: 43, borderRadius: '50%', background: 'rgba(255,255,255,0.26)', flexShrink: 0 }}
             >
@@ -283,6 +273,7 @@ export default function App() {
             <button
               onClick={handleRefresh}
               disabled={refreshing}
+              aria-label="時刻データを更新"
               style={{
                 width: 43, height: 43, borderRadius: '50%', background: 'rgba(255,255,255,0.26)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
