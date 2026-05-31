@@ -3,52 +3,21 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
 
-function mountViewportDebugOverlay() {
-  const box = document.createElement('pre')
-  box.style.cssText = [
-    'position:fixed','top:0','left:0','z-index:99999','margin:0','padding:6px 8px',
-    'max-width:100vw','box-sizing:border-box','font:9px/1.3 ui-monospace,monospace',
-    'white-space:pre-wrap','word-break:break-all','color:#0f0',
-    'background:rgba(0,0,0,.85)','pointer-events:none',
-  ].join(';')
-  document.body.appendChild(box)
-
-  const vv = () => window.visualViewport
-  const correct = Math.min(screen.width, screen.height) // 正しい縦持ち幅(=820)
-  const log: string[] = []
-
-  function wideEls(): string {
-    const rows: { id: string; right: number }[] = []
-    document.querySelectorAll('body *').forEach(node => {
-      const el = node as HTMLElement
-      const r = el.getBoundingClientRect()
-      if (r.right > correct + 2) {
-        const cls = (typeof el.className === 'string' ? el.className : '').trim().replace(/\s+/g, '.').slice(0, 38)
-        rows.push({ id: `${el.tagName.toLowerCase()}${cls ? '.' + cls : ''}(${Math.round(r.right)})`, right: r.right })
-      }
-    })
-    rows.sort((a, b) => b.right - a.right)
-    return rows.length ? rows.slice(0, 6).map(x => x.id).join(' ') : 'none'
-  }
-
-  function snap(label: string, scan = false) {
-    log.unshift(
-      `[${label}] inner ${window.innerWidth}x${window.innerHeight} scale ${vv()?.scale ?? '-'}` +
-      (scan ? `\n  >${correct}px: ${wideEls()}` : '')
-    )
-    if (log.length > 9) log.length = 9
-    box.textContent = log.join('\n')
-  }
-
-  snap('init', true)
-  requestAnimationFrame(() => snap('raf', true))
-  ;[100, 300, 600, 1000, 1800].forEach(ms => setTimeout(() => snap('t+' + ms, true), ms))
-  window.addEventListener('resize', () => snap('resize', true))
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return
-    ;[0, 300, 1000].forEach(ms => setTimeout(() => snap('vis+' + ms, true), ms))
-  })
-  window.addEventListener('pageshow', () => snap('pageshow', true))
+let vpFixAttempts = 0
+function enforceViewport() {
+  const isLandscape = window.matchMedia('(orientation: landscape)').matches
+  const w = isLandscape ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)
+  const inflated = (window.visualViewport ? window.visualViewport.scale < 0.99 : false) || window.innerWidth > w + 4
+  if (!inflated || vpFixAttempts > 6) return       // 膨張時のみ・最大6回まで
+  vpFixAttempts++
+  document.querySelector('meta[name="viewport"]')?.remove()
+  const m = document.createElement('meta')
+  m.name = 'viewport'
+  m.content = `width=${w}, initial-scale=1, viewport-fit=cover`   // 実画面幅を数値で固定
+  document.head.appendChild(m)
+}
+function enforceViewportSoon() {
+  for (const ms of [0, 200, 500, 1000, 2000]) setTimeout(enforceViewport, ms)
 }
 
 function syncBpActiveClass() {
@@ -132,21 +101,19 @@ async function main() {
   }
 
   resync()
+  enforceViewportSoon()
 
-  // 前面復帰 / BFCache 復元 → viewport を作り直してスケールを戻してから再評価
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') resync()
-  })
-  window.addEventListener('pageshow', () => resync())
-
-  // 回転・しきい値変化
-  screen.orientation?.addEventListener('change', resync)
+  screen.orientation?.addEventListener('change', () => { vpFixAttempts = 0; resync(); enforceViewportSoon() })
   window.matchMedia('(orientation: portrait)').addEventListener('change', resync)
   window.matchMedia('(min-width: 1024px)').addEventListener('change', syncBpActiveClass)
 
-  // リサイズ(Split View / Stage Manager 含む)
-  window.addEventListener('resize', () => { syncBpActiveClass(); syncAppHeight() })
-  window.visualViewport?.addEventListener('resize', syncAppHeight)
+  window.addEventListener('resize', () => { syncBpActiveClass(); syncAppHeight(); enforceViewport() })
+  window.visualViewport?.addEventListener('resize', () => { syncAppHeight(); enforceViewport() })
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { resync(); enforceViewportSoon() }
+  })
+  window.addEventListener('pageshow', () => { resync(); enforceViewportSoon() })
 
   const rootElement = document.getElementById('root')
   if (!rootElement) {
