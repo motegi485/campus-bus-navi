@@ -54,10 +54,14 @@ function mountViewportDebugOverlay() {
 // meta[viewport] を作り直して倍率を 1 に固定し、ズームアウトを禁止する
 // → レイアウト幅が device-width(=実画面幅) に戻り、scale も 1 に戻る。
 function fixViewportScale() {
+  const short = Math.min(screen.width, screen.height)
+  const long  = Math.max(screen.width, screen.height)
+  const isLandscape = window.matchMedia('(orientation: landscape)').matches
+  const vw = isLandscape ? long : short   // 実画面幅を明示的に指定
   document.querySelector('meta[name="viewport"]')?.remove()
   const meta = document.createElement('meta')
   meta.name = 'viewport'
-  meta.content = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover'
+  meta.content = `width=${vw}, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover`
   document.head.appendChild(meta)
 }
 
