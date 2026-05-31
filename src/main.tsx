@@ -100,6 +100,7 @@ async function main() {
     }
   }
 
+  // 膨張を検知したら viewport を貼り直すウォッチドッグ
   resync()
   enforceViewportSoon()
 
