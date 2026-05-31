@@ -36,7 +36,7 @@
 | 次発バス表示 | 現在時刻（JST）に基づき、次の発車時刻と **あと何分** で発車するかを表示（内部は分単位。時計は約 1 分ごとに更新） |
 | ダイヤ種別バッジ | 読み込んだ時刻表 ID から `DayBadge` で種別ラベルを表示（`holiday` / `vac` / `event` を含む ID で休業・長期休暇・イベントを推定。それ以外は授業日扱い） |
 | ルート切り替え | `station_to_campus`（松永方面→大学）と `campus_to_station`（大学→松永方面）を切り替え |
-| 直近 4 本・全時刻表 | `findUpcomingBuses` で次発以降最大 4 本を表示。全便は `FullTimetable` で一覧（モバイルは地図の上、768px 以上は下段フル幅） |
+| 直近 4 本・全時刻表 | `findUpcomingBuses` で次発以降最大 4 本を表示。全便は `FullTimetable` で一覧（モバイルは地図の上、PC・横向き表示では下段フル幅） |
 | 終バス後の案内 | 当日の運行が終了している場合、翌日の始発などを `EndOfServiceCard` で表示 |
 | 乗り場マップ | `react-leaflet` + OSM。マーカーに永続ツールチップで乗り場名表示、「現在地からのルートを見る」で外部ナビ起動。オフライン時は乗り場名プレースホルダーを表示 |
 | ダイヤ切り替え | 曜日デフォルト + 日付単位の上書き（春休みダイヤなど） |
@@ -215,7 +215,7 @@ npm run preview  # 本番ビルドのローカル確認
 - **ラベル表示:** マーカーには **`Tooltip permanent direction="top"`** で乗り場名を常時表示します（以前の `Popup` から変更。クリックなしで常に見えるため）。
 - **サイズ再計算:** `MapInvalidateOnMount`（初回マウント後 `requestAnimationFrame` で `invalidateSize` 呼び出し）と `MapInvalidateOnResize`（`ResizeObserver` でコンテナサイズ変化を監視して `invalidateSize` 呼び出し）により、レイアウト変化でタイルが欠けるバグを防いでいます。
 - **重なり:** 親に `isolation: 'isolate'` と `z-index` を与え、ドロワーがタイルレイヤより下に潜る問題を防ぎます。
-- **ナビ連携:** `buildMapUrl.ts` — **iOS**（`iPad` / `iPhone` / `iPod` の UA）は `maps://`（Apple マップ・徒歩）。**それ以外** は Google マップの徒歩ルート（`https://www.google.com/maps/dir/?api=1&destination={lat},{lng}&destination_place_id={encodeURIComponent(label)}&travelmode=walking` の形。`label` は停留所名）。「現在地からのルートを見る」の文字色はルートに応じて切り替わります（`campus_to_station` は `#10b981`、`station_to_campus` は `#6c63d5`）。
+- **ナビ連携:** `buildMapUrl.ts` — **iOS**（`iPad` / `iPhone` / `iPod` の UA）は `maps://`（Apple マップ・徒歩）。**それ以外** は Google マップの徒歩ルート（`https://www.google.com/maps/dir/?api=1&destination={lat},{lng}&travelmode=walking` の形。停留所名（`label` 引数）は現状の URL には含めていない）。「現在地からのルートを見る」の文字色はルートに応じて切り替わります（`campus_to_station` は `#10b981`、`station_to_campus` は `#6c63d5`）。
 - **オフライン:** `useOnlineStatus` でオフラインを検知した場合、`BusStopMap` は表示されず **乗り場名を示すプレースホルダーカード**を表示します。オンライン復帰後は地図に切り替わります。SW の CacheFirst によりキャッシュ済みタイルは表示されることがありますが、地図コンポーネント自体のマウントはオンライン時のみです。
 
 ---
@@ -233,7 +233,7 @@ npm run preview  # 本番ビルドのローカル確認
 
 - **レイアウト:** `viewport-fit=cover`、ヘッダー・メインに `env(safe-area-inset-top/bottom)` でノッチ・ホームインジケータ対応。
 - **高さ:** `min-height: 100dvh` でモバイルブラウザの UI 伸縮に追従。
-- **ブレークポイント:** `md`（768px）未満は 1 カラム、以上は時刻表と地図の 2 カラム + 全時刻表は下段フル幅。
+- **ブレークポイント:** 判定は CSS メディアクエリではなく `main.tsx` の `syncBpActiveClass` が付与する `html.bp-active` クラスで行う（iPadOS の `innerWidth` 復元バグ回避）。幅 1024px 未満かつ縦向きは 1 カラム、1024px 以上または横向き 480px 以上で時刻表と地図の 2 カラム + 全時刻表は下段フル幅。
 - **PWA 表示:** `manifest.json` の `display: "standalone"`、`orientation: "portrait"`。
 - **操作感:** グローバルに `user-select: none`、タップハイライト無効化（入力系は選択可能）。ネイティブアプリに近い誤操作抑制。
 - **テーマ:** ライト/ダーク切替で CSS 変数（`index.css` の `:root` / `.dark`）を切り替え。
