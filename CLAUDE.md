@@ -60,6 +60,8 @@ npx tsc --noEmit  # ビルドせずに型チェックのみ実行
 
 **バージョン:** `__APP_VERSION__` がビルド時に `package.json` の `version` フィールドから注入される（`vite.config.ts` の `define`）。UI の複数箇所で参照される。
 
+**iPad/iOS の縦潰れ（shrink-to-fit）対策:** iPad の Safari・PWA で 2 回目以降の起動時に UI が縦方向に潰れる事象があった。原因は Safari の **shrink-to-fit**（起動直後に一瞬ビューポート幅を超える要素が描画されると、iOS が `width=device-width` を無視してレイアウト幅を ~1280px に広げ、ページ全体を ~0.64 倍に縮小描画する挙動）。対処は `index.html` の viewport メタに **`shrink-to-fit=no`** を付与すること。これが修正本体なので削除しない。なお高さ（`dvh`）・`bp-active`・倍率固定（`minimum/maximum-scale`）・`viewport-fit` のトグルはいずれも無効で原因でもなかったため、再発時にそれらを疑わないこと。`src/main.tsx` の `syncAppHeight`（`--app-height`）と `syncBpActiveClass`（`bp-active`）は本件とは別目的の同期処理。
+
 ### コンポーネント構成
 
 ```

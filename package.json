@@ -1,7 +1,7 @@
 {
   "name": "campus-bus-navi",
   "private": true,
-  "version": "1.0.1-β",
+  "version": "1.0.2-β",
   "type": "module",
   "scripts": {
     "dev": "vite",
