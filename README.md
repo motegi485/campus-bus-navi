@@ -237,6 +237,7 @@ npm run preview  # 本番ビルドのローカル確認
 - **PWA 表示:** `manifest.json` の `display: "standalone"`、`orientation: "portrait"`。
 - **操作感:** グローバルに `user-select: none`、タップハイライト無効化（入力系は選択可能）。ネイティブアプリに近い誤操作抑制。
 - **テーマ:** ライト/ダーク切替で CSS 変数（`index.css` の `:root` / `.dark`）を切り替え。
+- **iOS / iPad の縦潰れ対策**: iPad の Safari・PWA では 2 回目以降の起動時に Safari の shrink-to-fit によってページ全体が縮小描画される事象があった。`index.html` の viewport メタに `shrink-to-fit=no` を指定して回避している（**削除すると再発する**）。
 
 ---
 
