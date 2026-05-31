@@ -131,7 +131,7 @@ function enforceViewport() {
   document.querySelector('meta[name="viewport"]')?.remove()
   const m = document.createElement('meta')
   m.name = 'viewport'
-  m.content = `width=${w}, initial-scale=1, viewport-fit=cover` // 実画面幅を数値で固定
+  m.content = `width=${w}, initial-scale=1, viewport-fit=cover, shrink-to-fit=no` // 実画面幅固定 + 縮小回避
   document.head.appendChild(m)
 }
 
