@@ -70,7 +70,6 @@ function resync() {
 }
 
 async function main() {
-  mountViewportDebugOverlay()
   // iOS PWA では SW バックグラウンド更新が届きにくく、旧 CSS（@media クエリ含む）が
   // キャッシュに残り続けることがある。React mount 前に待機 SW を検出して即座に適用し、
   // 旧 CSS が画面に表示される前に新 SW へ切り替える。
