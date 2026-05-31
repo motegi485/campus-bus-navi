@@ -3,66 +3,52 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
 
-// === 一時デバッグ: ビューポート計測オーバーレイ（原因確定後に削除） ===
 function mountViewportDebugOverlay() {
   const box = document.createElement('pre')
   box.style.cssText = [
     'position:fixed','top:0','left:0','z-index:99999','margin:0','padding:6px 8px',
-    'max-width:100vw','box-sizing:border-box','font:10px/1.35 ui-monospace,monospace',
+    'max-width:100vw','box-sizing:border-box','font:9px/1.3 ui-monospace,monospace',
     'white-space:pre-wrap','word-break:break-all','color:#0f0',
-    'background:rgba(0,0,0,.82)','pointer-events:none',
+    'background:rgba(0,0,0,.85)','pointer-events:none',
   ].join(';')
   document.body.appendChild(box)
 
   const vv = () => window.visualViewport
-  const mm = (q: string) => window.matchMedia(q).matches
-  const appH = () => getComputedStyle(document.documentElement).getPropertyValue('--app-height').trim() || '(unset)'
+  const correct = Math.min(screen.width, screen.height) // 正しい縦持ち幅(=820)
   const log: string[] = []
 
-  function snap(label: string) {
-    const shell = document.querySelector('.phone-shell-inner') as HTMLElement | null
-    const r = shell?.getBoundingClientRect()
-    log.unshift(
-      `[${new Date().toLocaleTimeString()}] ${label}\n` +
-      ` inner ${window.innerWidth}x${window.innerHeight} client ${document.documentElement.clientWidth}x${document.documentElement.clientHeight}\n` +
-      ` vv ${Math.round(vv()?.width ?? -1)}x${Math.round(vv()?.height ?? -1)} scale ${vv()?.scale ?? '-'} offTop ${Math.round(vv()?.offsetTop ?? -1)}\n` +
-      ` screen ${screen.width}x${screen.height} avail ${screen.availWidth}x${screen.availHeight} dpr ${window.devicePixelRatio}\n` +
-      ` orient ${screen.orientation?.type ?? '-'}(${screen.orientation?.angle ?? '-'}) mmLand ${mm('(orientation: landscape)')} mm1024 ${mm('(min-width:1024px)')}\n` +
-      ` bp-active ${document.documentElement.classList.contains('bp-active')} --app-height ${appH()} standalone ${(navigator as any).standalone}\n` +
-      ` shell ${r ? Math.round(r.width) + 'x' + Math.round(r.height) : '-'}`
-    )
-    if (log.length > 8) log.length = 8
-    box.textContent = log.join('\n----\n')
+  function wideEls(): string {
+    const rows: { id: string; right: number }[] = []
+    document.querySelectorAll('body *').forEach(node => {
+      const el = node as HTMLElement
+      const r = el.getBoundingClientRect()
+      if (r.right > correct + 2) {
+        const cls = (typeof el.className === 'string' ? el.className : '').trim().replace(/\s+/g, '.').slice(0, 38)
+        rows.push({ id: `${el.tagName.toLowerCase()}${cls ? '.' + cls : ''}(${Math.round(r.right)})`, right: r.right })
+      }
+    })
+    rows.sort((a, b) => b.right - a.right)
+    return rows.length ? rows.slice(0, 6).map(x => x.id).join(' ') : 'none'
   }
 
-  snap('init')
-  requestAnimationFrame(() => snap('raf'))
-  ;[100, 300, 600, 1200].forEach(ms => setTimeout(() => snap('t+' + ms), ms))
-  window.addEventListener('resize', () => snap('resize'))
-  window.addEventListener('orientationchange', () => setTimeout(() => snap('orientationchange'), 300))
-  vv()?.addEventListener('resize', () => snap('vv-resize'))
+  function snap(label: string, scan = false) {
+    log.unshift(
+      `[${label}] inner ${window.innerWidth}x${window.innerHeight} scale ${vv()?.scale ?? '-'}` +
+      (scan ? `\n  >${correct}px: ${wideEls()}` : '')
+    )
+    if (log.length > 9) log.length = 9
+    box.textContent = log.join('\n')
+  }
+
+  snap('init', true)
+  requestAnimationFrame(() => snap('raf', true))
+  ;[100, 300, 600, 1000, 1800].forEach(ms => setTimeout(() => snap('t+' + ms, true), ms))
+  window.addEventListener('resize', () => snap('resize', true))
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return
-    snap('visible'); requestAnimationFrame(() => snap('visible+raf'))
-    ;[200, 600, 1200].forEach(ms => setTimeout(() => snap('visible+' + ms), ms))
+    ;[0, 300, 1000].forEach(ms => setTimeout(() => snap('vis+' + ms, true), ms))
   })
-  window.addEventListener('pageshow', (e) => snap('pageshow persisted=' + (e as PageTransitionEvent).persisted))
-}
-
-// iOS/iPadOS standalone PWA: 再起動時にレイアウトビューポートが膨張(inner≫screen)し、
-// scale<1 で全体が縮小描画される問題への対策。
-// meta[viewport] を作り直して倍率を 1 に固定し、ズームアウトを禁止する
-// → レイアウト幅が device-width(=実画面幅) に戻り、scale も 1 に戻る。
-function fixViewportScale() {
-  const short = Math.min(screen.width, screen.height)
-  const long  = Math.max(screen.width, screen.height)
-  const isLandscape = window.matchMedia('(orientation: landscape)').matches
-  const vw = isLandscape ? long : short   // 実画面幅を明示的に指定
-  document.querySelector('meta[name="viewport"]')?.remove()
-  const meta = document.createElement('meta')
-  meta.name = 'viewport'
-  meta.content = `width=${vw}, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover`
-  document.head.appendChild(meta)
+  window.addEventListener('pageshow', () => snap('pageshow', true))
 }
 
 function syncBpActiveClass() {
@@ -145,15 +131,13 @@ async function main() {
     }
   }
 
-// 起動直後にも一度スケールを正常化
-  fixViewportScale()
   resync()
 
   // 前面復帰 / BFCache 復元 → viewport を作り直してスケールを戻してから再評価
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') { fixViewportScale(); resync() }
+    if (document.visibilityState === 'visible') resync()
   })
-  window.addEventListener('pageshow', () => { fixViewportScale(); resync() })
+  window.addEventListener('pageshow', () => resync())
 
   // 回転・しきい値変化
   screen.orientation?.addEventListener('change', resync)
