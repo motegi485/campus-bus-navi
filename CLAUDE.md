@@ -54,7 +54,7 @@ npx tsc --noEmit  # ビルドせずに型チェックのみ実行
 
 **地図:** Leaflet は動的インポート（lazy）でSSR 問題を回避。iOS 端末（UA に `iPad|iPhone|iPod`）は Apple Maps リンク、それ以外は Google Maps リンクでナビを開く。
 
-**ダイヤ種別** は時刻表 ID 文字列から推定：`holiday` を含む → `'holiday'`、`vac` → `'vacation'`、`event` → `'event'`、それ以外 → `'class'`。推定ロジックは `DayBadge.tsx` の `resolveDiagramType()` に実装されている。
+**ダイヤ種別** は時刻表 ID 文字列から推定（5種類）：`event` を含む → `'event'`、`vacation` を含む → `holiday` も含めば `'vacation_holiday'` / 含まなければ `'vacation_weekday'`、`holiday` を含む → `'holiday'`、それ以外 → `'class'`。`vacation_*_holiday` は `vacation` と `holiday` の両方を含むため、`vacation` を `holiday` より先に判定する順序が必須。推定ロジックは `DayBadge.tsx` の `resolveDiagramType()` に実装されている。
 
 **路線:** 2路線のみ — `station_to_campus`（松永駅→大学）と `campus_to_station`（大学→松永駅）。`RouteKey` 型は `src/types/timetable.d.ts` で定義。
 
