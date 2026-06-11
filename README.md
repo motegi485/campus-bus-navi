@@ -74,15 +74,16 @@ campus-bus-navi/
 ├── public/
 │   ├── data/
 │   │   ├── calendar_rules.json              # 曜日デフォルト + 日付上書き → 適用する時刻表ファイル名（拡張子なし ID）
-│   │   ├── timetable_weekday.json                 # 授業日ダイヤ
-│   │   ├── timetable_holiday.json                 # 休業日ダイヤ
-│   │   ├── timetable_vacation_season_weekday.json # 長期休暇ダイヤ（平日）／[季節] はテンプレ
-│   │   ├── timetable_vacation_season_holiday.json # 長期休暇ダイヤ（休日）／[季節] はテンプレ
-│   │   ├── timetable_event_temp.json              # イベント日ダイヤ／[イベント名] はテンプレ
-│   │   ├── _examples/                       # サンプル・参考用（本番では読み込まれない）
-│   │   │   ├── timetable_sample.json        # 汎用サンプル
-│   │   │   └── timetable_event_example.json # イベント用サンプル
-│   │   └── news.json                        # お知らせ（JSON 配列）
+│   │   ├── news.json                        # お知らせ（JSON 配列）
+│   │   ├── timetables/                      # 時刻表ダイヤ JSON 一式（calendar_rules の ID が指す先）
+│   │   │   ├── timetable_weekday.json                 # 授業日ダイヤ
+│   │   │   ├── timetable_holiday.json                 # 休業日ダイヤ
+│   │   │   ├── timetable_vacation_season_weekday.json # 長期休暇ダイヤ（平日）／[季節] はテンプレ
+│   │   │   ├── timetable_vacation_season_holiday.json # 長期休暇ダイヤ（休日）／[季節] はテンプレ
+│   │   │   └── timetable_event_temp.json              # イベント日ダイヤ／[イベント名] はテンプレ
+│   │   └── _examples/                       # サンプル・参考用（本番では読み込まれない）
+│   │       ├── timetable_sample.json        # 汎用サンプル
+│   │       └── timetable_event_example.json # イベント用サンプル
 │   ├── icons/                               # PWA / favicon 用 PNG
 │   └── manifest.json                        # PWA マニフェスト
 ├── src/
@@ -132,14 +133,14 @@ campus-bus-navi/
 - **`calendar_rules.json`**
   - `default_rules`: キー `"0"`〜`"6"`（日曜〜土曜）に、適用する時刻表ファイル ID（拡張子なし）を指定。
   - `overrides`: キー `YYYY-MM-DD` で、その日だけ別ダイヤを指定。
-- **`timetable_*.json`**
+- **`timetable_*.json`（`public/data/timetables/` 配下）**
   - `id`, `name`, `routes` を持つ。`routes` は `station_to_campus` / `campus_to_station` それぞれに `origin`, `destination`, `bus_stop_name`, `bus_stop_coords`, `schedule`（`departure`: `HH:mm`, `note`）を定義。`id` は拡張子なしのファイル名と一致させる（`DayBadge` のダイヤ種別推定がファイル名規約に依存するため）。
   - **命名規約（5 種別）:** `timetable_weekday`（授業日）／`timetable_holiday`（休業日）／`timetable_vacation_[季節]_weekday`（長期休暇・平日）／`timetable_vacation_[季節]_holiday`（長期休暇・休日）／`timetable_event_[イベント名]`（イベント日）。`[季節]`・`[イベント名]` は運用時に実名へ置き換え、`calendar_rules.json` から ID を参照する。
 - **`news.json`**
   - お知らせの **配列**。各要素の形は `src/types/timetable.d.ts` の `NewsItem`（`id`, `tag`, `tagLabel`, `date`, `title`, `preview`, `body`, `unread` など）に合わせます。
 - **`_examples/`**
   - `timetable_sample.json`・`timetable_event_example.json` は新規ダイヤ作成時の参考用サンプルです。`calendar_rules.json` から参照されないため本番には影響しません。
-- **取得ロジック:** `useTimetable` が `calendar_rules.json` を読み、当日・翌日のダイヤ ID を解決してから `/data/{id}.json` を並列取得します。JST の日付が変わったときだけ通常フェッチが走ります（`now.format('YYYY-MM-DD')` 依存の `useEffect`）。手動更新では `?t=タイムスタンプ` と `cache: 'reload'` でキャッシュを避けます。フェッチに失敗した場合はエラー文のほか「キャッシュされた時刻表を使用しています」という案内が出ます（SW 経由で古いレスポンスが残っている場合など）。
+- **取得ロジック:** `useTimetable` が `calendar_rules.json` を読み、当日・翌日のダイヤ ID を解決してから `/data/timetables/{id}.json` を並列取得します。JST の日付が変わったときだけ通常フェッチが走ります（`now.format('YYYY-MM-DD')` 依存の `useEffect`）。手動更新では `?t=タイムスタンプ` と `cache: 'reload'` でキャッシュを避けます。フェッチに失敗した場合はエラー文のほか「キャッシュされた時刻表を使用しています」という案内が出ます（SW 経由で古いレスポンスが残っている場合など）。
 
 ---
 
@@ -184,7 +185,7 @@ npm run preview  # 本番ビルドのローカル確認
 | 出力ディレクトリ | `dist` |
 | Node.js | 18 以上（プロジェクト側の推奨に合わせる） |
 
-- **`_headers`:** ルートは短いキャッシュ、`/assets/*` は長期 immutable、`/data/*.json` は `no-cache` / `no-store` 系でブラウザ・中間キャッシュに古いダイヤが残りにくいよう指示。
+- **`_headers`:** ルートは短いキャッシュ、`/assets/*` は長期 immutable、`/data/*.json`（`timetables/` 配下を含む）は `no-cache` / `no-store` 系でブラウザ・中間キャッシュに古いダイヤが残りにくいよう指示。
 - **`_redirects`:** クライアントサイドの単一ページのため、`/*` を `/index.html` に **200** で返す一行設定。
 
 リポジトリを Pages に接続し、上記ビルド設定を指定すればデプロイ可能です。`index.html` には Cloudflare Web Analytics のビーコンが埋め込まれている場合があります（運用ポリシーに合わせて削除・差し替えしてください）。
