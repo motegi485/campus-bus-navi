@@ -1,6 +1,6 @@
 {
   "id": "timetable_holiday",
-  "name": "休業日ダイヤ",
+  "name": "通常の休業日ダイヤ",
   "routes": {
     "station_to_campus": {
       "origin": "松永発",

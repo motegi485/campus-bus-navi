@@ -5,22 +5,33 @@ interface Props {
 }
 
 const BADGE_MAP: Record<DiagramType, { label: string; bg: string; color: string }> = {
-  class:   { label: '授業日ダイヤ',   bg: 'rgba(59,130,246,0.82)',  color: '#fff' },
-  holiday: { label: '休業日ダイヤ',   bg: 'rgba(239,68,68,0.82)',   color: '#fff' },
-  vacation:{ label: '長期休暇ダイヤ', bg: 'rgba(234,179,8,0.88)',   color: '#fff' },
-  event:   { label: 'イベント日ダイヤ',bg: 'rgba(249,115,22,0.85)', color: '#fff' },
+  weekday:          { label: '授業日ダイヤ',          bg: 'rgba(59,130,246,0.82)', color: '#fff' },
+  holiday:          { label: '休業日ダイヤ',          bg: 'rgba(239,68,68,0.82)',  color: '#fff' },
+  vacation_weekday: { label: '長期休暇ダイヤ（平日）', bg: 'rgba(234,179,8,0.88)',  color: '#fff' },
+  vacation_holiday: { label: '長期休暇ダイヤ（休日）', bg: 'rgba(202,138,4,0.9)',   color: '#fff' },
+  event:            { label: 'イベント日ダイヤ',       bg: 'rgba(249,115,22,0.85)', color: '#fff' },
 }
 
 /**
  * 時刻表IDからダイヤ種別を推定するユーティリティ
- * 実際の運用では calendar_rules.json のオーバーライドキーの存在や
- * name フィールドで判断するロジックを拡張してください
+ *
+ * 時刻表ファイルの命名規約に対応:
+ *   timetable_weekday                  → class            (授業日ダイヤ)
+ *   timetable_holiday                  → holiday          (休業日ダイヤ)
+ *   timetable_vacation_[季節]_weekday  → vacation_weekday (長期休暇ダイヤ（平日）)
+ *   timetable_vacation_[季節]_holiday  → vacation_holiday (長期休暇ダイヤ（休日）)
+ *   timetable_event_[イベント名]       → event            (イベント日ダイヤ)
+ *
+ * 長期休暇IDは 'vacation' と 'holiday' の両方を含みうるため、
+ * 'vacation' を 'holiday' より先に判定する順序が必須。
  */
 export function resolveDiagramType(timetableId: string): DiagramType {
-  if (timetableId.includes('holiday')) return 'holiday'
-  if (timetableId.includes('vac')) return 'vacation'
   if (timetableId.includes('event')) return 'event'
-  return 'class'
+  if (timetableId.includes('vacation')) {
+    return timetableId.includes('holiday') ? 'vacation_holiday' : 'vacation_weekday'
+  }
+  if (timetableId.includes('holiday')) return 'holiday'
+  return 'weekday'
 }
 
 export function DayBadge({ type }: Props) {
