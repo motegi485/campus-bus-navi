@@ -9,5 +9,10 @@
   Pragma: no-cache
   Expires: 0
 
+/data/timetables/*.json
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
 /icons/*
   Cache-Control: public, max-age=86400

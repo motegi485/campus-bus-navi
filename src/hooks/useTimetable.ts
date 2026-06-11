@@ -46,8 +46,8 @@ export function useTimetable(now: dayjs.Dayjs): UseTimetableResult {
       const tomorrowId = resolveCalendar(rules, current.add(1, 'day'))
 
       const [todayData, tomorrowData] = await Promise.all([
-        fetchJSON<Timetable>(`/data/${todayId}.json`, bustCache),
-        fetchJSON<Timetable>(`/data/${tomorrowId}.json`, bustCache).catch(() => null),
+        fetchJSON<Timetable>(`/data/timetables/${todayId}.json`, bustCache),
+        fetchJSON<Timetable>(`/data/timetables/${tomorrowId}.json`, bustCache).catch(() => null),
       ])
 
       setTimetable(todayData)
