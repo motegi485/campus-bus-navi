@@ -34,7 +34,7 @@
 | 機能 | 説明 |
 |------|------|
 | 次発バス表示 | 現在時刻（JST）に基づき、次の発車時刻と **あと何分** で発車するかを表示（内部は分単位。時計は約 1 分ごとに更新） |
-| ダイヤ種別バッジ | 読み込んだ時刻表 ID から `DayBadge` で種別ラベルを表示（`holiday` / `vac` / `event` を含む ID で休業・長期休暇・イベントを推定。それ以外は授業日扱い） |
+| ダイヤ種別バッジ | 読み込んだ時刻表 ID から `DayBadge` で種別ラベルを表示（**5 種別**：授業日／休業日／長期休暇・平日／長期休暇・休日／イベント日。`event` を含む→イベント、`vacation` を含む→`holiday` の有無で長期休暇の休日／平日、`holiday` を含む→休業日、それ以外→授業日。`vacation_*_holiday` は両語を含むため `vacation` を `holiday` より先に判定する順序が必須） |
 | ルート切り替え | `station_to_campus`（松永方面→大学）と `campus_to_station`（大学→松永方面）を切り替え |
 | 直近 4 本・全時刻表 | `findUpcomingBuses` で次発以降最大 4 本を表示。全便は `FullTimetable` で一覧（モバイルは地図の上、PC・横向き表示では下段フル幅） |
 | 終バス後の案内 | 当日の運行が終了している場合、翌日の始発などを `EndOfServiceCard` で表示 |
@@ -74,10 +74,11 @@ campus-bus-navi/
 ├── public/
 │   ├── data/
 │   │   ├── calendar_rules.json              # 曜日デフォルト + 日付上書き → 適用する時刻表ファイル名（拡張子なし ID）
-│   │   ├── timetable_weekday.json           # 授業日ダイヤ
-│   │   ├── timetable_holiday.json           # 休日ダイヤ
-│   │   ├── timetable_spring_vac_wd_2026.json
-│   │   ├── timetable_spring_vac_hld_2026.json
+│   │   ├── timetable_weekday.json                 # 授業日ダイヤ
+│   │   ├── timetable_holiday.json                 # 休業日ダイヤ
+│   │   ├── timetable_vacation_season_weekday.json # 長期休暇ダイヤ（平日）／[季節] はテンプレ
+│   │   ├── timetable_vacation_season_holiday.json # 長期休暇ダイヤ（休日）／[季節] はテンプレ
+│   │   ├── timetable_event_temp.json              # イベント日ダイヤ／[イベント名] はテンプレ
 │   │   ├── _examples/                       # サンプル・参考用（本番では読み込まれない）
 │   │   │   ├── timetable_sample.json        # 汎用サンプル
 │   │   │   └── timetable_event_example.json # イベント用サンプル
@@ -132,7 +133,8 @@ campus-bus-navi/
   - `default_rules`: キー `"0"`〜`"6"`（日曜〜土曜）に、適用する時刻表ファイル ID（拡張子なし）を指定。
   - `overrides`: キー `YYYY-MM-DD` で、その日だけ別ダイヤを指定。
 - **`timetable_*.json`**
-  - `id`, `name`, `routes` を持つ。`routes` は `station_to_campus` / `campus_to_station` それぞれに `origin`, `destination`, `bus_stop_name`, `bus_stop_coords`, `schedule`（`departure`: `HH:mm`, `note`）を定義。
+  - `id`, `name`, `routes` を持つ。`routes` は `station_to_campus` / `campus_to_station` それぞれに `origin`, `destination`, `bus_stop_name`, `bus_stop_coords`, `schedule`（`departure`: `HH:mm`, `note`）を定義。`id` は拡張子なしのファイル名と一致させる（`DayBadge` のダイヤ種別推定がファイル名規約に依存するため）。
+  - **命名規約（5 種別）:** `timetable_weekday`（授業日）／`timetable_holiday`（休業日）／`timetable_vacation_[季節]_weekday`（長期休暇・平日）／`timetable_vacation_[季節]_holiday`（長期休暇・休日）／`timetable_event_[イベント名]`（イベント日）。`[季節]`・`[イベント名]` は運用時に実名へ置き換え、`calendar_rules.json` から ID を参照する。
 - **`news.json`**
   - お知らせの **配列**。各要素の形は `src/types/timetable.d.ts` の `NewsItem`（`id`, `tag`, `tagLabel`, `date`, `title`, `preview`, `body`, `unread` など）に合わせます。
 - **`_examples/`**
