@@ -1,6 +1,6 @@
 {
   "id": "timetable_weekday",
-  "name": "授業日ダイヤ",
+  "name": "通常の授業日ダイヤ",
   "routes": {
     "station_to_campus": {
       "origin": "松永発",

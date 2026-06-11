@@ -125,7 +125,7 @@ export default function App() {
   const tomorrowFirstBus = findFirstBus(tomorrowSchedule)
 
   // ダイヤ種別バッジ
-  const diagramType = timetable ? resolveDiagramType(timetable.id) : 'class'
+  const diagramType = timetable ? resolveDiagramType(timetable.id) : 'weekday'
 
   // フォントサイズクラス（CSS変数経由ではなくコンポーネントprops渡し）
   const fontSize = settings.fontSize

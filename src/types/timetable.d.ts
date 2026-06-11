@@ -35,7 +35,12 @@ export interface NextBusInfo {
   index: number
 }
 
-export type DiagramType = 'class' | 'holiday' | 'vacation' | 'event'
+export type DiagramType =
+  | 'weekday'
+  | 'holiday'
+  | 'vacation_weekday'
+  | 'vacation_holiday'
+  | 'event'
 
 export interface NewsItem {
   id: number
