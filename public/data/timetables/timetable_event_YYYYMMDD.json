@@ -1,5 +1,5 @@
 {
-  "id": "timetable_event_temp",
+  "id": "timetable_event_YYYYMMDD",
   "name": "イベント日ダイヤ",
   "routes": {
     "station_to_campus": {

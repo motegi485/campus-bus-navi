@@ -78,9 +78,9 @@ campus-bus-navi/
 │   │   ├── timetables/                      # 時刻表ダイヤ JSON 一式（calendar_rules の ID が指す先）
 │   │   │   ├── timetable_weekday.json                 # 授業日ダイヤ
 │   │   │   ├── timetable_holiday.json                 # 休業日ダイヤ
-│   │   │   ├── timetable_vacation_season_weekday.json # 長期休暇ダイヤ（平日）／[季節] はテンプレ
-│   │   │   ├── timetable_vacation_season_holiday.json # 長期休暇ダイヤ（休日）／[季節] はテンプレ
-│   │   │   └── timetable_event_temp.json              # イベント日ダイヤ／[イベント名] はテンプレ
+│   │   │   ├── timetable_vacation_season_weekday.json # 長期休暇ダイヤ（平日）／season → 実際の季節名（spring 等）に置き換え
+│   │   │   ├── timetable_vacation_season_holiday.json # 長期休暇ダイヤ（休日）／season → 実際の季節名（spring 等）に置き換え
+│   │   │   └── timetable_event_YYYYMMDD.json          # イベント日ダイヤ（YYYYMMDD → 実際の日付に置き換え）
 │   │   └── _examples/                       # サンプル・参考用（本番では読み込まれない）
 │   │       ├── timetable_sample.json        # 汎用サンプル
 │   │       └── timetable_event_example.json # イベント用サンプル
@@ -135,7 +135,7 @@ campus-bus-navi/
   - `overrides`: キー `YYYY-MM-DD` で、その日だけ別ダイヤを指定。
 - **`timetable_*.json`（`public/data/timetables/` 配下）**
   - `id`, `name`, `routes` を持つ。`routes` は `station_to_campus` / `campus_to_station` それぞれに `origin`, `destination`, `bus_stop_name`, `bus_stop_coords`, `schedule`（`departure`: `HH:mm`, `note`）を定義。`id` は拡張子なしのファイル名と一致させる（`DayBadge` のダイヤ種別推定がファイル名規約に依存するため）。
-  - **命名規約（5 種別）:** `timetable_weekday`（授業日）／`timetable_holiday`（休業日）／`timetable_vacation_[季節]_weekday`（長期休暇・平日）／`timetable_vacation_[季節]_holiday`（長期休暇・休日）／`timetable_event_[イベント名]`（イベント日）。`[季節]`・`[イベント名]` は運用時に実名へ置き換え、`calendar_rules.json` から ID を参照する。
+  - **命名規約（5 種別）:** `timetable_weekday`（授業日）／`timetable_holiday`（休業日）／`timetable_vacation_[SEASON]_weekday`（長期休暇・平日）／`timetable_vacation_[SEASON]_holiday`（長期休暇・休日）／`timetable_event_YYYYMMDD`（イベント日）。`[SEASON]` は `spring` などの実際の季節名・`YYYYMMDD` は `20260615` などの実際の日付に置き換え、`calendar_rules.json` から ID を参照する。
 - **`news.json`**
   - お知らせの **配列**。各要素の形は `src/types/timetable.d.ts` の `NewsItem`（`id`, `tag`, `tagLabel`, `date`, `title`, `preview`, `body`, `unread` など）に合わせます。
 - **`_examples/`**
