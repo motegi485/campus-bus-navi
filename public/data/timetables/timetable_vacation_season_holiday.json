@@ -1,5 +1,5 @@
 {
-  "id": "timetable_vacation_season_holiday",
+  "id": "timetable_vacation_SEASON_holiday",
   "name": "長期休暇の休日ダイヤ",
   "routes": {
     "station_to_campus": {
