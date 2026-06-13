@@ -31,11 +31,11 @@ npx tsc --noEmit  # ビルドせずに型チェックのみ実行
 
 ### 静的データファイル
 
-時刻表・お知らせデータはすべて `/public/data/` に置かれ、Git で管理される：
+時刻表・お知らせデータはすべて `/public/data/` 以下に置かれ、Git で管理される：
 
 - `calendar_rules.json` — 曜日デフォルト + 日付単位の上書き（YYYY-MM-DD キー）
-- `timetable_weekday.json`、`timetable_holiday.json`、`timetable_spring_vac_*.json` — 路線ごとの発車時刻
 - `news.json` — お知らせ（本文に HTML 使用可、`tag` フィールドで `important/info/change/event` を分類）
+- `timetables/timetable_weekday.json`、`timetables/timetable_holiday.json`、`timetables/timetable_vacation_season_weekday.json`、`timetables/timetable_vacation_season_holiday.json`、`timetables/timetable_event_YYYYMMDD.json` — 路線ごとの発車時刻
 
 ダイヤ改正時は該当 JSON ファイルを編集する。リポジトリルートの `_headers` が Cloudflare に `/data/*.json` を `Cache-Control: no-cache` で配信するよう指示しており、更新は即座に反映される。
 
@@ -54,7 +54,7 @@ npx tsc --noEmit  # ビルドせずに型チェックのみ実行
 
 **地図:** Leaflet は動的インポート（lazy）でSSR 問題を回避。iOS 端末（UA に `iPad|iPhone|iPod`）は Apple Maps リンク、それ以外は Google Maps リンクでナビを開く。
 
-**ダイヤ種別** は時刻表 ID 文字列から推定（5種類）：`event` を含む → `'event'`、`vacation` を含む → `holiday` も含めば `'vacation_holiday'` / 含まなければ `'vacation_weekday'`、`holiday` を含む → `'holiday'`、それ以外 → `'class'`。`vacation_*_holiday` は `vacation` と `holiday` の両方を含むため、`vacation` を `holiday` より先に判定する順序が必須。推定ロジックは `DayBadge.tsx` の `resolveDiagramType()` に実装されている。
+**ダイヤ種別** は時刻表 ID 文字列から推定（5種類）：`event` を含む → `'event'`、`vacation` を含む → `holiday` も含めば `'vacation_holiday'` / 含まなければ `'vacation_weekday'`、`holiday` を含む → `'holiday'`、それ以外 → `'weekday'`。`vacation_*_holiday` は `vacation` と `holiday` の両方を含むため、`vacation` を `holiday` より先に判定する順序が必須。推定ロジックは `DayBadge.tsx` の `resolveDiagramType()` に実装されている。
 
 **路線:** 2路線のみ — `station_to_campus`（松永駅→大学）と `campus_to_station`（大学→松永駅）。`RouteKey` 型は `src/types/timetable.d.ts` で定義。
 
@@ -76,9 +76,10 @@ src/utils/
   findNextBus.ts         ← findNextBus / findUpcomingBuses / findFirstBus（翌日始発）を export
   resolveCalendar.ts     ← 日付 → 時刻表 ID のマッピング
   buildMapUrl.ts         ← iOS / Android 向けナビ URL 生成
+  parseTime.ts           ← HH:mm 文字列を分単位の数値に変換（findNextBus が使用）
 src/components/          ← UI コンポーネント（NextBusCard, UpcomingList,
                             FullTimetable, BusStopMap, DrawerMenu,
-                            AddToHomeScreen, Toast 等）
+                            MobilePwaGuide, Toast 等）
 src/types/
   timetable.d.ts         ← 共通 TypeScript 型定義
 ```
