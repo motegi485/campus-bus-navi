@@ -78,8 +78,8 @@ campus-bus-navi/
 │   │   ├── timetables/                      # 時刻表ダイヤ JSON 一式（calendar_rules の ID が指す先）
 │   │   │   ├── timetable_weekday.json                 # 授業日ダイヤ
 │   │   │   ├── timetable_holiday.json                 # 休業日ダイヤ
-│   │   │   ├── timetable_vacation_season_weekday.json # 長期休暇ダイヤ（平日）／season → 実際の季節名（spring 等）に置き換え
-│   │   │   ├── timetable_vacation_season_holiday.json # 長期休暇ダイヤ（休日）／season → 実際の季節名（spring 等）に置き換え
+│   │   │   ├── timetable_vacation_SEASON_weekday.json # 長期休暇ダイヤ（平日）／SEASON → 実際の季節名（spring 等）に置き換え
+│   │   │   ├── timetable_vacation_SEASON_holiday.json # 長期休暇ダイヤ（休日）／SEASON → 実際の季節名（spring 等）に置き換え
 │   │   │   └── timetable_event_YYYYMMDD.json          # イベント日ダイヤ（YYYYMMDD → 実際の日付に置き換え）
 │   │   └── _examples/                       # サンプル・参考用（本番では読み込まれない）
 │   │       ├── timetable_sample.json        # 汎用サンプル
