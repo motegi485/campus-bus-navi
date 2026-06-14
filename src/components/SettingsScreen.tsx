@@ -117,7 +117,7 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
 
       {/* 選択サブスクリーン */}
       {selKey && (
-        <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: selKey ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.3s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 60, display: 'flex', flexDirection: 'column', borderRadius: 44, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: selKey ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.3s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 60, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <NavBar title={SELECTS[selKey].title} onBack={() => setSelKey(null)} backLabel="設定" />
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px' }}>
             <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>

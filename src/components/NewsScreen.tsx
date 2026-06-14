@@ -41,7 +41,7 @@ function NewsTag({ tag, tagLabel }: { tag: string; tagLabel: string }) {
 
 function NewsDetail({ item, onBack }: { item: NewsItem; onBack: () => void }) {
   return (
-    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: 'none', display: 'flex', flexDirection: 'column', borderRadius: 44, overflow: 'hidden', zIndex: 10, transition: 'background 0.35s' }}>
+    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 10, transition: 'background 0.35s' }}>
       <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
         <BackButton label="お知らせ" onClick={onBack} />
       </div>

@@ -96,7 +96,7 @@ interface Props {
 }
 
 export function BusStopMap({ coords, stopName, route }: Props) {
-  const mapUrl = buildMapUrl(coords, stopName)
+  const mapUrl = buildMapUrl(coords)
   const isCampus = route === 'campus_to_station'
   const btnColor = isCampus ? '#10b981' : '#6c63d5'
 
