@@ -54,7 +54,7 @@ export interface NewsItem {
 }
 
 export type FontSize = 'small' | 'medium' | 'large'
-export type Theme = 'light' | 'dark'
+export type Theme = 'light' | 'dark' | 'system'
 export type DefaultRoute = 'campus_to_station' | 'station_to_campus'
 
 export interface AppSettings {

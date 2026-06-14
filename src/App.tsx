@@ -173,8 +173,20 @@ export default function App() {
     window.location.reload()
   }, [])
 
-  // テーマクラス
-  const themeClass = settings.theme === 'dark' ? 'dark' : ''
+  // 端末のカラーモード（prefers-color-scheme）を購読
+  const [systemDark, setSystemDark] = useState(
+    () => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  // テーマクラス（system は端末設定を反映し、OS のモード切替に追従する）
+  const isDark = settings.theme === 'dark' || (settings.theme === 'system' && systemDark)
+  const themeClass = isDark ? 'dark' : ''
 
   return (
     /*
