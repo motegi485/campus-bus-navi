@@ -32,7 +32,12 @@ function NavBar({ title, onBack, backLabel = '戻る' }: { title: string; onBack
 
 function SettingRow({ icon, iconBg, title, sub, value, onClick }: { icon: string; iconBg: string; title: string; sub: string; value: string; onClick: () => void }) {
   return (
-    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderBottom: '.5px solid var(--border)', cursor: 'pointer', transition: 'background 0.12s' }}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${title}（現在: ${value}）`}
+      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '.5px solid var(--border)', cursor: 'pointer', transition: 'background 0.12s', font: 'inherit', color: 'inherit' }}
+    >
       <div style={{ width: 34, height: 34, borderRadius: 10, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{icon}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
@@ -40,9 +45,9 @@ function SettingRow({ icon, iconBg, title, sub, value, onClick }: { icon: string
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
         <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 500 }}>{value}</span>
-        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>›</span>
+        <span aria-hidden="true" style={{ fontSize: 13, color: 'var(--text-muted)' }}>›</span>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -124,19 +129,24 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
               {SELECTS[selKey].options.map((opt, i) => {
                 const isSelected = opt === SELECTS[selKey].current
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={opt}
                     onClick={() => select(opt)}
+                    aria-pressed={isSelected}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      width: '100%', textAlign: 'left', font: 'inherit',
                       padding: '16px 18px',
+                      background: 'transparent',
+                      border: 'none',
                       borderBottom: i < SELECTS[selKey].options.length - 1 ? '.5px solid var(--border)' : 'none',
                       cursor: 'pointer',
                     }}
                   >
                     <span style={{ fontSize: 15, fontWeight: isSelected ? 700 : 500, color: isSelected ? '#10b981' : 'var(--text-primary)' }}>{opt}</span>
-                    <span style={{ fontSize: 17, color: '#10b981', opacity: isSelected ? 1 : 0, transition: 'opacity 0.15s' }}>✓</span>
-                  </div>
+                    <span aria-hidden="true" style={{ fontSize: 17, color: '#10b981', opacity: isSelected ? 1 : 0, transition: 'opacity 0.15s' }}>✓</span>
+                  </button>
                 )
               })}
             </div>

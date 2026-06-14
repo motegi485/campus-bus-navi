@@ -185,9 +185,15 @@ export default function App() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
-  // テーマクラス（system は端末設定を反映し、OS のモード切替に追従する）
+  // テーマ（system は端末設定を反映し、OS のモード切替に追従する）
   const isDark = settings.theme === 'dark' || (settings.theme === 'system' && systemDark)
-  const themeClass = isDark ? 'dark' : ''
+
+  // .dark クラスは <html> に付与する。CSS 変数 (--bg-page 等) がここから全体にカスケードし、
+  // マウント前は index.html のインラインスクリプトが同じ判定で初期値を設定済み（FOUC 防止）。
+  // ここでは設定変更・OS のカラーモード切替に追従して同期する。
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark)
+  }, [isDark])
 
   return (
     /*
@@ -198,11 +204,11 @@ export default function App() {
       - PC/横向き（html.bp-active）: 時刻表（左）・地図（右）の2カラム + 全時刻表は下段フル幅
     */
     <>
-      {/* アプリ外枠（テーマクラスを付与） */}
-      <div className={themeClass}>
+      {/* アプリ外枠（.dark は <html> 側で管理） */}
+      <div>
         {/* シェル: モバイル=全画面、PC/横向き=全幅 */}
         <div
-          className={`relative w-full ${themeClass}`}
+          className="relative w-full"
           style={{
             // 実ビューポート高さ(--app-height)を下限に。未設定環境では 100vh にフォールバック
             minHeight: 'var(--app-height, 100vh)',
