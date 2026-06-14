@@ -58,9 +58,9 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
     },
     theme: {
       title: 'カラーテーマ',
-      current: settings.theme === 'light' ? 'ライト' : 'ダーク',
-      options: ['ライト', 'ダーク'],
-      apply: (v) => onSetTheme(v === 'ライト' ? 'light' : 'dark'),
+      current: settings.theme === 'light' ? 'ライト' : settings.theme === 'dark' ? 'ダーク' : 'システム',
+      options: ['ライト', 'ダーク', 'システム'],
+      apply: (v) => onSetTheme(v === 'ライト' ? 'light' : v === 'ダーク' ? 'dark' : 'system'),
     },
     font: {
       title: 'フォントサイズ',
