@@ -46,11 +46,13 @@ npx tsc --noEmit  # ビルドせずに型チェックのみ実行
 **PWA アップデート:** `registerType: 'prompt'` — サービスワーカーは自動更新しない。`UpdateBanner` コンポーネントがユーザーに通知する。スタック状態の解消には完全リセット（SW 登録解除 + localStorage クリア + Cache Storage 削除 + リロード）が用意されている。
 
 **サービスワーカーキャッシュ戦略:**
-- 時刻表 JSON → NetworkFirst（タイムアウト 5秒、失敗時は SW キャッシュにフォールバック）
+- 時刻表・カレンダー・お知らせ JSON → NetworkFirst（タイムアウト 3秒、失敗時は `timetable-data` キャッシュの前回取得分にフォールバック）
 - OSM 地図タイル → CacheFirst（オフライン動作）
 - JS/CSS/アセット → Workbox プレキャッシュ
 
-**SW キャッシュ URL パターンの注意点:** 時刻表 JSON の `urlPattern` は `/\/data\/.*\.json(\?.*)?$/`。`useTimetable` が手動更新時に `?t=timestamp` のキャッシュバスター付き URL でフェッチするため末尾の `(\?.*)?` が必要。`/\.json$/` に変えるとキャッシュバスター付き URL がマッチせず NetworkFirst が適用されない。
+**データ JSON はプリキャッシュしない（重要）:** `data/**/*.json` を `vite.config.ts` の `workbox.globIgnores` で**プリキャッシュ対象から除外**している。`globPatterns` に `json` が含まれるため除外しないと `/data/*.json` の素の URL がプリキャッシュに先勝ちでヒットし、NetworkFirst が「通常起動の読み込み経路」では効かなくなる（ビルド時スナップショットが固定表示され、サーバ更新が更新ボタンを押すまで反映されない）。除外することで**通常起動・更新ボタン・お知らせ取得のすべてが NetworkFirst を通り**、常に最新を取得しつつ取得済み分をオフライン用フォールバックとして保持する。`globIgnores` を外すとこの挙動が壊れるので注意。なお `_examples/` やテンプレート（`*_SEASON_*` / `*_YYYYMMDD`）もこれにより本番プリキャッシュから外れる。
+
+**SW キャッシュ URL パターンの注意点:** データ JSON の `urlPattern` は `/\/data\/.*\.json(\?.*)?$/`。`useTimetable` の手動更新と `useNews` が `?t=timestamp` のキャッシュバスター付き URL でフェッチするため末尾の `(\?.*)?` が必要。`/\.json$/` に変えるとキャッシュバスター付き URL がマッチせず NetworkFirst が適用されない。
 
 **地図:** Leaflet は動的インポート（lazy）でSSR 問題を回避。iOS 端末（UA に `iPad|iPhone|iPod`）は Apple Maps リンク、それ以外は Google Maps リンクでナビを開く。
 
