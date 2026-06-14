@@ -248,8 +248,8 @@ export default function App() {
             <button
               onClick={() => setDrawerOpen(true)}
               aria-label="メニューを開く"
-              className="flex flex-col gap-[4.5px] items-center justify-center"
-              style={{ width: 43, height: 43, borderRadius: '50%', background: 'rgba(255,255,255,0.26)', flexShrink: 0 }}
+              className="flex flex-col gap-[4.5px] items-center justify-center bg-white/[0.26] dark:bg-black/25"
+              style={{ width: 43, height: 43, borderRadius: '50%', flexShrink: 0 }}
             >
               <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
               <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
@@ -274,8 +274,9 @@ export default function App() {
               onClick={handleRefresh}
               disabled={refreshing}
               aria-label="時刻データを更新"
+              className="bg-white/[0.26] dark:bg-black/25"
               style={{
-                width: 43, height: 43, borderRadius: '50%', background: 'rgba(255,255,255,0.26)',
+                width: 43, height: 43, borderRadius: '50%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 transition: 'transform 0.7s linear',
                 transform: refreshing ? 'rotate(720deg)' : 'rotate(0deg)',
