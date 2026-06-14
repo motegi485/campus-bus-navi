@@ -70,10 +70,11 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
     },
   }
 
-  const selectAndClose = (v: string) => {
+  // 選択しても自動では戻らない。設定を反映するだけで、サブスクリーンは
+  // ユーザーが「設定」(戻る)を押すまで開いたままにする。
+  const select = (v: string) => {
     if (!selKey) return
     SELECTS[selKey].apply(v)
-    setTimeout(() => setSelKey(null), 200)
   }
 
   return (
@@ -125,7 +126,7 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
                 return (
                   <div
                     key={opt}
-                    onClick={() => selectAndClose(opt)}
+                    onClick={() => select(opt)}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '16px 18px',
