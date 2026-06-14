@@ -419,6 +419,12 @@ export default function App() {
             </div>
           )}
 
+          <footer className="text-center pt-4">
+            <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
+              &copy; 2026 campus-bus-navi
+            </p>
+          </footer>
+
         </main>
 
         {/* PWA更新通知バナー（registerType: 'prompt'） */}
