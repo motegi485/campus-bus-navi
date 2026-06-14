@@ -27,7 +27,7 @@ npx tsc --noEmit  # ビルドせずに型チェックのみ実行
 2. **`useJSTClock`** は `Asia/Tokyo` の Day.js オブジェクトを返す。次の `:00` 秒境界に同期後、60秒ごとに更新。タブの表示状態変化時に再同期する。
 3. **`App.tsx`** これらのフックを合成し、クロックの更新ごとに `findNextBus()` / `findUpcomingBuses()` を実行。当日の発車便がなくなると `isEndOfService = true` になる。`visibilitychange` でフォアグラウンド復帰時に SW の新バージョンを確認する。
 4. 設定（路線・テーマ・フォントサイズ）は `useSettings` 経由で **localStorage** に保存される。
-5. **`useNews`** が `/public/data/news.json` を取得し、既読状態を localStorage で管理する。
+5. **`useNews`** が `/public/data/news.json` を取得し、既読 ID を localStorage で管理する。`App.tsx` が未読有無（`hasUnread`）を算出し、ハンバーガーボタンとドロワーの「お知らせ」項目に未読ドットを表示する。
 
 ### 静的データファイル
 
@@ -43,7 +43,7 @@ npx tsc --noEmit  # ビルドせずに型チェックのみ実行
 
 **時刻処理:** 全時刻は JST（`Asia/Tokyo`）。バス発車時刻の照合は分単位の文字列比較（`HH:mm > now`）。`useJSTClock` の境界同期パターンはクロックドリフト防止とサブ分単位のちらつき抑制のために意図的に採用している。
 
-**PWA アップデート:** `registerType: 'prompt'` — サービスワーカーは自動更新しない。`UpdateBanner` コンポーネントがユーザーに通知する。スタック状態の解消には完全リセット（SW 登録解除 + localStorage クリア + Cache Storage 削除 + リロード）が用意されている。
+**PWA アップデート:** `registerType: 'prompt'` — 操作中の強制更新は行わない。ただし**コールドスタート時（起動から `COLD_START_GRACE_MS = 5000` 以内）に新 SW を検知した場合のみ自動適用**（`updateServiceWorker(true)`）し、それ以降のセッション中の検知は `UpdateBanner` でユーザーに通知する（`App.tsx`）。`useRegisterSW` の `needRefresh` が発火しない iOS PWA（standalone）向けに、`navigator.serviceWorker` で `waiting` 状態の SW を直接検出して `SKIP_WAITING` を送るフォールバックを `App.tsx` と `main.tsx`（React マウント前）に用意している。スタック状態の解消には完全リセット（SW 登録解除 + localStorage クリア + Cache Storage 削除 + リロード）が用意されている。
 
 **サービスワーカーキャッシュ戦略:**
 - 時刻表・カレンダー・お知らせ JSON → NetworkFirst（タイムアウト 3秒、失敗時は `timetable-data` キャッシュの前回取得分にフォールバック）
@@ -75,7 +75,7 @@ src/hooks/
   useNews.ts             ← news.json 取得・既読状態管理
   useOnlineStatus.ts     ← オンライン/オフライン検知
 src/utils/
-  findNextBus.ts         ← findNextBus / findUpcomingBuses / findFirstBus（翌日始発）を export
+  findNextBus.ts         ← findNextBus / findUpcomingBuses / findFirstBus（翌日始発）/ countRemainingBuses（本日の残り本数）を export
   resolveCalendar.ts     ← 日付 → 時刻表 ID のマッピング
   buildMapUrl.ts         ← iOS / Android 向けナビ URL 生成
   parseTime.ts           ← HH:mm 文字列を分単位の数値に変換（findNextBus が使用）
@@ -89,6 +89,8 @@ src/types/
 ### テーマ
 
 Tailwind v4 + CSS カスタムプロパティ — `index.css` 内で `:root`（ライト）と `.dark` クラス（ダーク）に定義。主要変数: `--bg-page`、`--bg-card`、`--bg-card2`、`--bg-input`、`--text-primary`、`--text-muted`、`--text-secondary`、`--border`、`--border2`、`--past-text`、`--past-bg`。フォントサイズは設定でトグルされる CSS クラスで制御。
+
+テーマ設定は `light` / `dark` / `system` の 3 種（`useSettings` で localStorage 管理）。`system` は `prefers-color-scheme` に追従し、`App.tsx` が `<html>` の `.dark` を同期する。初回描画の FOUC 防止のため、React マウント前に `index.html` のインラインスクリプトが同一ロジックで `.dark` を付与する（判定ロジックとストレージキー `campusBusNaviSettings` は `useSettings` / `App.tsx` と一致させること）。
 
 ### ビルド出力
 

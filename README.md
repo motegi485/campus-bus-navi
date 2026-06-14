@@ -33,7 +33,8 @@
 
 | 機能 | 説明 |
 |------|------|
-| 次発バス表示 | 現在時刻（JST）に基づき、次の発車時刻と **あと何分** で発車するかを表示（内部は分単位。時計は約 1 分ごとに更新） |
+| 次発バス表示 | 現在時刻（JST）に基づき、次の発車時刻と **あと何分** で発車するかを表示（内部は分単位。時計は約 1 分ごとに更新。60 分以上は「あと X 時間 Y 分」表記） |
+| 残り本数・最終便表示 | 次発カードに本日の残り運行本数（次発を含む）を `countRemainingBuses` で算出してバッジ表示。残り 1 本のときは「最終便」と表示 |
 | ダイヤ種別バッジ | 読み込んだ時刻表 ID から `DayBadge` で種別ラベルを表示（**5 種別**：授業日／休業日／長期休暇・平日／長期休暇・休日／イベント日。`event` を含む→イベント、`vacation` を含む→`holiday` の有無で長期休暇の休日／平日、`holiday` を含む→休業日、それ以外→授業日。`vacation_*_holiday` は両語を含むため `vacation` を `holiday` より先に判定する順序が必須） |
 | ルート切り替え | `station_to_campus`（松永方面→大学）と `campus_to_station`（大学→松永方面）を切り替え |
 | 直近 4 本・全時刻表 | `findUpcomingBuses` で次発以降最大 4 本を表示。全便は `FullTimetable` で一覧（モバイルは地図の上、PC・横向き表示では下段フル幅） |
@@ -41,7 +42,8 @@
 | 乗り場マップ | `react-leaflet` + OSM。マーカーに永続ツールチップで乗り場名表示、「現在地からのルートを見る」で外部ナビ起動。オフライン時は乗り場名プレースホルダーを表示 |
 | ダイヤ切り替え | 曜日デフォルト + 日付単位の上書き（春休みダイヤなど） |
 | お知らせ・設定・ヘルプ | ドロワーから `NewsScreen` / `SettingsScreen` / `HelpScreen` を表示。お知らせは `news.json`（HTML 本文可） |
-| 設定 | デフォルトルート、テーマ（ライト/ダーク）、フォントサイズ（`localStorage`） |
+| 未読お知らせ通知 | 未読のお知らせがあるとき、ハンバーガーボタンとドロワーの「お知らせ」項目に未読ドットを表示。既読 ID は `localStorage`（`useNews`）で管理 |
+| 設定 | デフォルトルート、テーマ（ライト/ダーク/システム）、フォントサイズ（`localStorage`）。「システム」は OS のカラーモード（`prefers-color-scheme`）に追従 |
 | PWA | ホーム画面追加、`standalone` 表示、Service Worker によるアセット・データ・タイルのキャッシュ |
 | ホーム画面追加ガイド | `MobilePwaGuide` がモバイルブラウザ向けにホーム画面への追加手順をガイド |
 | 時刻データの手動更新 | ヘッダーの更新ボタンで JSON を再取得（`?t=` キャッシュバスター + `cache: 'reload'`）。**ページはリロードせず**、結果は `Toast` で通知 |
@@ -201,8 +203,8 @@ npm run preview  # 本番ビルドのローカル確認
 | iOS PWA フォールバック | `standalone` モードで `useRegisterSW` の `needRefresh` が発火しない場合のため、`navigator.serviceWorker.getRegistration()` で `waiting` 状態の SW を直接検出し `SKIP_WAITING` メッセージを送る。`controllerchange` イベントで起動直後なら自動リロード。 |
 | フォアグラウンド復帰 | `App.tsx` で `visibilitychange` 時に `registration.update()` を呼び、バックグラウンドから戻ったあとにも更新を確認します。 |
 | マニフェスト | `manifest: false` により **`public/manifest.json` をそのまま利用**（プラグイン生成マニフェストは使わない） |
-| プリキャッシュ | Workbox の `globPatterns` で JS/CSS/HTML/画像/JSON 等をビルド成果物からキャッシュ |
-| `/data/*.json` | **NetworkFirst**（`networkTimeoutSeconds: 5`）。同一キャッシュ名内は最大 20 件・最長 7 日で整理（`vite.config.ts` の `expiration`） |
+| プリキャッシュ | Workbox の `globPatterns` で JS/CSS/HTML/画像等をビルド成果物からキャッシュ。**`data/**/*.json` は `globIgnores` でプリキャッシュから除外**（除外しないと素の `/data/*.json` がプリキャッシュに先勝ちし、下の NetworkFirst が通常起動経路で効かなくなるため。詳細は `vite.config.ts` のコメントと `CLAUDE.md`） |
+| `/data/*.json` | **NetworkFirst**（`networkTimeoutSeconds: 3`）。同一キャッシュ名内は最大 20 件・最長 7 日で整理（`vite.config.ts` の `expiration`） |
 | OSM タイル | **CacheFirst**、最大 500 エントリ・最大 30 日。一度表示した周辺タイルはオフラインでも再利用しやすい |
 | 時刻データ更新（UI） | ヘッダー更新は `Toast` で進捗・成功・失敗を表示（アプリシェルのリロードは行わない） |
 | アプリ初期化 | ドロワーから SW 登録解除 → `localStorage` 全削除 → Cache Storage 全削除 → `location.reload()` |
@@ -239,7 +241,7 @@ npm run preview  # 本番ビルドのローカル確認
 - **ブレークポイント:** 判定は CSS メディアクエリではなく `main.tsx` の `syncBpActiveClass` が付与する `html.bp-active` クラスで行う（iPadOS の `innerWidth` 復元バグ回避）。幅 1024px 未満かつ縦向きは 1 カラム、1024px 以上または横向き 480px 以上で時刻表と地図の 2 カラム + 全時刻表は下段フル幅。
 - **PWA 表示:** `manifest.json` の `display: "standalone"`、`orientation: "portrait"`。
 - **操作感:** グローバルに `user-select: none`、タップハイライト無効化（入力系は選択可能）。ネイティブアプリに近い誤操作抑制。
-- **テーマ:** ライト/ダーク切替で CSS 変数（`index.css` の `:root` / `.dark`）を切り替え。
+- **テーマ:** ライト/ダーク/システムの 3 種。CSS 変数（`index.css` の `:root` / `.dark`）を切り替える。「システム」は `prefers-color-scheme` に追従し、OS のモード切替にも追従する。初回描画時の白フラッシュ（FOUC）防止のため、React マウント前に `index.html` のインラインスクリプトが同じ判定で `<html>` に `.dark` を付与する。
 - **iOS / iPad の縦潰れ対策**: iPad の Safari・PWA では 2 回目以降の起動時に Safari の shrink-to-fit によってページ全体が縮小描画される事象があった。`index.html` の viewport メタに `shrink-to-fit=no` を指定して回避している（**削除すると再発する**）。
 
 ---
