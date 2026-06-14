@@ -5,6 +5,8 @@ interface Props {
   next: NextBusInfo | null
   route: RouteKey
   fontSize: FontSize
+  /** 本日の残り運行本数（次発を含む）。next が null のときは未使用 */
+  remaining: number
 }
 
 const FONT_SIZE_MAP: Record<FontSize, { time: string; text: string }> = {
@@ -13,7 +15,7 @@ const FONT_SIZE_MAP: Record<FontSize, { time: string; text: string }> = {
   large:  { time: 'text-7xl', text: 'text-[31px]' },
 }
 
-export function NextBusCard({ next, route, fontSize }: Props) {
+export function NextBusCard({ next, route, fontSize, remaining }: Props) {
   const isCampus = route === 'campus_to_station'
   const gradientClass = isCampus
     ? 'bg-gradient-to-br from-[#0d9966] to-[#34d399]'
@@ -42,22 +44,29 @@ export function NextBusCard({ next, route, fontSize }: Props) {
     )
   }
 
+  // remaining === 1 のとき、次発が本日の最終便
+  const isLastBus = remaining === 1
+
   return (
     <div className={`${gradientClass} rounded-[22px] px-6 py-[22px] text-white relative overflow-hidden`}>
       <Decoration />
-      <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
-        次のバス
-      </p>
-      <div className="flex items-baseline gap-3 mb-[7px]">
-        <p className={`${fs.time} font-black text-white tracking-tight leading-none`}>
-          {next.entry.departure}
+
+      {/* 見出し行: 左「次のバス」／右に本日の残数バッジ */}
+      <div className="flex items-center justify-between mb-[5px]">
+        <p className="text-[13px] font-bold tracking-widest uppercase text-white/75">
+          次のバス
         </p>
-        {next.entry.note && (
-          <span className="text-sm text-white/80 bg-white/20 px-2 py-0.5 rounded-lg font-bold">
-            {next.entry.note}
-          </span>
-        )}
+        <span className="inline-flex items-center gap-1.5 bg-white/20 dark:bg-black/25 rounded-full px-[13px] py-[5px] text-[14px] font-extrabold whitespace-nowrap">
+          <BusIcon />
+          {isLastBus ? '最終便' : `残り${remaining}本`}
+        </span>
       </div>
+
+      {/* 発車時刻（「最終」ピルは右上バッジと重複するため表示しない） */}
+      <p className={`${fs.time} font-black text-white tracking-tight leading-none mb-[7px]`}>
+        {next.entry.departure}
+      </p>
+
       <p className="text-[17px] text-white/90 font-medium">
         {next.minutesUntil >= 60 ? (
           <>
@@ -80,6 +89,27 @@ export function NextBusCard({ next, route, fontSize }: Props) {
         )}
       </p>
     </div>
+  )
+}
+
+function BusIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="5" width="18" height="11" rx="2.5" />
+      <path d="M3 11h18" />
+      <circle cx="7.5" cy="18.5" r="1.4" />
+      <circle cx="16.5" cy="18.5" r="1.4" />
+    </svg>
   )
 }
 
