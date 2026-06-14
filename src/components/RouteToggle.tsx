@@ -5,9 +5,9 @@ interface Props {
   onChange: (route: RouteKey) => void
 }
 
-const OPTIONS: { key: RouteKey; label: string; icon: string }[] = [
-  { key: 'campus_to_station', label: '大学発', icon: '' },
-  { key: 'station_to_campus', label: '松永発', icon: '' },
+const OPTIONS: { key: RouteKey; label: string }[] = [
+  { key: 'campus_to_station', label: '大学発' },
+  { key: 'station_to_campus', label: '松永発' },
 ]
 
 export function RouteToggle({ route, onChange }: Props) {
@@ -23,12 +23,11 @@ export function RouteToggle({ route, onChange }: Props) {
             key={opt.key}
             onClick={() => onChange(opt.key)}
             className={[
-              'flex-1 rounded-full py-[9px] px-[6px] flex items-center justify-center gap-[5px]',
+              'flex-1 rounded-full py-[9px] px-[6px] flex items-center justify-center',
               'text-[13px] font-semibold transition-all duration-200 select-none',
               active ? 'bg-white dark:bg-black/50 shadow-md' : 'text-white/70',
             ].join(' ')}
           >
-            <span className="text-[14px] leading-none pointer-events-none">{opt.icon}</span>
             <span className={[
               'font-bold text-[13px] pointer-events-none',
               active ? colorClass : '',

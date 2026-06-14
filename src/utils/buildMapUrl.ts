@@ -5,7 +5,7 @@ import type { BusStopCoords } from '../types/timetable'
  * iOS Safari → maps:// (Apple Maps)
  * Android / その他 → https://maps.google.com (Google Maps)
  */
-export function buildMapUrl(coords: BusStopCoords, _label: string): string {
+export function buildMapUrl(coords: BusStopCoords): string {
   const { lat, lng } = coords
   const isIOS =
     typeof navigator !== 'undefined' &&

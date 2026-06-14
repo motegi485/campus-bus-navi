@@ -39,11 +39,7 @@ export function HelpScreen({ open, onClose }: Props) {
   }
 
   const handleFeedback = () => {
-    if (FEEDBACK_URL) {
-      window.open(FEEDBACK_URL, '_blank', 'noopener noreferrer')
-    } else {
-      alert('フィードバックフォームは現在準備中です。')
-    }
+    window.open(FEEDBACK_URL, '_blank', 'noopener noreferrer')
   }
 
   useEffect(() => {
@@ -110,7 +106,7 @@ export function HelpScreen({ open, onClose }: Props) {
               フィードバックを送る
             </button>
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
-              {FEEDBACK_URL ? 'Googleフォームで回答を受け付けます' : '回答はGoogleフォームで受け付けます'}
+              Googleフォームで回答を受け付けます
             </p>
           </div>
         </div>

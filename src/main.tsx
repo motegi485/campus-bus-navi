@@ -119,4 +119,6 @@ async function main() {
   )
 }
 
-main()
+main().catch((err) => {
+  console.error('アプリの初期化に失敗しました:', err)
+})
