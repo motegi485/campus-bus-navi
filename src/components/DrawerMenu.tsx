@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -15,6 +17,14 @@ const LINKS = [
 ]
 
 export function DrawerMenu({ open, onClose, onOpenNews, onOpenSettings, onOpenHelp, onInitApp }: Props) {
+  // Esc キーでドロワーを閉じる（キーボード操作対応）
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
   return (
     <div
       style={{
@@ -23,10 +33,14 @@ export function DrawerMenu({ open, onClose, onOpenNews, onOpenSettings, onOpenHe
         transition: 'background 0.3s',
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      aria-hidden={!open}
     >
       {/* ドロワー本体 */}
       <div
         className="w-[80%] bp:w-[40%]"
+        role="dialog"
+        aria-modal="true"
+        aria-label="メニュー"
         style={{
           position: 'absolute', top: 0, left: 0, height: '100%',
           background: 'var(--bg-card)',
@@ -113,16 +127,15 @@ interface DrawerItemProps {
 }
 
 function DrawerItem({ icon, iconBg, title, sub, chevron, onClick, titleColor }: DrawerItemProps) {
-  return (
-    <div
-      style={{
-        display: 'flex', alignItems: 'center', gap: 13,
-        padding: '11px 12px', borderRadius: 14, cursor: 'pointer',
-        background: 'var(--bg-card)', marginBottom: 6,
-        transition: 'background 0.35s',
-      }}
-      onClick={onClick}
-    >
+  const baseStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 13,
+    padding: '11px 12px', borderRadius: 14, cursor: 'pointer',
+    background: 'var(--bg-card)', marginBottom: 6,
+    transition: 'background 0.35s',
+    width: '100%', textAlign: 'left',
+  }
+  const inner = (
+    <>
       <div style={{ width: 36, height: 36, borderRadius: 11, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>
         {icon}
       </div>
@@ -130,7 +143,18 @@ function DrawerItem({ icon, iconBg, title, sub, chevron, onClick, titleColor }: 
         <div style={{ fontSize: 14, fontWeight: 600, color: titleColor ?? 'var(--text-primary)' }}>{title}</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{sub}</div>
       </div>
-      {chevron && <span style={{ fontSize: 13, color: 'var(--text-muted)', flexShrink: 0 }}>{chevron}</span>}
-    </div>
+      {chevron && <span aria-hidden="true" style={{ fontSize: 13, color: 'var(--text-muted)', flexShrink: 0 }}>{chevron}</span>}
+    </>
   )
+
+  // アクション項目（onClick あり）はキーボード操作可能な <button> として描画する。
+  // リンク項目は親の <a> がフォーカス可能なので、ここは presentational な <div>。
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} style={{ ...baseStyle, border: 'none', font: 'inherit', color: 'inherit' }}>
+        {inner}
+      </button>
+    )
+  }
+  return <div style={baseStyle}>{inner}</div>
 }

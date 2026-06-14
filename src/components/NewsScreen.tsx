@@ -92,13 +92,15 @@ export function NewsScreen({ open, onClose }: Props) {
         {!loading && news.map(item => {
           const isUnread = !readIds.has(item.id) && item.unread
           return (
-            <div
+            <button
+              type="button"
               key={item.id}
               onClick={() => openDetail(item)}
+              aria-label={`${item.tagLabel} ${item.title}${isUnread ? '（未読）' : ''}`}
               style={{
                 background: 'var(--bg-card)', borderRadius: 18, padding: '16px 18px', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', gap: 8,
-                borderLeft: isUnread ? '4px solid #10b981' : '4px solid transparent',
+                display: 'flex', flexDirection: 'column', gap: 8, width: '100%', textAlign: 'left', font: 'inherit',
+                border: 'none', borderLeft: isUnread ? '4px solid #10b981' : '4px solid transparent',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -114,7 +116,7 @@ export function NewsScreen({ open, onClose }: Props) {
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981' }} />
                 </div>
               )}
-            </div>
+            </button>
           )
         })}
       </div>
