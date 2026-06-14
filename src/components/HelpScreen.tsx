@@ -74,10 +74,10 @@ export function HelpScreen({ open, onClose }: Props) {
                 key={i}
                 style={{ borderBottom: i < FAQ.length - 1 ? '.5px solid var(--border)' : 'none' }}
               >
-                <div onClick={() => toggleFaq(i)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '15px 16px', cursor: 'pointer' }}>
+                <button type="button" onClick={() => toggleFaq(i)} aria-expanded={openFaqs.has(i)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '15px 16px', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', font: 'inherit', cursor: 'pointer' }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>{faq.q}</span>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', transition: 'transform 0.22s', transform: openFaqs.has(i) ? 'rotate(180deg)' : '' }}>▼</span>
-                </div>
+                  <span aria-hidden="true" style={{ fontSize: 10, color: 'var(--text-muted)', transition: 'transform 0.22s', transform: openFaqs.has(i) ? 'rotate(180deg)' : '' }}>▼</span>
+                </button>
                 {openFaqs.has(i) && (
                   <div style={{ padding: '0 16px 14px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap'}}>
                     {faq.a}

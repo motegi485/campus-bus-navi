@@ -10,6 +10,28 @@
     <meta name="apple-mobile-web-app-title" content="バス時刻表" />
     <meta name="description" content="スクールバスの時刻表と乗り場案内" />
 
+    <!--
+      テーマ初期化（FOUC 防止）:
+      React マウント前に <html> へ .dark を付与し、ダーク/システムダーク時の白フラッシュを防ぐ。
+      キー 'campusBusNaviSettings' と theme 判定ロジックは src/hooks/useSettings.ts / App.tsx と一致させること。
+    -->
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('campusBusNaviSettings');
+          var theme = raw ? (JSON.parse(raw).theme || 'light') : 'light';
+          var dark =
+            theme === 'dark' ||
+            (theme === 'system' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {
+          /* localStorage 不可時はライトで継続 */
+        }
+      })();
+    </script>
+
     <!-- Google Fonts (CSS @import を避け、ビルド時の @import 順序警告を解消) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
