@@ -5,7 +5,7 @@ import { useJSTClock } from './hooks/useJSTClock'
 import { useTimetable } from './hooks/useTimetable'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useSettings } from './hooks/useSettings'
-import { findNextBus, findUpcomingBuses, findFirstBus } from './utils/findNextBus'
+import { findNextBus, findUpcomingBuses, findFirstBus, countRemainingBuses } from './utils/findNextBus'
 import { RouteToggle } from './components/RouteToggle'
 import { NextBusCard } from './components/NextBusCard'
 import { UpcomingList } from './components/UpcomingList'
@@ -119,6 +119,7 @@ export default function App() {
   const schedule = currentRoute?.schedule ?? []
   const nowMinutes = now.hour() * 60 + now.minute()
   const nextBus = schedule.length > 0 ? findNextBus(schedule, now) : null
+  const remainingCount = countRemainingBuses(schedule, now)
   const upcoming = nextBus ? findUpcomingBuses(schedule, nextBus.index, 4) : []
   const isEndOfService = schedule.length > 0 && nextBus === null
   const tomorrowSchedule = tomorrowTimetable?.routes[route]?.schedule ?? []
@@ -339,7 +340,7 @@ export default function App() {
                       tomorrowTimetableName={tomorrowTimetable?.name}
                     />
                   ) : (
-                    <NextBusCard next={nextBus} route={route} fontSize={fontSize} />
+                    <NextBusCard next={nextBus} route={route} fontSize={fontSize} remaining={remainingCount} />
                   )}
 
                   {/* 直近4本 */}
