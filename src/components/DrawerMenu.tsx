@@ -61,18 +61,20 @@ export function DrawerMenu({ open, onClose, onOpenNews, onOpenSettings, onOpenHe
           <Divider />
 
           {/* アプリセクション */}
+          {/* 各画面はドロワー(z-30)の上(z-50)に重ねて開く。ここでドロワーを閉じないことで、
+              画面の「戻る」を押すと下に残った開いたままのドロワーへ戻れる。 */}
           <SectionLabel>アプリ</SectionLabel>
           <DrawerItem icon="📢" iconBg="#fef3c7" title="お知らせ" sub="バス運行情報・重要連絡" chevron="›"
-            onClick={() => { onClose(); onOpenNews() }} />
+            onClick={onOpenNews} />
 
           <Divider />
 
           {/* その他セクション */}
           <SectionLabel>その他</SectionLabel>
           <DrawerItem icon="⚙️" iconBg="#f0f4ff" title="設定" sub="表示・通知オプション" chevron="›"
-            onClick={() => { onClose(); onOpenSettings() }} />
+            onClick={onOpenSettings} />
           <DrawerItem icon="❓" iconBg="#f4f4f8" title="ヘルプ" sub="使い方・お問い合わせ" chevron="›"
-            onClick={() => { onClose(); onOpenHelp() }} />
+            onClick={onOpenHelp} />
 
           {/* アプリの初期化ボタン */}
           <DrawerItem icon="🔄" iconBg="#fef2f2" title="アプリの初期化" sub="キャッシュ・SWをリセット"
