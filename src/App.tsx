@@ -5,6 +5,7 @@ import { useJSTClock } from './hooks/useJSTClock'
 import { useTimetable } from './hooks/useTimetable'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useSettings } from './hooks/useSettings'
+import { useNews } from './hooks/useNews'
 import { findNextBus, findUpcomingBuses, findFirstBus, countRemainingBuses } from './utils/findNextBus'
 import { RouteToggle } from './components/RouteToggle'
 import { NextBusCard } from './components/NextBusCard'
@@ -35,6 +36,12 @@ export default function App() {
   const isOnline = useOnlineStatus()
   const { timetable, tomorrowTimetable, loading, error, refresh } = useTimetable(now)
   const { toast, showToast } = useToast()
+
+  // お知らせ状態はここ（App）で一元管理し、NewsScreen へ受け渡す。
+  // 本体UI（ハンバーガー・ドロワー）の未読インジケーターと NewsScreen の
+  // 既読状態を同一ソースで同期させるため。hasUnread = 未読が1件以上あるか。
+  const newsState = useNews()
+  const hasUnread = newsState.news.some(item => item.unread && !newsState.readIds.has(item.id))
 
   // 画面表示状態
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -231,6 +238,7 @@ export default function App() {
         {/* ドロワーメニュー */}
         <DrawerMenu
           open={drawerOpen}
+          hasUnread={hasUnread}
           onClose={() => setDrawerOpen(false)}
           onOpenNews={() => setNewsOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
@@ -238,8 +246,8 @@ export default function App() {
           onInitApp={handleInitApp}
         />
 
-        {/* お知らせ */}
-        <NewsScreen open={newsOpen} onClose={() => setNewsOpen(false)} />
+        {/* お知らせ（状態は App で一元管理して受け渡す） */}
+        <NewsScreen open={newsOpen} onClose={() => setNewsOpen(false)} {...newsState} />
 
         {/* 設定 */}
         <SettingsScreen
@@ -264,16 +272,30 @@ export default function App() {
         >
           <div className="flex items-center justify-between mb-1">
             {/* ハンバーガーボタン */}
-            <button
-              onClick={() => setDrawerOpen(true)}
-              aria-label="メニューを開く"
-              className="flex flex-col gap-[4.5px] items-center justify-center bg-white/[0.26] dark:bg-black/25"
-              style={{ width: 43, height: 43, borderRadius: '50%', flexShrink: 0 }}
-            >
-              <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
-              <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
-              <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
-            </button>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <button
+                onClick={() => setDrawerOpen(true)}
+                aria-label={hasUnread ? 'メニューを開く（未読のお知らせがあります）' : 'メニューを開く'}
+                className="flex flex-col gap-[4.5px] items-center justify-center bg-white/[0.26] dark:bg-black/25"
+                style={{ width: 43, height: 43, borderRadius: '50%' }}
+              >
+                <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
+                <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
+                <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
+              </button>
+
+              {/* 未読インジケーター（A1: 白フチの水色ドット） */}
+              {hasUnread && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute', top: 1, right: 1,
+                    width: 11, height: 11, borderRadius: '50%',
+                    background: '#0ea5e9', boxShadow: '0 0 0 2px #fff',
+                  }}
+                />
+              )}
+            </div>
 
             {/* 中央：タイトル・日付・バッジ */}
             <div className="flex-1 text-center">

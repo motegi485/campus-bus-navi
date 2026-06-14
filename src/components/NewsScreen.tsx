@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNews } from '../hooks/useNews'
 import type { NewsItem } from '../types/timetable'
 
 // news.json は Git 管理の信頼できる静的ソース前提。CMS 等の動的ソースに切り替える場合は body のサニタイズ（DOMPurify 等）を必須にすること。
@@ -14,6 +13,12 @@ const TAG_STYLES: Record<string, { bg: string; color: string }> = {
 interface Props {
   open: boolean
   onClose: () => void
+  // お知らせ状態は App（useNews）から受け取る。本体UIの未読インジケーターと同一ソースで同期させるため。
+  news: NewsItem[]
+  loading: boolean
+  error: string | null
+  readIds: Set<number>
+  markAsRead: (id: number) => void
 }
 
 function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -63,8 +68,7 @@ function NewsDetail({ item, onBack }: { item: NewsItem; onBack: () => void }) {
   )
 }
 
-export function NewsScreen({ open, onClose }: Props) {
-  const { news, loading, error, readIds, markAsRead } = useNews()
+export function NewsScreen({ open, onClose, news, loading, error, readIds, markAsRead }: Props) {
   const [selected, setSelected] = useState<NewsItem | null>(null)
 
   const openDetail = (item: NewsItem) => {
@@ -100,22 +104,26 @@ export function NewsScreen({ open, onClose }: Props) {
               style={{
                 background: 'var(--bg-card)', borderRadius: 18, padding: '16px 18px', cursor: 'pointer',
                 display: 'flex', flexDirection: 'column', gap: 8, width: '100%', textAlign: 'left', font: 'inherit',
-                border: 'none', borderLeft: isUnread ? '4px solid #10b981' : '4px solid transparent',
+                border: 'none', borderLeft: isUnread ? '4px solid #0ea5e9' : '4px solid transparent',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <NewsTag tag={item.tag} tagLabel={item.tagLabel} />
+                {/* タグ ＋ 未読ピル（C1: 塗り・白文字） */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <NewsTag tag={item.tag} tagLabel={item.tagLabel} />
+                  {isUnread && (
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#0ea5e9', color: '#fff' }}>
+                      未読
+                    </span>
+                  )}
+                </div>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.date}</span>
               </div>
               <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>{item.title}</p>
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                 {item.preview}
               </p>
-              {isUnread && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981' }} />
-                </div>
-              )}
+              {/* 旧 C0 の右下ドットは削除（未読ピルへ置換） */}
             </button>
           )
         })}

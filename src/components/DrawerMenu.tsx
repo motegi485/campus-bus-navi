@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 
 interface Props {
   open: boolean
+  hasUnread: boolean
   onClose: () => void
   onOpenNews: () => void
   onOpenSettings: () => void
@@ -16,7 +17,7 @@ const LINKS = [
   { icon: '💻', title: 'サークルホームページ', sub: 'fukupro.club',  bg: '#fef9c3', url: 'https://www.fukupro.club/' },
 ]
 
-export function DrawerMenu({ open, onClose, onOpenNews, onOpenSettings, onOpenHelp, onInitApp }: Props) {
+export function DrawerMenu({ open, hasUnread, onClose, onOpenNews, onOpenSettings, onOpenHelp, onInitApp }: Props) {
   // Esc キーでドロワーを閉じる（キーボード操作対応）
   useEffect(() => {
     if (!open) return
@@ -79,6 +80,7 @@ export function DrawerMenu({ open, onClose, onOpenNews, onOpenSettings, onOpenHe
               画面の「戻る」を押すと下に残った開いたままのドロワーへ戻れる。 */}
           <SectionLabel>アプリ</SectionLabel>
           <DrawerItem icon="📢" iconBg="#fef3c7" title="お知らせ" sub="バス運行情報・重要連絡" chevron="›"
+            showDot={hasUnread}
             onClick={onOpenNews} />
 
           <Divider />
@@ -124,9 +126,10 @@ interface DrawerItemProps {
   chevron?: string
   onClick?: () => void
   titleColor?: string
+  showDot?: boolean   // 未読インジケーター表示（お知らせ項目のみ true）
 }
 
-function DrawerItem({ icon, iconBg, title, sub, chevron, onClick, titleColor }: DrawerItemProps) {
+function DrawerItem({ icon, iconBg, title, sub, chevron, onClick, titleColor, showDot }: DrawerItemProps) {
   const baseStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 13,
     padding: '11px 12px', borderRadius: 14, cursor: 'pointer',
@@ -136,8 +139,22 @@ function DrawerItem({ icon, iconBg, title, sub, chevron, onClick, titleColor }: 
   }
   const inner = (
     <>
-      <div style={{ width: 36, height: 36, borderRadius: 11, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>
-        {icon}
+      <div style={{ position: 'relative', width: 36, height: 36, flexShrink: 0 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 11, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 }}>
+          {icon}
+        </div>
+
+        {/* 未読インジケーター（B4: 行背景色フチの水色ドット） */}
+        {showDot && (
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute', top: -3, right: -3,
+              width: 11, height: 11, borderRadius: '50%',
+              background: '#0ea5e9', boxShadow: '0 0 0 2px var(--bg-card)',
+            }}
+          />
+        )}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: titleColor ?? 'var(--text-primary)' }}>{title}</div>
