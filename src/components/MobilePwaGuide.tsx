@@ -136,12 +136,17 @@ export function MobilePwaGuide() {
         background: 'rgba(0,0,0,0.5)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16,
+        // backdrop 起点のタッチで背後の body がスクロールする「貫通」を防ぐ
+        touchAction: 'pinch-zoom',
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto',
+          // カード内が溢れた場合のスクロールを外（body）へ連鎖させない。
+          // バウンス/ストレッチはカード自身が担う（露出色 = カード背景 --bg-card）
+          overscrollBehavior: 'contain',
           background: 'var(--bg-card)', color: 'var(--text-primary)',
           borderRadius: 22, padding: 22,
           boxShadow: '0 20px 60px rgba(0,0,0,0.35)',

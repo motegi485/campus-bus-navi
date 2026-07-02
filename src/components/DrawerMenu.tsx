@@ -27,11 +27,19 @@ export function DrawerMenu({ open, hasUnread, onClose, onOpenNews, onOpenSetting
   }, [open, onClose])
 
   return (
+    /*
+      fixed: ビューポート基準で全面を覆う（absolute だと phone-shell-inner 基準 =
+      ドキュメント全高になり、内部スクローラが実質スクロールしなくなる）。
+      touchAction: backdrop やドロワーの非スクロール部で始まるタッチが背後の
+      body をスクロールさせる「貫通」を防ぐ（内部スクローラへのタッチは最寄りの
+      スクロールコンテナで判定が止まるため通常どおり動く。ピンチズームは許可）。
+    */
     <div
       style={{
-        position: 'absolute', inset: 0, zIndex: 30, pointerEvents: open ? 'all' : 'none',
+        position: 'fixed', inset: 0, zIndex: 30, pointerEvents: open ? 'all' : 'none',
         background: open ? 'rgba(0,0,0,0.38)' : 'rgba(0,0,0,0)',
         transition: 'background 0.3s',
+        touchAction: 'pinch-zoom',
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       aria-hidden={!open}
@@ -61,8 +69,13 @@ export function DrawerMenu({ open, hasUnread, onClose, onOpenNews, onOpenSetting
           </div>
         </div>
 
-        {/* スクロールエリア */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px 20px', background: 'var(--bg-page)', transition: 'background 0.35s' }}>
+        {/* スクロールエリア。overscroll-behavior: contain で外（body）への
+            スクロール連鎖を遮断し、バウンス/ストレッチはこの領域自身が担う
+            （露出色 = この背景 --bg-page）。内側ラッパーの minHeight を
+            「100% + 1px」にして内容が短くても常にスクロール可能にする
+            （iOS はスクロール不能な領域をバウンスも連鎖遮断もしないため）。 */}
+        <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', background: 'var(--bg-page)', transition: 'background 0.35s' }}>
+          <div style={{ minHeight: 'calc(100% + 1px)', padding: '10px 12px 20px' }}>
 
           {/* リンクセクション */}
           <SectionLabel>リンク</SectionLabel>
@@ -100,6 +113,7 @@ export function DrawerMenu({ open, hasUnread, onClose, onOpenNews, onOpenSetting
           <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', padding: '12px 0 4px' }}>
             ver {__APP_VERSION__}
           </div>
+          </div>{/* / 内側ラッパー */}
         </div>
       </div>
     </div>
