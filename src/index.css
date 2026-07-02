@@ -98,6 +98,26 @@ html, body {
   overscroll-behavior: none;
 }
 
+/* iOS/iPadOS（useNativeBounce が html に付与）: ルートの縦オーバースクロールを
+   解放し、OS ネイティブのバウンスをそのまま使う。露出色は上端 = .header-cushion、
+   下端 = body 背景（--bg-page）。横方向は引き続き抑止。 */
+html.bounce-native,
+html.bounce-native body {
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: auto;
+}
+
+/* Android 等のタッチ端末（useNativeBounce が html に付与）: contain は
+   ネイティブのオーバースクロール表現（Android 12+ のストレッチ / 11 以前の
+   グロー）を残したまま、pull-to-refresh とスクロール連鎖を抑止する。
+   ストレッチは端をピン留めしたままコンテンツを引き伸ばす表現で隙間が
+   開かないため、露出色の同期は不要（.header-cushion も使わない）。 */
+html.bounce-stretch,
+html.bounce-stretch body {
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: contain;
+}
+
 /* スクロールバー非表示 */
 ::-webkit-scrollbar {
   display: none;
@@ -105,12 +125,62 @@ html, body {
 
 /* ============================================================
    ヘッダーグラデーション（テーマ非依存）
+   色は --hdr-g0/g1/g2、角度は --hdr-angle が単一の真実源。
+   バウンス時に上端へ露出するグラデ継続クッション（.header-cushion、
+   App.tsx が描画）も同じ変数を参照するため、route 切替に自動追従する。
+   stop 位置 0% / 50% / 100% は useNativeBounce
+   （src/hooks/useNativeBounce.ts）のプロファイル式と対の固定契約。
    ============================================================ */
-.header.campus {
-  background: linear-gradient(160deg, #16a374 0%, #34d399 50%, #6ee7b7 100%);
+.header,
+.header-cushion {
+  --hdr-angle: 160deg;
 }
+.header.campus,
+.header-cushion.campus {
+  --hdr-g0: #16a374;
+  --hdr-g1: #34d399;
+  --hdr-g2: #6ee7b7;
+}
+.header.station,
+.header-cushion.station {
+  --hdr-g0: #818cf8;
+  --hdr-g1: #6c63d5;
+  --hdr-g2: #4f46e5;
+}
+.header.campus,
 .header.station {
-  background: linear-gradient(160deg, #818cf8 0%, #6c63d5 50%, #4f46e5 100%);
+  background: linear-gradient(var(--hdr-angle), var(--hdr-g0) 0%, var(--hdr-g1) 50%, var(--hdr-g2) 100%);
+}
+
+/* ホーム上端バウンス時に露出するグラデ継続クッション（iOS ネイティブバウンス
+   専用。stop 位置は useNativeBounce が inline CSS 変数で設定する）。
+   iOS はドキュメント上端より上の描画内容をラバーバンド露出域に表示しない
+   （出せるのは viewport 固定レイヤーとベース背景のみ）ため、viewport 固定・
+   コンテンツ背面（z-index:-1）のレイヤーとし、「ヘッダー上端 1 行の色
+   プロファイル」＝ x 方向のみの 90deg グラデ（--bounce-x0/1/2）を敷く。
+   境界線上の色はヘッダーの押し下げ量によらず常にヘッダー上端と同一なので、
+   継ぎ目は原理上出ない（上方向の色変化は本来ほぼ一定のため省略する近似）。
+   静止時はオペークな shell に完全に覆われて不可視。下端バウンスの露出域
+   （body 背景 --bg-page）に掛からないよう高さは viewport 上部 70% に留める。
+   Android はストレッチ表現（隙間が開かない）のためクッション自体を使わない。 */
+.header-cushion {
+  display: none;
+  pointer-events: none;
+}
+html.bounce-native .header-cushion {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 70vh;
+  z-index: -1;
+  background: linear-gradient(
+    90deg,
+    var(--hdr-g0) var(--bounce-x0, 0%),
+    var(--hdr-g1) var(--bounce-x1, 50%),
+    var(--hdr-g2) var(--bounce-x2, 100%)
+  );
 }
 
 /* ============================================================
