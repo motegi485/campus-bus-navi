@@ -6,6 +6,7 @@ import { useTimetable } from './hooks/useTimetable'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useSettings } from './hooks/useSettings'
 import { useNews } from './hooks/useNews'
+import { useNativeBounce } from './hooks/useNativeBounce'
 import { findNextBus, findUpcomingBuses, findFirstBus, countRemainingBuses } from './utils/findNextBus'
 import { RouteToggle } from './components/RouteToggle'
 import { NextBusCard } from './components/NextBusCard'
@@ -202,6 +203,15 @@ export default function App() {
     document.documentElement.classList.toggle('dark', isDark)
   }, [isDark])
 
+  // オーバースクロール表現は OS ネイティブに委譲する（useNativeBounce）:
+  // iOS はルートのネイティブバウンスを解放（html.bounce-native）し、上端露出は
+  // .header-cushion が塗る。Android はネイティブのストレッチ（html.bounce-stretch、
+  // 端をピン留めして引き伸ばす表現のため隙間が開かず露出色の同期は不要）。
+  // PC は従来どおりバウンス無し（html,body の overscroll-behavior: none）。
+  const headerRef = useRef<HTMLElement>(null)
+  const cushionRef = useRef<HTMLDivElement>(null)
+  useNativeBounce(headerRef, cushionRef)
+
   return (
     /*
       レスポンシブ戦略（ブレークポイント判定は CSS メディアクエリではなく
@@ -267,6 +277,7 @@ export default function App() {
 
         {/* ヘッダー */}
         <header
+          ref={headerRef}
           className={route === 'campus_to_station' ? 'header campus' : 'header station'}
           style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 20px) 22px 22px', transition: 'background 0.55s' }}
         >
@@ -464,6 +475,18 @@ export default function App() {
         {/* モバイル端末向け：ホーム画面追加 / アプリインストール案内 */}
         <MobilePwaGuide />
           </div>{/* phone-shell-inner */}
+
+          {/* ホーム上端バウンスのグラデ継続クッション（iOS ネイティブバウンス専用、
+              スタイルは index.css の .header-cushion）。viewport 固定・z-index:-1 の
+              背面レイヤーで、静止時はオペークな shell に覆われて不可視。ネイティブ
+              バウンスがページごと押し下げた隙間から覗く（ヘッダー上端行と同一の
+              色プロファイル）。Android はストレッチ表現（隙間が開かない）のため
+              display:none のまま使われない。 */}
+          <div
+            ref={cushionRef}
+            aria-hidden="true"
+            className={route === 'campus_to_station' ? 'header-cushion campus' : 'header-cushion station'}
+          />
         </div>{/* phone outer */}
       </div>{/* app wrapper */}
     </>

@@ -47,7 +47,9 @@ export function HelpScreen({ open, onClose }: Props) {
   }, [open])
 
   return (
-    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
+    /* fixed: ビューポート基準の全画面パネル。touchAction: NavBar 等起点の
+       背後 body への貫通スクロールを防ぐ（詳細は DrawerMenu.tsx のコメント参照） */
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', touchAction: 'pinch-zoom' }}>
       {/* ナビバー */}
       <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
         <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#10b981', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
@@ -57,7 +59,9 @@ export function HelpScreen({ open, onClose }: Props) {
         <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>ヘルプ</span>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* スクローラ（contain + 常時スクロール可能化。露出色 = --bg-page） */}
+      <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+        <div style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* バナー */}
         <div style={{ background: 'linear-gradient(135deg,#0d9966,#34d399)', borderRadius: 20, padding: '25px 20px', color: '#fff', textAlign: 'center' }}>
@@ -110,6 +114,7 @@ export function HelpScreen({ open, onClose }: Props) {
             </p>
           </div>
         </div>
+        </div>{/* / 内側ラッパー */}
       </div>
     </div>
   )

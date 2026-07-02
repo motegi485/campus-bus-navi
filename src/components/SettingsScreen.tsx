@@ -83,10 +83,14 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
   }
 
   return (
-    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
+    /* fixed: ビューポート基準の全画面パネル。touchAction: NavBar 等起点の
+       背後 body への貫通スクロールを防ぐ（詳細は DrawerMenu.tsx のコメント参照） */
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', touchAction: 'pinch-zoom' }}>
       <NavBar title="設定" onBack={onClose} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* スクローラ（contain + 常時スクロール可能化。露出色 = --bg-page） */}
+      <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+        <div style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         {/* 表示セクション */}
         <Section label="表示">
@@ -118,13 +122,15 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
             <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 500 }}>{__APP_VERSION__}</span>
           </div>
         </Section>
+        </div>{/* / 内側ラッパー */}
       </div>
 
       {/* 選択サブスクリーン */}
       {selKey && (
-        <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: selKey ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.3s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 60, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: selKey ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.3s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 60, display: 'flex', flexDirection: 'column', overflow: 'hidden', touchAction: 'pinch-zoom' }}>
           <NavBar title={SELECTS[selKey].title} onBack={() => setSelKey(null)} backLabel="設定" />
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px' }}>
+          <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+            <div style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px' }}>
             <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>
               {SELECTS[selKey].options.map((opt, i) => {
                 const isSelected = opt === SELECTS[selKey].current
@@ -150,6 +156,7 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
                 )
               })}
             </div>
+            </div>{/* / 内側ラッパー */}
           </div>
         </div>
       )}

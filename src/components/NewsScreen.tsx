@@ -46,11 +46,15 @@ function NewsTag({ tag, tagLabel }: { tag: string; tagLabel: string }) {
 
 function NewsDetail({ item, onBack }: { item: NewsItem; onBack: () => void }) {
   return (
-    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 10, transition: 'background 0.35s' }}>
+    /* overflow:hidden の本パネル自体がスクロールコンテナ扱いになり親の touchAction が
+       効かないため、ここにも touchAction を付けて NavBar 起点の貫通スクロールを防ぐ */
+    <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 10, transition: 'background 0.35s', touchAction: 'pinch-zoom' }}>
       <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
         <BackButton label="お知らせ" onClick={onBack} />
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px 40px' }}>
+      {/* 本文スクローラ（contain + 常時スクロール可能化。露出色 = --bg-page） */}
+      <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+        <div style={{ minHeight: 'calc(100% + 1px)', padding: '24px 20px 40px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <NewsTag tag={item.tag} tagLabel={item.tagLabel} />
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item.date}</span>
@@ -63,6 +67,7 @@ function NewsDetail({ item, onBack }: { item: NewsItem; onBack: () => void }) {
           style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.8 }}
           dangerouslySetInnerHTML={{ __html: item.body }}
         />
+        </div>{/* / 内側ラッパー */}
       </div>
     </div>
   )
@@ -77,11 +82,15 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
   }
 
   return (
+    /* fixed: ビューポート基準の全画面パネル（absolute だとドキュメント全高になり
+       内部スクローラが機能しない）。touchAction: NavBar 等の非スクロール部起点の
+       タッチによる背後 body への貫通スクロールを防ぐ（ピンチズームは許可）。 */
     <div style={{
-      position: 'absolute', inset: 0, background: 'var(--bg-page)',
+      position: 'fixed', inset: 0, background: 'var(--bg-page)',
       transform: open ? 'translateX(0)' : 'translateX(100%)',
       transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s',
       zIndex: 50, display: 'flex', flexDirection: 'column',
+      touchAction: 'pinch-zoom',
     }}>
       {/* ナビバー */}
       <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
@@ -89,8 +98,11 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
         <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>お知らせ</span>
       </div>
 
-      {/* リスト */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* リスト。contain で外への連鎖を遮断し、バウンス/ストレッチは領域自身が担う
+          （露出色 = パネル背景 --bg-page）。内側ラッパーの minHeight 100%+1px で
+          内容が短くても常にスクロール可能にする（iOS の連鎖遮断の成立条件）。 */}
+      <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+        <div style={{ minHeight: 'calc(100% + 1px)', padding: '16px 14px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {loading && <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '32px 0' }}>読み込み中...</p>}
         {error && <p style={{ textAlign: 'center', color: '#ef4444', fontSize: 13, padding: '32px 0' }}>{error}</p>}
         {!loading && news.map(item => {
@@ -127,6 +139,7 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
             </button>
           )
         })}
+        </div>{/* / 内側ラッパー */}
       </div>
 
       {/* 詳細スクリーン */}
