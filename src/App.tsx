@@ -295,16 +295,25 @@ export default function App() {
                 <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
               </button>
 
-              {/* 未読インジケーター（A1: 白フチの水色ドット） */}
+              {/* 未読インジケーター（A4: パルスリング・フチなし） */}
               {hasUnread && (
                 <span
                   aria-hidden="true"
                   style={{
                     position: 'absolute', top: 1, right: 1,
-                    width: 11, height: 11, borderRadius: '50%',
-                    background: '#0ea5e9', boxShadow: '0 0 0 2px #fff',
+                    width: 11, height: 11, pointerEvents: 'none',
                   }}
-                />
+                >
+                  {/* 広がるリング（prefers-reduced-motion で停止） */}
+                  <span
+                    className="unread-pulse-ring"
+                    style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#0ea5e9', opacity: 0.55 }}
+                  />
+                  {/* 中心ドット（フチなし） */}
+                  <span
+                    style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#0ea5e9' }}
+                  />
+                </span>
               )}
             </div>
 

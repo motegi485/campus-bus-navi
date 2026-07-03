@@ -158,16 +158,25 @@ function DrawerItem({ icon, iconBg, title, sub, chevron, onClick, titleColor, sh
           {icon}
         </div>
 
-        {/* 未読インジケーター（B4: 行背景色フチの水色ドット） */}
+        {/* 未読インジケーター（B4: パルスリング＋行背景色フチの中心ドット） */}
         {showDot && (
           <span
             aria-hidden="true"
             style={{
               position: 'absolute', top: -3, right: -3,
-              width: 11, height: 11, borderRadius: '50%',
-              background: '#0ea5e9', boxShadow: '0 0 0 2px var(--bg-card)',
+              width: 11, height: 11, pointerEvents: 'none',
             }}
-          />
+          >
+            {/* 広がるリング（prefers-reduced-motion で停止） */}
+            <span
+              className="unread-pulse-ring"
+              style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#0ea5e9', opacity: 0.55 }}
+            />
+            {/* 中心ドット（タイル分離のため行背景色フチを維持） */}
+            <span
+              style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#0ea5e9', boxShadow: '0 0 0 2px var(--bg-card)' }}
+            />
+          </span>
         )}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
