@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 /*
   iPad(WebKit) 縦潰れ不具合の対処メモ:
@@ -64,25 +65,36 @@ async function main() {
   // キャッシュに残り続けることがある。React mount 前に待機 SW を検出して即座に適用し、
   // 旧 CSS が画面に表示される前に新 SW へ切り替える。
   if ('serviceWorker' in navigator) {
+    // 待機 SW を検出してもリロードは 1 セッション 1 回までに制限する。
+    // activate に失敗する端末で「起動 → 2秒待ち → リロード」が無限に続くのを防ぐガード。
+    const SW_RELOAD_FLAG = 'swWaitingReloadAttempted'
     try {
       const reg = await Promise.race([
         navigator.serviceWorker.getRegistration(),
         new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), 500)),
       ])
       if (reg?.waiting) {
-        const waiting = reg.waiting
-        await new Promise<void>(resolve => {
-          const timer = setTimeout(resolve, 2000)
-          navigator.serviceWorker.addEventListener('controllerchange', () => {
-            clearTimeout(timer)
-            resolve()
-          }, { once: true })
-          waiting.postMessage({ type: 'SKIP_WAITING' })
-        })
-        // 初期化フローのみ reload を許可（待機 SW を確実に反映するため）
-        window.location.reload()
-        return
+        let attempted = false
+        try { attempted = sessionStorage.getItem(SW_RELOAD_FLAG) === '1' } catch { /* noop */ }
+        if (!attempted) {
+          try { sessionStorage.setItem(SW_RELOAD_FLAG, '1') } catch { /* noop */ }
+          const waiting = reg.waiting
+          await new Promise<void>(resolve => {
+            const timer = setTimeout(resolve, 2000)
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              clearTimeout(timer)
+              resolve()
+            }, { once: true })
+            waiting.postMessage({ type: 'SKIP_WAITING' })
+          })
+          // 初期化フローのみ reload を許可（待機 SW を確実に反映するため）
+          window.location.reload()
+          return
+        }
+        // 既に試行済み: ループ防止のため今回はリロードせず通常起動を続行する
       }
+      // 通常起動（リロードしない経路）に入ったのでワンショットガードを解除する
+      try { sessionStorage.removeItem(SW_RELOAD_FLAG) } catch { /* noop */ }
       // 待機 SW がなければバックグラウンドで更新チェック（次回起動時に備える）
       reg?.update().catch(() => {})
     } catch {
@@ -114,7 +126,9 @@ async function main() {
   }
   createRoot(rootElement).render(
     <StrictMode>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </StrictMode>,
   )
 }

@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import dayjs from 'dayjs'
 import type { CalendarRules, Timetable } from '../types/timetable'
 import { resolveCalendar } from '../utils/resolveCalendar'
+import { normalizeTimetable } from '../utils/normalizeTimetable'
 
 interface UseTimetableResult {
   timetable: Timetable | null
   tomorrowTimetable: Timetable | null
   loading: boolean
   error: string | null
-  refresh: () => Promise<void>
+  refresh: () => Promise<boolean>
 }
 
 /**
@@ -36,8 +37,12 @@ export function useTimetable(now: dayjs.Dayjs): UseTimetableResult {
   // 日付キー。再フェッチのトリガーになる
   const dateKey = useMemo(() => now.format('YYYY-MM-DD'), [now])
 
-  const load = useCallback(async (bustCache = false) => {
-    setLoading(true)
+  // データ取得済みかどうか。既にデータがある状態での再取得（手動更新・日付跨ぎ）は
+  // 画面をスピナーに置き換えず、取得済みの表示を維持したまま裏で更新する
+  const hasDataRef = useRef(false)
+
+  const load = useCallback(async (bustCache = false): Promise<boolean> => {
+    if (!hasDataRef.current) setLoading(true)
     setError(null)
     try {
       const rules = await fetchJSON<CalendarRules>('/data/calendar_rules.json', bustCache)
@@ -46,14 +51,17 @@ export function useTimetable(now: dayjs.Dayjs): UseTimetableResult {
       const tomorrowId = resolveCalendar(rules, current.add(1, 'day'))
 
       const [todayData, tomorrowData] = await Promise.all([
-        fetchJSON<Timetable>(`/data/timetables/${todayId}.json`, bustCache),
-        fetchJSON<Timetable>(`/data/timetables/${tomorrowId}.json`, bustCache).catch(() => null),
+        fetchJSON<Timetable>(`/data/timetables/${todayId}.json`, bustCache).then(normalizeTimetable),
+        fetchJSON<Timetable>(`/data/timetables/${tomorrowId}.json`, bustCache).then(normalizeTimetable).catch(() => null),
       ])
 
       setTimetable(todayData)
+      hasDataRef.current = true
       setTomorrowTimetable(tomorrowData)
+      return true
     } catch (e) {
       setError(e instanceof Error ? e.message : '不明なエラーが発生しました')
+      return false
     } finally {
       setLoading(false)
     }

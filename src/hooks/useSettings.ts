@@ -9,11 +9,20 @@ const DEFAULT_SETTINGS: AppSettings = {
   fontSize: 'medium',
 }
 
+const VALID_ROUTES: DefaultRoute[] = ['campus_to_station', 'station_to_campus']
+const VALID_THEMES: Theme[] = ['light', 'dark', 'system']
+const VALID_FONT_SIZES: FontSize[] = ['small', 'medium', 'large']
+
 function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return DEFAULT_SETTINGS
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
+    const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
+    return {
+      defaultRoute: VALID_ROUTES.includes(parsed.defaultRoute) ? parsed.defaultRoute : DEFAULT_SETTINGS.defaultRoute,
+      theme: VALID_THEMES.includes(parsed.theme) ? parsed.theme : DEFAULT_SETTINGS.theme,
+      fontSize: VALID_FONT_SIZES.includes(parsed.fontSize) ? parsed.fontSize : DEFAULT_SETTINGS.fontSize,
+    }
   } catch {
     return DEFAULT_SETTINGS
   }

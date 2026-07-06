@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from 'react'
+import { isIOS } from '../utils/platform'
 
 /*
   モバイル/タブレット専用のオーバースクロール表現（バウンス/ストレッチ）。
@@ -26,13 +27,6 @@ import { useEffect, type RefObject } from 'react'
   参照するため route 切替・テーマに自動追従する。stop 位置のみ本フックが計算する。
 */
 
-// iOS/iPadOS 判定（MobilePwaGuide.tsx の isIOS と同一ロジック）。
-// iPadOS 13+ はデスクトップ UA（Macintosh）を送るため maxTouchPoints で補完する。
-const IS_IOS =
-  typeof navigator !== 'undefined' &&
-  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1))
-
 const COARSE_MQ = '(pointer: coarse)'
 
 /**
@@ -46,7 +40,7 @@ export function useNativeBounce(headerRef: RefObject<HTMLElement>, cushionRef: R
     const cushion = cushionRef.current
     if (!header || !cushion) return
 
-    if (IS_IOS) {
+    if (isIOS()) {
       document.documentElement.classList.add('bounce-native')
 
       /*
