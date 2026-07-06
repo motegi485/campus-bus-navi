@@ -1,11 +1,12 @@
 {
   "name": "campus-bus-navi",
   "private": true,
-  "version": "1.0.2-β",
+  "version": "1.0.2-beta",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "validate:data": "node scripts/validate-data.mjs",
+    "build": "npm run validate:data && tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

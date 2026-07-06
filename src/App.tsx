@@ -130,6 +130,8 @@ export default function App() {
   const remainingCount = countRemainingBuses(schedule, now)
   const upcoming = nextBus ? findUpcomingBuses(schedule, nextBus.index, 4) : []
   const isEndOfService = schedule.length > 0 && nextBus === null
+  // 全便運休日: 時刻表は取得できているが本日の schedule が空
+  const isNoService = !!currentRoute && schedule.length === 0
   const tomorrowSchedule = tomorrowTimetable?.routes[route]?.schedule ?? []
   const tomorrowFirstBus = findFirstBus(tomorrowSchedule)
 
@@ -145,10 +147,8 @@ export default function App() {
     setRefreshing(true)
     showToast('⟳ 時刻データを更新しています...', 1600)
     try {
-      await refresh()
-      showToast('✓ 最新の時刻データに更新しました')
-    } catch {
-      showToast('⚠ 更新に失敗しました（オフライン？）')
+      const ok = await refresh()
+      showToast(ok ? '✓ 最新の時刻データに更新しました' : '⚠ 更新に失敗しました（オフライン？）')
     } finally {
       setRefreshing(false)
     }
@@ -161,25 +161,30 @@ export default function App() {
     )
     if (!confirmed) return
 
-    // 1. Service Worker の登録解除
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations()
-      for (const reg of registrations) {
-        await reg.unregister()
+    try {
+      // 1. Service Worker の登録解除
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        for (const reg of registrations) {
+          await reg.unregister()
+        }
       }
+
+      // 2. localStorage のクリア
+      localStorage.clear()
+
+      // 3. Cache Storage の完全削除（Workboxキャッシュ本体）
+      if ('caches' in window) {
+        const cacheKeys = await caches.keys()
+        await Promise.all(cacheKeys.map(key => caches.delete(key)))
+      }
+    } catch (e) {
+      console.error('アプリの初期化中にエラーが発生しました:', e)
+    } finally {
+      // 4. 強制リロード（初期化時のみ reload を許可。途中で失敗しても
+      //    掃除できた分を反映しつつ復旧を優先するため必ず実行する）
+      window.location.reload()
     }
-
-    // 2. localStorage のクリア
-    localStorage.clear()
-
-    // 3. Cache Storage の完全削除（Workboxキャッシュ本体）
-    if ('caches' in window) {
-      const cacheKeys = await caches.keys()
-      await Promise.all(cacheKeys.map(key => caches.delete(key)))
-    }
-
-    // 4. 強制リロード（初期化時のみ reload を許可）
-    window.location.reload()
   }, [])
 
   // 端末のカラーモード（prefers-color-scheme）を購読
@@ -375,20 +380,30 @@ export default function App() {
               {error && !loading && (
                 <div className="rounded-[20px] p-5 text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
                   <p className="text-[14px] text-red-500 font-medium">{error}</p>
-                  <p className="text-[12px] mt-2" style={{ color: 'var(--text-muted)' }}>キャッシュされた時刻表を使用しています</p>
+                  <p className="text-[12px] mt-2" style={{ color: 'var(--text-muted)' }}>
+                    {timetable
+                      ? '前回取得した時刻表を表示しています'
+                      : '通信環境をご確認のうえ、右上の更新ボタンをお試しください'}
+                  </p>
                 </div>
               )}
 
-              {/* 次のバス / 終バス後 */}
+              {/* 次のバス / 終バス後 / 運休日 */}
               {!loading && currentRoute && (
                 <>
-                  {isEndOfService ? (
+                  {isNoService ? (
+                    <EndOfServiceCard
+                      message="本日の運行はありません"
+                      tomorrowFirstBus={tomorrowFirstBus}
+                      tomorrowTimetableName={tomorrowTimetable?.name}
+                    />
+                  ) : isEndOfService ? (
                     <EndOfServiceCard
                       tomorrowFirstBus={tomorrowFirstBus}
                       tomorrowTimetableName={tomorrowTimetable?.name}
                     />
                   ) : (
-                    <NextBusCard next={nextBus} route={route} fontSize={fontSize} remaining={remainingCount} />
+                    nextBus && <NextBusCard next={nextBus} route={route} fontSize={fontSize} remaining={remainingCount} />
                   )}
 
                   {/* 直近4本 */}
@@ -478,7 +493,10 @@ export default function App() {
         {/* PWA更新通知バナー（registerType: 'prompt'） */}
         {/* コールドスタート時は自動適用されるため、セッション中の更新検知時のみ表示 */}
         {showUpdateBanner && (
-          <UpdateBanner onUpdate={() => updateServiceWorker(true)} />
+          <UpdateBanner
+            onUpdate={() => updateServiceWorker(true)}
+            onDismiss={() => setShowUpdateBanner(false)}
+          />
         )}
 
         {/* モバイル端末向け：ホーム画面追加 / アプリインストール案内 */}

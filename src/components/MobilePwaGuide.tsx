@@ -1,21 +1,7 @@
 import { useEffect, useState } from 'react'
+import { isIOS, isAndroid } from '../utils/platform'
 
 const STORAGE_KEY = 'campusBusNaviMobilePwaDismissed'
-
-function isIOS(): boolean {
-  if (typeof navigator === 'undefined') return false
-  if (/iPhone|iPod/.test(navigator.userAgent)) return true
-  if (/iPad/.test(navigator.userAgent)) return true
-  // iPadOS 13+ はデスクトップ UA ("Macintosh") を送るため UA だけでは判定不可。
-  // タッチ対応 Mac は存在しないので maxTouchPoints で補完する。
-  if (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) return true
-  return false
-}
-
-function isAndroid(): boolean {
-  if (typeof navigator === 'undefined') return false
-  return /Android/.test(navigator.userAgent)
-}
 
 function isStandalone(): boolean {
   if (typeof window === 'undefined') return false

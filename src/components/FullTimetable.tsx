@@ -12,6 +12,8 @@ interface Props {
 export function FullTimetable({ schedule, route, currentDeparture, nowMinutes }: Props) {
   const [open, setOpen] = useState(false)
 
+  if (schedule.length === 0) return null
+
   const isCampus = route === 'campus_to_station'
   const activeBg = isCampus ? '#d1fae5' : '#ede9fe'
   const activeText = isCampus ? '#065f46' : '#4f46e5'

@@ -3,9 +3,10 @@ import type { ScheduleEntry } from '../types/timetable'
 interface Props {
   tomorrowFirstBus: ScheduleEntry | null
   tomorrowTimetableName?: string
+  message?: string
 }
 
-export function EndOfServiceCard({ tomorrowFirstBus, tomorrowTimetableName }: Props) {
+export function EndOfServiceCard({ tomorrowFirstBus, tomorrowTimetableName, message = '本日の運行は終了しました' }: Props) {
   return (
     <div
       className="rounded-[22px] px-6 py-[22px] text-white"
@@ -18,7 +19,7 @@ export function EndOfServiceCard({ tomorrowFirstBus, tomorrowTimetableName }: Pr
         --:--
       </p>
       <p className="text-[17px] text-white/90 font-semibold mb-4">
-        本日の運行は終了しました
+        {message}
       </p>
 
       {tomorrowFirstBus && (

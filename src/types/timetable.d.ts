@@ -41,6 +41,7 @@ export type DiagramType =
   | 'vacation_weekday'
   | 'vacation_holiday'
   | 'event'
+  | 'closed'
 
 export interface NewsItem {
   id: number
