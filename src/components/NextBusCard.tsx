@@ -2,10 +2,10 @@ import type { NextBusInfo, RouteKey } from '../types/timetable'
 import type { FontSize } from '../types/timetable'
 
 interface Props {
-  next: NextBusInfo | null
+  next: NextBusInfo
   route: RouteKey
   fontSize: FontSize
-  /** 本日の残り運行本数（次発を含む）。next が null のときは未使用 */
+  /** 本日の残り運行本数（次発を含む） */
   remaining: number
 }
 
@@ -20,29 +20,8 @@ export function NextBusCard({ next, route, fontSize, remaining }: Props) {
   const gradientClass = isCampus
     ? 'bg-gradient-to-br from-[#0d9966] to-[#34d399]'
     : 'bg-gradient-to-br from-[#6c63d5] to-[#a78bfa]'
-  const endedGradient = 'linear-gradient(135deg, #374151, #4b5563)'
 
   const fs = FONT_SIZE_MAP[fontSize]
-
-  if (!next) {
-    return (
-      <div
-        className="rounded-[22px] px-6 py-[22px] text-white relative overflow-hidden"
-        style={{ background: endedGradient }}
-      >
-        <Decoration />
-        <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-2">
-          次のバス
-        </p>
-        <p className={`${fs.time} font-black text-white tracking-tight leading-none mb-2`}>
-          --:--
-        </p>
-        <p className="text-[17px] text-white/90 font-semibold">
-          <b className="font-black text-white text-[22px]">本日の運行は終了しました</b>
-        </p>
-      </div>
-    )
-  }
 
   // remaining === 1 のとき、次発が本日の最終便
   const isLastBus = remaining === 1

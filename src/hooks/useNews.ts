@@ -48,8 +48,7 @@ export function useNews(): UseNewsResult {
       setLoading(true)
       setError(null)
       try {
-        const cacheBuster = `?t=${Date.now()}`
-        const res = await fetch(`/data/news.json${cacheBuster}`, { cache: 'reload' })
+        const res = await fetch('/data/news.json')
         if (!res.ok) throw new Error('news.json の取得に失敗しました')
         const data: NewsItem[] = await res.json()
         if (!cancelled) setNews(data)

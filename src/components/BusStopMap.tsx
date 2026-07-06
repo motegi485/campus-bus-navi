@@ -4,14 +4,6 @@ import L from 'leaflet'
 import type { BusStopCoords, RouteKey } from '../types/timetable'
 import { buildMapUrl } from '../utils/buildMapUrl'
 
-// Leaflet デフォルトアイコン修正（Viteビルド対策）
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-})
-
 // カスタムバス停ピン
 const busStopIcon = L.divIcon({
   className: '', // デフォルトの白い背景などを消すために空にしておく

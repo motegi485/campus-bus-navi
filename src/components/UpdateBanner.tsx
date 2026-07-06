@@ -1,13 +1,15 @@
 interface UpdateBannerProps {
   onUpdate: () => void
+  onDismiss: () => void
 }
 
 /**
  * 新しいService Workerが検知されたときに画面下部に表示するバナー
  * registerType: 'prompt' との組み合わせで使用する
  * 「更新」タップ時に updateServiceWorker(true) を呼び出しアプリを再起動
+ * 「あとで」タップ時は onDismiss でバナーを閉じる（セッション中は再表示しない）
  */
-export function UpdateBanner({ onUpdate }: UpdateBannerProps) {
+export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
   return (
     <div
       style={{
@@ -31,6 +33,20 @@ export function UpdateBanner({ onUpdate }: UpdateBannerProps) {
       }}
     >
       <span>更新データがあります</span>
+      <button
+        onClick={onDismiss}
+        style={{
+          color: 'rgba(255,255,255,0.7)',
+          fontWeight: 600,
+          fontSize: '13px',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 0,
+        }}
+      >
+        あとで
+      </button>
       <button
         onClick={onUpdate}
         style={{

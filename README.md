@@ -1,264 +1,227 @@
-# campus-bus-navi
+# campus-bus-navi（バスNAVI）
 
-福山大学スクールバス向けの **時刻表・乗り場案内 Progressive Web App（PWA）** です（マニフェスト上の表示名は **バスNAVI**）。学生・教職員が「次のバスにすぐ乗れる」ことと、「時刻表を探す手間」「乗り場に迷うストレス」を減らすことを目的としています。バックエンドやデータベースは持たず、静的ホスティングと JSON データで運用します。
+福山大学スクールバスの **時刻表・乗り場案内アプリ（PWA）** です。「次のバスにすぐ乗れる」「時刻表を探す手間をなくす」「乗り場に迷わない」ことを目的に、学生・教職員向けに提供しています。
 
-🌐 **[アプリをブラウザで開く](https://campus-bus-navi.pages.dev/)**
+🌐 **アプリを開く → <https://campus-bus-navi.pages.dev/>**
+
+> **現在 β 版（ver 1.0.2-beta）として運用中です。** 表示される時刻に万一誤りがあった場合に備え、試験や重要な予定の際は大学公式の時刻表も併せてご確認ください。
+
+バックエンドやデータベースを持たない静的構成（React PWA + JSON データ）で、Cloudflare Pages から配信しています。
+
+---
 
 ## 目次
 
-1. [概要と目的](#1-概要と目的)
-2. [主な機能](#2-主な機能)
-3. [技術スタック](#3-技術スタック)
-4. [ディレクトリ構成](#4-ディレクトリ構成)
-5. [データ管理](#5-データ管理)
-6. [開発手順](#6-開発手順)
-7. [デプロイ](#7-デプロイ)
-8. [PWA・Service Worker](#8-pwaservice-worker)
-9. [乗り場マップ](#9-乗り場マップ)
-10. [時刻・タイムゾーン](#10-時刻タイムゾーン)
-11. [モバイル最適化](#11-モバイル最適化)
-12. [ライセンス](#12-ライセンス)
+1. [できること](#1-できること)
+2. [使い方](#2-使い方)
+3. [時刻表データの更新方法（運用者向け）](#3-時刻表データの更新方法運用者向け)
+4. [開発者向け情報](#4-開発者向け情報)
+5. [アーキテクチャ概要](#5-アーキテクチャ概要)
+6. [ライセンス](#6-ライセンス)
 
 ---
 
-## 1. 概要と目的
-
-- **概要:** スクールバスの発着時刻を一覧表示し、次発を強調します。各路線の乗り場は OpenStreetMap 上で表示し、外部マップアプリへ遷移して徒歩ルートを開けます。適用する時刻表 JSON は `calendar_rules.json` で曜日デフォルトと日付単位の上書きにより切り替わります。
-- **目的:** スマートフォン中心で素早く参照できる UI と、オフラインでも閲覧しやすいキャッシュ設計により、キャンパス周辺の移動判断を支援します。
-- **方針:** 有料 API や独自 API キーに依存せず、オープンソースと標準 Web API のみで構成しています（地図タイルは OpenStreetMap）。
-
----
-
-## 2. 主な機能
+## 1. できること
 
 | 機能 | 説明 |
 |------|------|
-| 次発バス表示 | 現在時刻（JST）に基づき、次の発車時刻と **あと何分** で発車するかを表示（内部は分単位。時計は約 1 分ごとに更新。60 分以上は「あと X 時間 Y 分」表記） |
-| 残り本数・最終便表示 | 次発カードに本日の残り運行本数（次発を含む）を `countRemainingBuses` で算出してバッジ表示。残り 1 本のときは「最終便」と表示 |
-| ダイヤ種別バッジ | 読み込んだ時刻表 ID から `DayBadge` で種別ラベルを表示（**5 種別**：授業日／休業日／長期休暇・平日／長期休暇・休日／イベント日。`event` を含む→イベント、`vacation` を含む→`holiday` の有無で長期休暇の休日／平日、`holiday` を含む→休業日、それ以外→授業日。`vacation_*_holiday` は両語を含むため `vacation` を `holiday` より先に判定する順序が必須） |
-| ルート切り替え | `station_to_campus`（松永方面→大学）と `campus_to_station`（大学→松永方面）を切り替え |
-| 直近 4 本・全時刻表 | `findUpcomingBuses` で次発以降最大 4 本を表示。全便は `FullTimetable` で一覧（モバイルは地図の上、PC・横向き表示では下段フル幅） |
-| 終バス後の案内 | 当日の運行が終了している場合、翌日の始発などを `EndOfServiceCard` で表示 |
-| 乗り場マップ | `react-leaflet` + OSM。マーカーに永続ツールチップで乗り場名表示、「現在地からのルートを見る」で外部ナビ起動。オフライン時は乗り場名プレースホルダーを表示 |
-| ダイヤ切り替え | 曜日デフォルト + 日付単位の上書き（春休みダイヤなど） |
-| お知らせ・設定・ヘルプ | ドロワーから `NewsScreen` / `SettingsScreen` / `HelpScreen` を表示。お知らせは `news.json`（HTML 本文可） |
-| 未読お知らせ通知 | 未読のお知らせがあるとき、ハンバーガーボタンとドロワーの「お知らせ」項目に未読ドットを表示。既読 ID は `localStorage`（`useNews`）で管理 |
-| 設定 | デフォルトルート、テーマ（ライト/ダーク/システム）、フォントサイズ（`localStorage`）。「システム」は OS のカラーモード（`prefers-color-scheme`）に追従 |
-| PWA | ホーム画面追加、`standalone` 表示、Service Worker によるアセット・データ・タイルのキャッシュ |
-| ホーム画面追加ガイド | `MobilePwaGuide` がモバイルブラウザ向けにホーム画面への追加手順をガイド |
-| 時刻データの手動更新 | ヘッダーの更新ボタンで JSON を再取得（`?t=` キャッシュバスター + `cache: 'reload'`）。**ページはリロードせず**、結果は `Toast` で通知 |
-| アプリ初期化 | ドロワーから実行。SW 登録解除 → `localStorage` 全削除 → Cache Storage 全削除のあと **`location.reload()`**（トラブル時のリセット用） |
-| バージョン表示 | `package.json` の `version` をビルド時に `__APP_VERSION__` として注入。ドロワー・設定・ヘルプに表示 |
+| 次のバスがひと目でわかる | 現在時刻（日本時間）に基づき、次の発車時刻と「あと何分」を大きく表示。本日の残り本数も表示し、残り 1 本なら「最終便」と知らせます |
+| 今後の発車時刻・全時刻表 | 次発に続く直近 4 本と、本日の全時刻表（開閉式）を表示。過ぎた便はグレー表示 |
+| ルート切り替え | 「大学発（→松永）」と「松永発（→大学）」をワンタップで切り替え |
+| その日のダイヤを自動適用 | 授業日／休業日／長期休暇（平日・休日）／イベント日／**全便運休日** の 6 種類を日付から自動で選び、画面上部にダイヤ種別バッジを表示 |
+| 終バス後・運休日の案内 | 本日の運行終了後や全便運休日には、翌日の始発時刻を案内 |
+| 乗り場マップ | OpenStreetMap 上に乗り場ピンを表示。「現在地からのルートを見る」で端末の地図アプリ（iPhone・iPad は Apple マップ、その他は Google マップ）の徒歩ナビを起動 |
+| お知らせ | 運行情報や重要連絡を配信。未読があるとメニューボタンにパルスドットを表示 |
+| オフライン対応 | 一度読み込んだ時刻表・お知らせ・地図タイルは電波のない場所でも閲覧可能 |
+| カスタマイズ | 起動時のデフォルトルート／カラーテーマ（ライト・ダーク・システム連動）／時刻の文字サイズを設定可能 |
+| アプリとしてインストール | ホーム画面に追加すると全画面のネイティブアプリのように動作（PWA） |
 
 ---
 
-## 3. 技術スタック
+## 2. 使い方
+
+### 画面の見方
+
+- **ヘッダー**: 現在のルート名・今日の日付・ダイヤ種別バッジ。左上の「≡」でメニュー、右上の「⟳」で時刻データを手動更新できます。
+- **次のバスカード**: 次の発車時刻と「あと何分」。右上のバッジは本日の残り本数です。
+- **今後の発車時刻**: 次発に続く最大 4 本。
+- **本日の全時刻表**: 「表示する」で全便を一覧表示。現在の次発はハイライトされます。
+- **乗り場マップ**: ピンが乗り場の位置。下のボタンで徒歩ルート案内を開きます。
+
+### ホーム画面に追加（インストール）
+
+- **iPhone / iPad**: Safari で開き、共有ボタン →「ホーム画面に追加」。
+- **Android**: Chrome のメニュー（⋮）→「ホーム画面に追加」からインストール。
+
+初回アクセス時に案内が表示されます（「今後表示しない」で非表示にできます）。
+
+### データの更新について
+
+- 時刻表・お知らせは起動のたびにサーバーから最新を取得し、取得できないとき（オフライン等）は前回取得分を表示します。
+- アプリ本体の新バージョンは、起動直後であれば自動適用され、利用中に見つかった場合は画面下部のバナーから任意のタイミングで更新できます。
+
+### 困ったとき
+
+1. **表示が古い・おかしい** → 右上の更新ボタン（⟳）をタップ。
+2. **それでも直らない** → メニュー →「アプリの初期化」（キャッシュ・設定をリセットして再読み込みします）。
+3. **不具合報告・ご意見** → メニュー →「ヘルプ」→「フィードバックを送る」（Google フォーム）。
+
+---
+
+## 3. 時刻表データの更新方法（運用者向け）
+
+すべてのデータは `public/data/` 配下の JSON で管理し、Git にコミット → デプロイで反映します。`_headers` により `/data/*.json` は no-cache 配信されるため、**デプロイ後は即座に全ユーザーへ反映**されます（アプリ本体の再ビルドは不要。JSON 編集のみの場合もデプロイは必要）。
+
+### ファイル構成
+
+```
+public/data/
+├── calendar_rules.json      # 「どの日にどのダイヤを使うか」のルール
+├── news.json                # お知らせ
+├── timetables/              # 時刻表本体（calendar_rules の ID が指す先）
+│   ├── timetable_weekday.json   # 授業日ダイヤ
+│   ├── timetable_holiday.json   # 休業日ダイヤ
+│   └── timetable_closed.json    # 全便運休日（schedule は空配列）
+└── _examples/               # テンプレート・サンプル（本番では読み込まれない）
+    ├── timetable_vacation_SEASON_weekday.json  # 長期休暇（平日）テンプレ
+    ├── timetable_vacation_SEASON_holiday.json  # 長期休暇（休日）テンプレ
+    ├── timetable_event_YYYYMMDD.json           # イベント日テンプレ
+    └── timetable_sample.json                   # 構造サンプル
+```
+
+### ダイヤの命名規約（6 種別）
+
+ダイヤ種別バッジは **時刻表 ID（= ファイル名）から自動判定** されるため、命名規約の遵守が必須です。JSON 内の `id` はファイル名（拡張子なし）と一致させてください。
+
+| ID パターン | 種別バッジ |
+|-------------|-----------|
+| `timetable_weekday` | 授業日ダイヤ |
+| `timetable_holiday` | 休業日ダイヤ |
+| `timetable_vacation_[季節]_weekday`（例 `..._summer_weekday`） | 長期休暇ダイヤ（平日） |
+| `timetable_vacation_[季節]_holiday` | 長期休暇ダイヤ（休日） |
+| `timetable_event_[YYYYMMDD]` | イベント日ダイヤ |
+| `timetable_closed` | 運休日 |
+
+### よくある作業
+
+- **ダイヤ改正**: 該当の `timetables/*.json` の `schedule`（`departure`: `"HH:mm"`、`note`: 補足文字列）を編集。
+- **特定日だけ別ダイヤ**（祝日授業・イベント・運休など）: `calendar_rules.json` の `overrides` に `"YYYY-MM-DD": "時刻表ID"` を追加。`default_rules` は曜日（`"0"`=日曜〜`"6"`=土曜）ごとのデフォルトです。
+- **長期休暇ダイヤの新設**: `_examples/` のテンプレートをコピーして `SEASON` を実際の季節名に置換、`timetables/` に配置して `calendar_rules.json` から参照。
+- **全便運休日**: `overrides` で `timetable_closed` を指定するだけ（アプリは「本日の運行はありません」と翌日始発を表示します）。
+- **お知らせの追加**: `news.json` の配列先頭に追加。`id` は既存と重複しない数値、`tag` は `important` / `info` / `change` / `event`、`body` は HTML 可（信頼できる内容のみ）。`unread: true` で未読バッジの対象になります。
+
+### 検証
+
+コミット前に必ず実行してください（ID の参照切れ・時刻フォーマット・順序などを機械チェックします）:
+
+```bash
+npm run validate:data
+```
+
+`npm run build` にも同じ検証が組み込まれているため、不正なデータはビルド段階で検出されます。
+
+---
+
+## 4. 開発者向け情報
+
+### 技術スタック
 
 | カテゴリ | 採用技術 |
 |----------|----------|
-| 言語・フレームワーク | TypeScript 5、React 18 |
-| ビルド | Vite 5（`npm run build` で `tsc` のあと Vite ビルド） |
-| スタイル | Tailwind CSS v4（`@tailwindcss/vite`、`src/index.css` の `@theme` でフォント等を定義。従来の `tailwind.config` は不使用） |
-| フォント | Noto Sans JP（`index.html` で Google Fonts を読み込み） |
-| 地図 | Leaflet 1.9、`react-leaflet` 4.x、OSM タイル |
-| 日付・時刻 | Day.js（`utc` / `timezone` プラグイン、`Asia/Tokyo` 固定） |
-| PWA | `vite-plugin-pwa`、Workbox（`vite.config.ts` でランタイムキャッシュ定義）、`workbox-window`（クライアント登録）、`virtual:pwa-register/react` |
-| デプロイ想定 | Cloudflare Pages（`_headers` / `_redirects` を同梱） |
+| 言語・UI | TypeScript 5（strict）、React 18 |
+| ビルド | Vite 5 |
+| スタイル | Tailwind CSS v4（`@tailwindcss/vite`。設定は `src/index.css` の `@theme`、`tailwind.config` 不使用） |
+| 地図 | Leaflet 1.9 + react-leaflet 4（OpenStreetMap タイル） |
+| 日時 | Day.js（`utc`/`timezone` プラグイン、`Asia/Tokyo` 固定） |
+| PWA | vite-plugin-pwa（Workbox）、`registerType: 'prompt'` |
+| ホスティング | Cloudflare Pages（`_headers` / `_redirects` 同梱） |
 
-依存パッケージの正確な版は `package.json` を参照してください。`__APP_VERSION__` は `vite.config.ts` の `define` で `package.json` の `version` から埋め込まれます。
-
----
-
-## 4. ディレクトリ構成
-
-```
-campus-bus-navi/
-├── public/
-│   ├── data/
-│   │   ├── calendar_rules.json              # 曜日デフォルト + 日付上書き → 適用する時刻表ファイル名（拡張子なし ID）
-│   │   ├── news.json                        # お知らせ（JSON 配列）
-│   │   ├── timetables/                      # 時刻表ダイヤ JSON 一式（calendar_rules の ID が指す先）
-│   │   │   ├── timetable_weekday.json                 # 授業日ダイヤ
-│   │   │   ├── timetable_holiday.json                 # 休業日ダイヤ
-│   │   │   ├── timetable_vacation_SEASON_weekday.json # 長期休暇ダイヤ（平日）／SEASON → 実際の季節名（spring 等）に置き換え
-│   │   │   ├── timetable_vacation_SEASON_holiday.json # 長期休暇ダイヤ（休日）／SEASON → 実際の季節名（spring 等）に置き換え
-│   │   │   └── timetable_event_YYYYMMDD.json          # イベント日ダイヤ（YYYYMMDD → 実際の日付に置き換え）
-│   │   └── _examples/                       # サンプル・参考用（本番では読み込まれない）
-│   │       ├── timetable_sample.json        # 汎用サンプル
-│   │       └── timetable_event_example.json # イベント用サンプル
-│   ├── icons/                               # PWA / favicon 用 PNG
-│   └── manifest.json                        # PWA マニフェスト
-├── src/
-│   ├── components/
-│   │   ├── BusStopMap.tsx                   # 乗り場マップ（Leaflet）
-│   │   ├── DayBadge.tsx                     # ダイヤ種別バッジ + resolveDiagramType
-│   │   ├── DrawerMenu.tsx
-│   │   ├── EndOfServiceCard.tsx
-│   │   ├── FullTimetable.tsx
-│   │   ├── HelpScreen.tsx
-│   │   ├── MobilePwaGuide.tsx               # モバイル向けホーム画面追加ガイド
-│   │   ├── NewsScreen.tsx
-│   │   ├── NextBusCard.tsx
-│   │   ├── RouteToggle.tsx
-│   │   ├── SettingsScreen.tsx
-│   │   ├── Toast.tsx                        # 時刻データ更新などの短い通知
-│   │   ├── UpcomingList.tsx
-│   │   └── UpdateBanner.tsx                 # 新 SW 検知時の更新バナー
-│   ├── hooks/
-│   │   ├── useJSTClock.ts                   # JST の現在時刻（分境界付近に同期 + 1 分間隔）
-│   │   ├── useTimetable.ts                  # カレンダー解決 + 時刻表 JSON 取得
-│   │   ├── useNews.ts
-│   │   ├── useOnlineStatus.ts
-│   │   └── useSettings.ts
-│   ├── utils/
-│   │   ├── resolveCalendar.ts
-│   │   ├── findNextBus.ts
-│   │   ├── parseTime.ts                     # HH:mm 文字列を分単位の数値に変換
-│   │   └── buildMapUrl.ts                   # ナビ用 URL（iOS / それ以外で分岐）
-│   ├── types/timetable.d.ts
-│   ├── App.tsx
-│   ├── main.tsx
-│   └── index.css
-├── _headers                                 # Cloudflare: キャッシュ制御
-├── _redirects                               # SPA: `/*` → `/index.html`（200）
-├── index.html
-├── vite.config.ts
-├── tsconfig.json
-└── package.json
-```
-
----
-
-## 5. データ管理
-
-- **方式:** `public/data/` 配下の **静的 JSON** を Git で管理し、デプロイ先の CDN から配信する想定です。
-- **`calendar_rules.json`**
-  - `default_rules`: キー `"0"`〜`"6"`（日曜〜土曜）に、適用する時刻表ファイル ID（拡張子なし）を指定。
-  - `overrides`: キー `YYYY-MM-DD` で、その日だけ別ダイヤを指定。
-- **`timetable_*.json`（`public/data/timetables/` 配下）**
-  - `id`, `name`, `routes` を持つ。`routes` は `station_to_campus` / `campus_to_station` それぞれに `origin`, `destination`, `bus_stop_name`, `bus_stop_coords`, `schedule`（`departure`: `HH:mm`, `note`）を定義。`id` は拡張子なしのファイル名と一致させる（`DayBadge` のダイヤ種別推定がファイル名規約に依存するため）。
-  - **命名規約（5 種別）:** `timetable_weekday`（授業日）／`timetable_holiday`（休業日）／`timetable_vacation_[SEASON]_weekday`（長期休暇・平日）／`timetable_vacation_[SEASON]_holiday`（長期休暇・休日）／`timetable_event_YYYYMMDD`（イベント日）。`[SEASON]` は `spring` などの実際の季節名・`YYYYMMDD` は `20260615` などの実際の日付に置き換え、`calendar_rules.json` から ID を参照する。
-- **`news.json`**
-  - お知らせの **配列**。各要素の形は `src/types/timetable.d.ts` の `NewsItem`（`id`, `tag`, `tagLabel`, `date`, `title`, `preview`, `body`, `unread` など）に合わせます。
-- **`_examples/`**
-  - `timetable_sample.json`・`timetable_event_example.json` は新規ダイヤ作成時の参考用サンプルです。`calendar_rules.json` から参照されないため本番には影響しません。
-- **取得ロジック:** `useTimetable` が `calendar_rules.json` を読み、当日・翌日のダイヤ ID を解決してから `/data/timetables/{id}.json` を並列取得します。JST の日付が変わったときだけ通常フェッチが走ります（`now.format('YYYY-MM-DD')` 依存の `useEffect`）。手動更新では `?t=タイムスタンプ` と `cache: 'reload'` でキャッシュを避けます。フェッチに失敗した場合はエラー文のほか「キャッシュされた時刻表を使用しています」という案内が出ます（SW 経由で古いレスポンスが残っている場合など）。
-
----
-
-## 6. 開発手順
-
-### 前提
-
-- **Node.js:** 18 以上を推奨（Vite 5 の一般的な要件に合わせた目安です。`package.json` に `engines` は未定義です）
-- **パッケージマネージャ:** npm（例: `npm install`）
-
-### セットアップと起動
+### セットアップ
 
 ```bash
 git clone https://github.com/motegi485/campus-bus-navi.git
 cd campus-bus-navi
 npm install
-npm run dev
+npm run dev        # http://localhost:5173
 ```
 
-開発サーバーは通常 `http://localhost:5173`（Vite デフォルト）。
+| コマンド | 内容 |
+|----------|------|
+| `npm run dev` | 開発サーバー起動（Service Worker は無効） |
+| `npm run validate:data` | `public/data/` の JSON を検証 |
+| `npm run build` | データ検証 → 型チェック（tsc）→ `dist/` へビルド |
+| `npm run preview` | 本番ビルドをローカル確認（**SW・オフライン動作の確認はこちらで**） |
 
-### ビルド・プレビュー
+テストフレームワーク・リンターは導入していません。型チェック（`strict` + `noUnusedLocals` / `noUnusedParameters`）とデータ検証スクリプトが品質ゲートです。
 
-```bash
-npm run build    # tsc 後に dist/ へ出力
-npm run preview  # 本番ビルドのローカル確認
+### ディレクトリ構成（src）
+
+```
+src/
+├── App.tsx                  # ルート状態管理・レイアウト統括
+├── main.tsx                 # 起動処理（SW 更新フォールバック・ビューポート同期）
+├── components/              # UI コンポーネント
+│   ├── NextBusCard / UpcomingList / FullTimetable / EndOfServiceCard
+│   ├── BusStopMap（Leaflet・遅延ロード） / DayBadge / RouteToggle
+│   ├── DrawerMenu / NewsScreen / SettingsScreen / HelpScreen
+│   ├── Toast / UpdateBanner / MobilePwaGuide / ErrorBoundary
+├── hooks/
+│   ├── useJSTClock          # 分境界に同期した JST 時計（1 分間隔）
+│   ├── useTimetable         # カレンダー解決 + 時刻表フェッチ
+│   ├── useNews / useSettings / useOnlineStatus / useNativeBounce
+├── utils/
+│   ├── resolveCalendar      # 日付 → 時刻表 ID
+│   ├── findNextBus          # 次発・直近・残数・翌日始発の算出
+│   ├── normalizeTimetable   # 取得データの構造検証・ソート
+│   ├── parseTime / buildMapUrl / platform（iOS・Android 判定）
+└── types/timetable.d.ts     # 共通型定義
 ```
 
-### データ編集
-
-時刻表・カレンダー・お知らせを変更する場合は `public/data/` の JSON を編集し、動作確認のうえコミットします。
-
----
-
-## 7. デプロイ
-
-**Cloudflare Pages** を想定した構成です。
+### デプロイ（Cloudflare Pages）
 
 | 項目 | 値 |
 |------|-----|
 | ビルドコマンド | `npm run build` |
 | 出力ディレクトリ | `dist` |
-| Node.js | 18 以上（プロジェクト側の推奨に合わせる） |
+| Node.js | 18 以上 |
 
-- **`_headers`:** ルートは短いキャッシュ、`/assets/*` は長期 immutable、`/data/*.json`（`timetables/` 配下を含む）は `no-cache` / `no-store` 系でブラウザ・中間キャッシュに古いダイヤが残りにくいよう指示。
-- **`_redirects`:** クライアントサイドの単一ページのため、`/*` を `/index.html` に **200** で返す一行設定。
-
-リポジトリを Pages に接続し、上記ビルド設定を指定すればデプロイ可能です。`index.html` には Cloudflare Web Analytics のビーコンが埋め込まれている場合があります（運用ポリシーに合わせて削除・差し替えしてください）。
+- `_headers`: ルートは再検証必須、`/assets/*` は 1 年 immutable、`/data/*.json` は no-cache/no-store（ダイヤ更新の即時反映用）。
+- `_redirects`: SPA のため `/* → /index.html 200`。
+- `index.html` に Cloudflare Web Analytics のビーコンを含みます（フォーク時は削除・差し替えてください）。
 
 ---
 
-## 8. PWA・Service Worker
+## 5. アーキテクチャ概要
 
-| 項目 | 内容 |
+### データフロー
+
+1. `useTimetable` が `calendar_rules.json` を取得し、`resolveCalendar()` で今日・明日の時刻表 ID を解決（日付上書き > 曜日デフォルト）→ 該当 JSON を並列フェッチ → `normalizeTimetable` で構造検証・昇順ソート。
+2. `useJSTClock` が分境界に同期した JST 時刻を毎分供給し、`App` が `findNextBus` / `findUpcomingBuses` / `countRemainingBuses` を再計算。JST の日付が変わると自動再フェッチ。
+3. 設定・お知らせ既読は `localStorage` に保存。
+
+### PWA・キャッシュ戦略
+
+| 対象 | 戦略 |
 |------|------|
-| 登録方式 | `registerType: 'prompt'`。新しい SW を検知すると `UpdateBanner` を表示し、ユーザーが「更新」を選ぶまで強制更新しません。 |
-| コールドスタート自動更新 | アプリ起動から **5 秒以内**（`COLD_START_GRACE_MS = 5000`）に新 SW を検知した場合は `updateServiceWorker(true)` を自動適用。セッション中の検知は `UpdateBanner` で手動更新。 |
-| iOS PWA フォールバック | `standalone` モードで `useRegisterSW` の `needRefresh` が発火しない場合のため、`navigator.serviceWorker.getRegistration()` で `waiting` 状態の SW を直接検出し `SKIP_WAITING` メッセージを送る。`controllerchange` イベントで起動直後なら自動リロード。 |
-| フォアグラウンド復帰 | `App.tsx` で `visibilitychange` 時に `registration.update()` を呼び、バックグラウンドから戻ったあとにも更新を確認します。 |
-| マニフェスト | `manifest: false` により **`public/manifest.json` をそのまま利用**（プラグイン生成マニフェストは使わない） |
-| プリキャッシュ | Workbox の `globPatterns` で JS/CSS/HTML/画像等をビルド成果物からキャッシュ。**`data/**/*.json` は `globIgnores` でプリキャッシュから除外**（除外しないと素の `/data/*.json` がプリキャッシュに先勝ちし、下の NetworkFirst が通常起動経路で効かなくなるため。詳細は `vite.config.ts` のコメントと `CLAUDE.md`） |
-| `/data/*.json` | **NetworkFirst**（`networkTimeoutSeconds: 3`）。同一キャッシュ名内は最大 20 件・最長 7 日で整理（`vite.config.ts` の `expiration`） |
-| OSM タイル | **CacheFirst**、最大 500 エントリ・最大 30 日。一度表示した周辺タイルはオフラインでも再利用しやすい |
-| 時刻データ更新（UI） | ヘッダー更新は `Toast` で進捗・成功・失敗を表示（アプリシェルのリロードは行わない） |
-| アプリ初期化 | ドロワーから SW 登録解除 → `localStorage` 全削除 → Cache Storage 全削除 → `location.reload()` |
+| JS / CSS / HTML / 画像 | Workbox プリキャッシュ（ビルド時） |
+| `/data/*.json`（時刻表・カレンダー・お知らせ） | **NetworkFirst**（タイムアウト 3 秒 → 前回取得分にフォールバック）。プリキャッシュからは意図的に除外（`globIgnores`） |
+| OSM 地図タイル | CacheFirst（最大 500 枚・30 日） |
+
+- **更新方式**: `registerType: 'prompt'`。起動直後（5 秒以内）に新 SW を検知した場合のみ自動適用し、利用中の検知は更新バナーで通知（強制リロードしない）。iOS PWA で更新イベントが発火しないケースに備え、待機中 SW の直接検出フォールバックあり（無限リロード防止のワンショットガード付き）。
+- **手動更新**: ヘッダーの更新ボタンが `?t=` キャッシュバスター + `cache: 'reload'` で再取得し、結果をトーストで通知（失敗時は失敗と表示）。
+
+### 実装上の要注意ポイント（変更禁止級）
+
+- `index.html` の viewport メタの **`shrink-to-fit=no`** — iPad Safari の縦潰れ（shrink-to-fit）対策の本体。削除すると再発します。
+- `vite.config.ts` の **`globIgnores: ['data/**/*.json']`** — 外すとプリキャッシュが NetworkFirst に先勝ちし、ダイヤ更新が反映されなくなります。
+- SW urlPattern 末尾の **`(\?.*)?`** — 手動更新のキャッシュバスター付き URL をマッチさせるために必須。
+- **バウンス表現**（`useNativeBounce` + `.header-cushion`）— OS ネイティブに委譲する現構成が実機検証済みの最終形です。
+- ブレークポイント判定は CSS メディアクエリではなく `main.tsx` の `syncBpActiveClass`（`html.bp-active`）で行います（iPadOS の `innerWidth` 復元バグ回避）。
 
 ---
 
-## 9. 乗り場マップ
+## 6. ライセンス
 
-- **読み込み:** `BusStopMap` は `App.tsx` から **`React.lazy` で動的 import**。Leaflet は SSR に不向きなためです。
-- **タイル:** `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`、帰属表示あり。Service Worker 側のマッチは `a` / `b` / `c` サブドメイン向けの正規表現です。
-- **表示:** 高さ 220px、**初期ズーム 17**、`minZoom` 14 / **`maxZoom` 18**。ルート切替時は `flyTo` で中心移動（約 1.2 秒、ズーム 17）。
-- **マーカー:** Leaflet 既定クラスの `_getIconUrl` を削除し、CDN 上の既定 PNG（Retina/標準/影）を `mergeOptions` で指定（Vite バンドル時の欠落対策）。乗り場は **`L.divIcon`** で、インライン HTML/CSS から **ティアドロップ型のピン**（ローズ色 `#E11D48`、回転した角丸四角＋中央の白丸、48×48 の配置枠、`filter: drop-shadow` で影）を描画します。
-- **ラベル表示:** マーカーには **`Tooltip permanent direction="top"`** で乗り場名を常時表示します（以前の `Popup` から変更。クリックなしで常に見えるため）。
-- **サイズ再計算:** `MapInvalidateOnMount`（初回マウント後 `requestAnimationFrame` で `invalidateSize` 呼び出し）と `MapInvalidateOnResize`（`ResizeObserver` でコンテナサイズ変化を監視して `invalidateSize` 呼び出し）により、レイアウト変化でタイルが欠けるバグを防いでいます。
-- **重なり:** 親に `isolation: 'isolate'` と `z-index` を与え、ドロワーがタイルレイヤより下に潜る問題を防ぎます。
-- **ナビ連携:** `buildMapUrl.ts` — **iOS**（`iPad` / `iPhone` / `iPod` の UA）は `maps://`（Apple マップ・徒歩）。**それ以外** は Google マップの徒歩ルート（`https://www.google.com/maps/dir/?api=1&destination={lat},{lng}&travelmode=walking` の形。停留所名（`label` 引数）は現状の URL には含めていない）。「現在地からのルートを見る」の文字色はルートに応じて切り替わります（`campus_to_station` は `#10b981`、`station_to_campus` は `#6c63d5`）。
-- **オフライン:** `useOnlineStatus` でオフラインを検知した場合、`BusStopMap` は表示されず **乗り場名を示すプレースホルダーカード**を表示します。オンライン復帰後は地図に切り替わります。SW の CacheFirst によりキャッシュ済みタイルは表示されることがありますが、地図コンポーネント自体のマウントはオンライン時のみです。
-
----
-
-## 10. 時刻・タイムゾーン
-
-- **基準タイムゾーン:** すべて **日本標準時（JST）**。Day.js の `timezone` で `Asia/Tokyo` を使用します。
-- **端末設定:** 「今日」「今何時か」の判定は JST に揃える実装です（端末のタイムゾーン設定に依存しない意図）。
-- **`useJSTClock`:** 初回マウント時、**端末時計の秒**を使って「次の分の 0 秒付近」まで待ってから `now` を更新し、以降 **60 秒ごと**に更新します。また、タブが非表示→表示に戻ったとき（`visibilitychange`）にも即時に `now` を更新します。カウントダウン文言は分単位のため、秒単位の再描画は行いません。
-- **時刻表データ:** `departure` は `HH:mm` 文字列。`parseTime.ts` で分単位の数値に変換し、当日の比較で次便・終バスを判定（`findNextBus.ts` など）。
-
----
-
-## 11. モバイル最適化
-
-- **レイアウト:** `viewport-fit=cover`、ヘッダー・メインに `env(safe-area-inset-top/bottom)` でノッチ・ホームインジケータ対応。
-- **高さ:** `min-height: 100dvh` でモバイルブラウザの UI 伸縮に追従。
-- **ブレークポイント:** 判定は CSS メディアクエリではなく `main.tsx` の `syncBpActiveClass` が付与する `html.bp-active` クラスで行う（iPadOS の `innerWidth` 復元バグ回避）。幅 1024px 未満かつ縦向きは 1 カラム、1024px 以上または横向き 480px 以上で時刻表と地図の 2 カラム + 全時刻表は下段フル幅。
-- **PWA 表示:** `manifest.json` の `display: "standalone"`、`orientation: "portrait"`。
-- **操作感:** グローバルに `user-select: none`、タップハイライト無効化（入力系は選択可能）。ネイティブアプリに近い誤操作抑制。
-- **テーマ:** ライト/ダーク/システムの 3 種。CSS 変数（`index.css` の `:root` / `.dark`）を切り替える。「システム」は `prefers-color-scheme` に追従し、OS のモード切替にも追従する。初回描画時の白フラッシュ（FOUC）防止のため、React マウント前に `index.html` のインラインスクリプトが同じ判定で `<html>` に `.dark` を付与する。
-- **iOS / iPad の縦潰れ対策**: iPad の Safari・PWA では 2 回目以降の起動時に Safari の shrink-to-fit によってページ全体が縮小描画される事象があった。`index.html` の viewport メタに `shrink-to-fit=no` を指定して回避している（**削除すると再発する**）。
-
----
-
-## 12. ライセンス
-
-- 本リポジトリの **アプリ本体のライセンス** は、大学・組織の運用方針に従ってください（リポジトリルートに `LICENSE` ファイルは含まれていません）。
-- 利用している主な OSS のライセンス例:
-
-| 名称 | ライセンス |
-|------|------------|
-| React | MIT |
-| Vite | MIT |
-| Tailwind CSS | MIT |
-| Leaflet / react-leaflet | BSD 2-Clause |
-| Day.js | MIT |
-| Workbox（vite-plugin-pwa 経由） | MIT |
-| OpenStreetMap データ | [ODbL](https://www.openstreetmap.org/copyright) |
-
-各パッケージの詳細は `node_modules` 内または各公式リポジトリを参照してください。
+- アプリ本体のライセンスは大学・組織の運用方針に従ってください（`LICENSE` ファイルは未同梱）。
+- 主な利用 OSS: React / Vite / Tailwind CSS / Day.js / Workbox（MIT）、Leaflet / react-leaflet（BSD 2-Clause）。
+- 地図データ: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors（ODbL）。タイルは OSM 公式タイルサーバーを利用しています。
