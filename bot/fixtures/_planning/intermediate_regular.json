@@ -1,0 +1,75 @@
+{
+  "_comment": "fixtures/intermediate 用。R8スクールバス時刻表.jpg（通常ダイヤ）の中間構造正解。assemble() が expected/timetable_weekday.json と timetable_holiday.json を生成できることの検証に使う。JR列は含めない。",
+  "day_types": [
+    {
+      "label": "授業日",
+      "matsunaga": [
+        { "hour": 7,  "minutes": [] },
+        { "hour": 8,  "minutes": [0, 10, 35, 55] },
+        { "hour": 9,  "minutes": [20, 40, 55] },
+        { "hour": 10, "minutes": [5, 35, 55] },
+        { "hour": 11, "minutes": [15, 55] },
+        { "hour": 12, "minutes": [25, 40] },
+        { "hour": 13, "minutes": [5, 35, 55] },
+        { "hour": 14, "minutes": [15, 35, 55] },
+        { "hour": 15, "minutes": [15, 55] },
+        { "hour": 16, "minutes": [10, 35] },
+        { "hour": 17, "minutes": [5, 35, 55] },
+        { "hour": 18, "minutes": [30] },
+        { "hour": 19, "minutes": [15, 45] },
+        { "hour": 20, "minutes": [25] },
+        { "hour": 21, "minutes": [15] }
+      ],
+      "university": [
+        { "hour": 7,  "minutes": [40] },
+        { "hour": 8,  "minutes": [10, 20] },
+        { "hour": 9,  "minutes": [15, 35, 55] },
+        { "hour": 10, "minutes": [40, 55] },
+        { "hour": 11, "minutes": [35, 55] },
+        { "hour": 12, "minutes": [30, 55] },
+        { "hour": 13, "minutes": [15, 35, 55] },
+        { "hour": 14, "minutes": [15, 40, 55] },
+        { "hour": 15, "minutes": [35, 55] },
+        { "hour": 16, "minutes": [35, 55] },
+        { "hour": 17, "minutes": [15, 40] },
+        { "hour": 18, "minutes": [10, 45] },
+        { "hour": 19, "minutes": [0, 30] },
+        { "hour": 20, "minutes": [10] },
+        { "hour": 21, "minutes": [0] }
+      ]
+    },
+    {
+      "label": "休業日",
+      "matsunaga": [
+        { "hour": 7,  "minutes": [] },
+        { "hour": 8,  "minutes": [0, 55] },
+        { "hour": 9,  "minutes": [40] },
+        { "hour": 10, "minutes": [40] },
+        { "hour": 11, "minutes": [] },
+        { "hour": 12, "minutes": [30] },
+        { "hour": 13, "minutes": [20] },
+        { "hour": 14, "minutes": [35] },
+        { "hour": 15, "minutes": [55] },
+        { "hour": 16, "minutes": [] },
+        { "hour": 17, "minutes": [20] },
+        { "hour": 18, "minutes": [25] },
+        { "hour": 19, "minutes": [35] }
+      ],
+      "university": [
+        { "hour": 7,  "minutes": [40] },
+        { "hour": 8,  "minutes": [20] },
+        { "hour": 9,  "minutes": [15] },
+        { "hour": 10, "minutes": [0] },
+        { "hour": 11, "minutes": [] },
+        { "hour": 12, "minutes": [0, 55] },
+        { "hour": 13, "minutes": [] },
+        { "hour": 14, "minutes": [20] },
+        { "hour": 15, "minutes": [40] },
+        { "hour": 16, "minutes": [] },
+        { "hour": 17, "minutes": [0] },
+        { "hour": 18, "minutes": [0] },
+        { "hour": 19, "minutes": [0] }
+      ]
+    }
+  ]
+}
