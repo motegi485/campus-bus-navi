@@ -1,0 +1,38 @@
+{
+  "_comment": "fixtures/intermediate 用。0620 オープンキャンパス-724x1024.jpg（イベント単日）の中間構造正解。day_types は1要素。assemble() が expected/timetable_event_20260620.json を生成できることの検証に使う。",
+  "day_types": [
+    {
+      "label": "オープンキャンパス",
+      "matsunaga": [
+        { "hour": 7,  "minutes": [] },
+        { "hour": 8,  "minutes": [0, 55] },
+        { "hour": 9,  "minutes": [40] },
+        { "hour": 10, "minutes": [40] },
+        { "hour": 11, "minutes": [30, 55] },
+        { "hour": 12, "minutes": [20, 40] },
+        { "hour": 13, "minutes": [0, 20] },
+        { "hour": 14, "minutes": [35] },
+        { "hour": 15, "minutes": [55] },
+        { "hour": 16, "minutes": [45] },
+        { "hour": 17, "minutes": [20] },
+        { "hour": 18, "minutes": [25] },
+        { "hour": 19, "minutes": [30] }
+      ],
+      "university": [
+        { "hour": 7,  "minutes": [40] },
+        { "hour": 8,  "minutes": [20] },
+        { "hour": 9,  "minutes": [15] },
+        { "hour": 10, "minutes": [0] },
+        { "hour": 11, "minutes": [0] },
+        { "hour": 12, "minutes": [15, 40] },
+        { "hour": 13, "minutes": [] },
+        { "hour": 14, "minutes": [20] },
+        { "hour": 15, "minutes": [40] },
+        { "hour": 16, "minutes": [30, 45] },
+        { "hour": 17, "minutes": [0, 30] },
+        { "hour": 18, "minutes": [0] },
+        { "hour": 19, "minutes": [0] }
+      ]
+    }
+  ]
+}

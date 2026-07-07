@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<!--
+  bot/fixtures/page_snapshot.html
+  福山大学「通学（スクールバス、駐車場・駐輪場）」ページの凍結スナップショット。
+  取得元: https://www.fukuyama-u.ac.jp/campuslife/student-affairs/attending-school/
+  ※これは「イベント画像を含む歴史的スナップショット」です（regular + 簿記2026-06-14 + オープンキャンパス2026-06-20）。
+    ライブのページからイベント画像は既に削除されていますが、extractLinks / classify の
+    ユニットテスト（regular / event の分類、md-box スコープ、キャンパスマップ等の誤検出除外）を
+    成立させるため、あえてこの版を固定して使用します。
+  ※WordPress の <head> スクリプト/CSS 等の本文と無関係な定型部分は省略し、
+    Bot が解析する本文セクション（l-main-content）を実体どおり保存しています。
+-->
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>福山大学 | 通学（スクールバス、駐車場・駐輪場）</title>
+</head>
+<body>
+<div class="l-main-content cat-campuslife">
+  <div class="category-title">学生生活・サポート</div>
+  <div class="wrapper">
+    <nav class="l-breadcrumb">
+      <ol class="l-container" itemscope="" itemtype="http://schema.org/BreadcrumbList">
+        <li><a href="https://www.fukuyama-u.ac.jp/">ホーム</a></li>
+        <li><a href="https://www.fukuyama-u.ac.jp/campuslife/">学生生活・サポート</a></li>
+        <li><a href="https://www.fukuyama-u.ac.jp/campuslife/student-affairs/">学生課</a></li>
+        <li class="current">通学（スクールバス、駐車場・駐輪場）</li>
+      </ol>
+    </nav>
+    <main class="l-main grp-general " id="use-accordion">
+
+      <div class="md-heading md-heading_primary">
+        <h1 class="md-heading_main">通学について（スクールバス、駐車場・駐輪場）</h1>
+        <p class="md-heading_sub">&nbsp;</p>
+      </div>
+
+      <!-- 運行のついてのお知らせ -->
+      <section class="l-container mt_S">
+        <div class="t-top_heading">
+          <h2 class="t-top_heading_item"><span class="ez-toc-section">スクールバス運行について</span></h2>
+        </div>
+        <div class="md-box_glow mb_S">
+
+          <!-- 1つ目の md-box: 「時刻表はコチラ」リンク（抽出の起点） -->
+          <div class="md-box">
+            <p><span style="font-size: 14pt;"><b>無料スクールバス運行アナウンス</b></span></p>
+            <p>&nbsp;</p>
+            <p><span style="font-size: 14pt;">・【 令和8年度 前期 スクールバス時刻表 】</span></p>
+            <p><span style="font-size: 14pt;">　　2026年4月4日（土）～　通常授業日／休業日</span>　<span style="font-size: 14pt;"><a href="https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/04/R8%E3%82%B9%E3%82%AF%E3%83%BC%E3%83%AB%E3%83%90%E3%82%B9%E6%99%82%E5%88%BB%E8%A1%A8.jpg" target="_blank" rel="noopener noreferrer"><b><span style="color: #0000ff;">時刻表はコチラ</span></b></a></span></p>
+            <p><span style="font-size: 14pt;">　　2026年6月14日（日）　<span style="color: #ff6600;">日商簿記検定試験日</span>　</span>　<span style="font-size: 14pt;"><a href="https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/05/0614%E3%80%80%E7%B0%BF%E8%A8%98-724x1024.jpg" target="_blank" rel="noopener noreferrer"><b><span style="color: #0000ff;">時刻表はコチラ</span></b></a></span></p>
+            <p><span style="font-size: 14pt;">　　2026年6月20日（土）　<span style="color: #339966;">オープンキャンパス</span>　</span>　<span style="font-size: 14pt;"><a href="https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/05/0620%E3%80%80%E3%82%AA%E3%83%BC%E3%83%97%E3%83%B3%E3%82%AD%E3%83%A3%E3%83%B3%E3%83%91%E3%82%B9-724x1024.jpg" target="_blank" rel="noopener noreferrer"><b><span style="color: #0000ff;">時刻表はコチラ</span></b></a></span></p>
+            <p>&nbsp;</p>
+          </div>
+
+          <!-- 2つ目の md-box: 埋め込み画像＋乗り場写真＋キャンパスマップ＋駐車場＋学生課ボタン（誤検出させてはいけない distractor 群） -->
+          <div class="md-box">
+            <section class="mb_S">
+              <hr>
+            </section>
+            <section class="mb_S">
+              <p>&nbsp;</p>
+              <p style="text-align: center;"><img fetchpriority="high" decoding="async" class="wp-image-119635 aligncenter" src="https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/04/R8スクールバス時刻表.jpg" alt="" width="1061" height="1501"></p>
+              <p><img decoding="async" class="size-large wp-image-121284 aligncenter" src="https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/05/0614　簿記-724x1024.jpg" alt="" width="724" height="1024"></p>
+              <p><img decoding="async" class="size-large wp-image-121285 aligncenter" src="https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/05/0620　オープンキャンパス-724x1024.jpg" alt="" width="724" height="1024"></p>
+              <p>&nbsp;</p>
+              <h3 class="p-page_heading" style="text-align: center;"><span style="font-size: 18pt;">スクールバス乗り場</span></h3>
+              <!-- 乗り場写真: 画像リンクだがアンカー文言に「時刻表」を含まない → 除外されるべき -->
+              <p style="text-align: center;"><a href="https://www.fukuyama-u.ac.jp/wp-content/uploads/2023/06/busstop_matsunagastation.jpg"><img loading="lazy" decoding="async" class="aligncenter wp-image-84682 size-large" src="https://www.fukuyama-u.ac.jp/wp-content/uploads/2023/06/busstop_matsunagastation-1024x724.jpg" alt="" width="1024" height="724"></a></p>
+              <!-- キャンパスマップ: ファイル名に「スクールバス」を含むが、アンカー文言に「時刻表」を含まない → 除外されるべき（文言フィルタの要） -->
+              <p style="text-align: center;"><a href="https://www.fukuyama-u.ac.jp/wp-content/uploads/2025/09/スクールバス用平面キャンパスマップ2025-scaled.jpg"><img loading="lazy" decoding="async" class="aligncenter  wp-image-45802" src="https://www.fukuyama-u.ac.jp/wp-content/uploads/2025/09/スクールバス用平面キャンパスマップ2025-scaled.jpg" alt="" width="938" height="663"></a></p>
+            </section>
+
+            <div class="t-top_heading" style="text-align: center;">
+              <h2 class="t-top_heading_item"><span class="ez-toc-section">学生駐車場・駐輪場（大学内）</span></h2>
+            </div>
+            <div style="text-align: center;">
+              <section class="mb_L">
+                <h3 class="p-page_heading">【学生駐車場】第1・3駐車場 / 第2駐車場（2ヵ所）</h3>
+                <p class="mb_XS" style="text-align: left;"><span style="font-size: 14pt;">大学会館下と薬学部西側にあり、半期ごとの許可制とし、自家用車での通学が可能です。</span></p>
+                <p style="text-align: left;"><span style="font-size: 14pt;">許可を得るには前期・後期それぞれ1回ずつ学内で開催される交通安全講習会への参加が条件です。</span></p>
+                <figure class="txt_center mb_M"><img decoding="async" src="https://www.fukuyama-u.ac.jp/wp-content/themes/fukuyama_uni/assets/images/student-affairs/student-affairs_attending-school_06.jpg">
+                  <figcaption class="font_bold txt_center"></figcaption>
+                </figure>
+                <h3 class="p-page_heading">【駐輪場】</h3>
+                <p class="mb_XS" style="text-align: left;"><span style="font-size: 14pt;">自転車及び原付バイク専用の駐輪場です。原付より大きなバイク専用の駐輪場もあります。</span></p>
+                <p style="text-align: left;"><span style="font-size: 14pt;">原付バイク、自動二輪車で通学する場合は、交通安全講習会を受講しステッカー交付を受けなければなりません。（学生課窓口受付）</span></p>
+                <figure class="txt_center"><img decoding="async" src="https://www.fukuyama-u.ac.jp/wp-content/themes/fukuyama_uni/assets/images/student-affairs/student-affairs_attending-school_07.jpg">
+                  <figcaption class="font_bold txt_center"></figcaption>
+                </figure>
+              </section>
+            </div>
+
+            <div class="t-top_heading" style="text-align: center;">
+              <h2 class="t-top_heading_item"><span class="ez-toc-section">学生課</span></h2>
+            </div>
+            <div class="mb_L" style="text-align: center;">
+              <!-- 学生課ボタン: 非画像リンク → 除外されるべき -->
+              <div class="md-band is-green mb_L"><a class="md-btn mb_XS" href="/student-affairs">学生課トップページ</a> <a class="md-btn mb_XS" href="/student-affairs/sofukan">学生生活支援（女子寮）</a> <a class="md-btn mb_XS" href="/student-affairs/scholarship">奨学金</a> <a class="md-btn" href="/student-affairs/attending-school">通学</a></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</body>
+</html>
