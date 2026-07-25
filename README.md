@@ -163,7 +163,7 @@ src/
 ├── components/              # UI コンポーネント
 │   ├── NextBusCard / UpcomingList / FullTimetable / EndOfServiceCard
 │   ├── BusStopMap（Leaflet・遅延ロード） / DayBadge / RouteToggle
-│   ├── DrawerMenu / NewsScreen / SettingsScreen / HelpScreen
+│   ├── DrawerMenu / DrawerIcons（アイコン部品） / NewsScreen / SettingsScreen / HelpScreen
 │   ├── Toast / UpdateBanner / MobilePwaGuide / ErrorBoundary
 ├── hooks/
 │   ├── useJSTClock          # 分境界に同期した JST 時計（1 分間隔）

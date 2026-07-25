@@ -1,4 +1,15 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import {
+  IconGradCap,
+  IconBusStop,
+  IconTrain,
+  IconLaptopCode,
+  IconMegaphone,
+  IconGear,
+  IconHelp,
+  IconReset,
+  type IconTone,
+} from './DrawerIcons'
 
 interface Props {
   open: boolean
@@ -10,11 +21,11 @@ interface Props {
   onInitApp: () => void
 }
 
-const LINKS = [
-  { icon: '🏫', title: '大学ホームページ', sub: 'fukuyama-u.ac.jp', bg: '#ede9fe', url: 'https://www.fukuyama-u.ac.jp/' },
-  { icon: '🚶', title: '通学情報', sub: 'スクールバス、駐車場・駐輪場', bg: '#dbeafe', url: 'https://www.fukuyama-u.ac.jp/campuslife/student-affairs/attending-school/' },
-  { icon: '🚉', title: 'JR松永駅時刻表', sub: '糸崎・三原方面 / 岡山・福山方面', bg: '#dcfce7', url: 'https://transit.yahoo.co.jp/timetable/27407' },
-  { icon: '💻', title: 'サークルホームページ', sub: 'fukupro.club',  bg: '#fef9c3', url: 'https://www.fukupro.club/' },
+const LINKS: { icon: ReactNode; tone: IconTone; title: string; sub: string; url: string }[] = [
+  { icon: <IconGradCap />,   tone: 'violet', title: '大学ホームページ', sub: 'fukuyama-u.ac.jp', url: 'https://www.fukuyama-u.ac.jp/' },
+  { icon: <IconBusStop />,   tone: 'blue',   title: '通学情報', sub: 'スクールバス、駐車場・駐輪場', url: 'https://www.fukuyama-u.ac.jp/campuslife/student-affairs/attending-school/' },
+  { icon: <IconTrain />,     tone: 'green',  title: 'JR松永駅時刻表', sub: '糸崎・三原方面 / 岡山・福山方面', url: 'https://transit.yahoo.co.jp/timetable/27407' },
+  { icon: <IconLaptopCode />, tone: 'yellow', title: 'サークルホームページ', sub: 'fukupro.club', url: 'https://www.fukupro.club/' },
 ]
 
 export function DrawerMenu({ open, hasUnread, onClose, onOpenNews, onOpenSettings, onOpenHelp, onInitApp }: Props) {
@@ -82,7 +93,7 @@ export function DrawerMenu({ open, hasUnread, onClose, onOpenNews, onOpenSetting
           {LINKS.map(link => (
             <a key={link.title} href={link.url} target="_blank" rel="noopener noreferrer"
                style={{ textDecoration: 'none' }} onClick={onClose}>
-              <DrawerItem icon={link.icon} iconBg={link.bg} title={link.title} sub={link.sub} chevron="↗" />
+              <DrawerItem icon={link.icon} tone={link.tone} title={link.title} sub={link.sub} chevron="↗" />
             </a>
           ))}
 
@@ -92,7 +103,7 @@ export function DrawerMenu({ open, hasUnread, onClose, onOpenNews, onOpenSetting
           {/* 各画面はドロワー(z-30)の上(z-50)に重ねて開く。ここでドロワーを閉じないことで、
               画面の「戻る」を押すと下に残った開いたままのドロワーへ戻れる。 */}
           <SectionLabel>アプリ</SectionLabel>
-          <DrawerItem icon="📢" iconBg="#fef3c7" title="お知らせ" sub="バス運行情報・重要連絡" chevron="›"
+          <DrawerItem icon={<IconMegaphone />} tone="amber" title="お知らせ" sub="バス運行情報・重要連絡" chevron="›"
             showDot={hasUnread}
             onClick={onOpenNews} />
 
@@ -100,13 +111,13 @@ export function DrawerMenu({ open, hasUnread, onClose, onOpenNews, onOpenSetting
 
           {/* その他セクション */}
           <SectionLabel>その他</SectionLabel>
-          <DrawerItem icon="⚙️" iconBg="#f0f4ff" title="設定" sub="表示・通知オプション" chevron="›"
+          <DrawerItem icon={<IconGear />} tone="indigo" title="設定" sub="表示・通知オプション" chevron="›"
             onClick={onOpenSettings} />
-          <DrawerItem icon="❓" iconBg="#f4f4f8" title="ヘルプ" sub="使い方・お問い合わせ" chevron="›"
+          <DrawerItem icon={<IconHelp />} tone="slate" title="ヘルプ" sub="使い方・お問い合わせ" chevron="›"
             onClick={onOpenHelp} />
 
           {/* アプリの初期化ボタン */}
-          <DrawerItem icon="🔄" iconBg="#fef2f2" title="アプリの初期化" sub="キャッシュ・SWをリセット"
+          <DrawerItem icon={<IconReset />} tone="red" title="アプリの初期化" sub="キャッシュ・SWをリセット"
             titleColor="#ef4444"
             onClick={() => { onInitApp() }} />
 
@@ -133,8 +144,8 @@ function Divider() {
 }
 
 interface DrawerItemProps {
-  icon: string
-  iconBg: string
+  icon: ReactNode
+  tone: IconTone
   title: string
   sub: string
   chevron?: string
@@ -143,7 +154,7 @@ interface DrawerItemProps {
   showDot?: boolean   // 未読インジケーター表示（お知らせ項目のみ true）
 }
 
-function DrawerItem({ icon, iconBg, title, sub, chevron, onClick, titleColor, showDot }: DrawerItemProps) {
+function DrawerItem({ icon, tone, title, sub, chevron, onClick, titleColor, showDot }: DrawerItemProps) {
   const baseStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 13,
     padding: '11px 12px', borderRadius: 14, cursor: 'pointer',
@@ -154,7 +165,17 @@ function DrawerItem({ icon, iconBg, title, sub, chevron, onClick, titleColor, sh
   const inner = (
     <>
       <div style={{ position: 'relative', width: 36, height: 36, flexShrink: 0 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 11, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 }}>
+        {/* アイコンの色は currentColor 経由で子の <svg> に渡る。
+            テーマ切替時のちらつきを避けるため、行の背景（0.35s）と同じ時間で遷移させる。 */}
+        <div
+          style={{
+            width: 36, height: 36, borderRadius: 11,
+            backgroundColor: `var(--icon-${tone}-bg)`,
+            color: `var(--icon-${tone}-fg)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'background-color 0.35s, color 0.35s',
+          }}
+        >
           {icon}
         </div>
 
