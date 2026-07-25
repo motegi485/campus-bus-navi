@@ -43,6 +43,18 @@
   --border2:       #ececf0;
   --past-text:     #cccccc;
   --past-bg:       #f9f9f9;
+
+  /* ── ドロワーメニューのアイコン配色 ──
+     bg = タイル背景 / fg = アイコンの線色（currentColor で参照される）
+     DrawerIcons.tsx の IconTone と 1:1 で対応する。 */
+  --icon-violet-bg: #ede9fe;  --icon-violet-fg: #7c3aed;
+  --icon-blue-bg:   #dbeafe;  --icon-blue-fg:   #2563eb;
+  --icon-green-bg:  #dcfce7;  --icon-green-fg:  #16a34a;
+  --icon-yellow-bg: #fef9c3;  --icon-yellow-fg: #ca8a04;
+  --icon-amber-bg:  #fef3c7;  --icon-amber-fg:  #d97706;
+  --icon-indigo-bg: #f0f4ff;  --icon-indigo-fg: #4f46e5;
+  --icon-slate-bg:  #f4f4f8;  --icon-slate-fg:  #64748b;
+  --icon-red-bg:    #fef2f2;  --icon-red-fg:    #ef4444;
 }
 
 /* ── ダークテーマ ── */
@@ -58,6 +70,18 @@
   --border2:       #2d3748;
   --past-text:     #4b5563;
   --past-bg:       #1a2332;
+
+  /* ── ドロワーメニューのアイコン配色（ダーク）──
+     淡いパステルはダーク背景で浮くため、fg を明度の高い同系色にし、
+     bg はその色の 16% 透過にして地の色と馴染ませる。 */
+  --icon-violet-bg: rgba(167, 139, 250, 0.16);  --icon-violet-fg: #a78bfa;
+  --icon-blue-bg:   rgba(96, 165, 250, 0.16);   --icon-blue-fg:   #60a5fa;
+  --icon-green-bg:  rgba(74, 222, 128, 0.16);   --icon-green-fg:  #4ade80;
+  --icon-yellow-bg: rgba(250, 204, 21, 0.16);   --icon-yellow-fg: #facc15;
+  --icon-amber-bg:  rgba(251, 191, 36, 0.16);   --icon-amber-fg:  #fbbf24;
+  --icon-indigo-bg: rgba(129, 140, 248, 0.16);  --icon-indigo-fg: #818cf8;
+  --icon-slate-bg:  rgba(148, 163, 184, 0.16);  --icon-slate-fg:  #94a3b8;
+  --icon-red-bg:    rgba(248, 113, 113, 0.16);  --icon-red-fg:    #f87171;
 }
 
 /* ============================================================
