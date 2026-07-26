@@ -1,7 +1,8 @@
-import type { SVGProps } from 'react'
+import type { ReactElement, SVGProps } from 'react'
 
 /**
- * ドロワーメニュー用アイコン（ラインスタイル）
+ * アプリ共通アイコン（ラインスタイル）
+ * ドロワーメニューと設定画面で使用する。
  *
  * 設計ルール（変更禁止）:
  * - viewBox は 24×24 固定。既定表示サイズは 20×20。
@@ -9,6 +10,13 @@ import type { SVGProps } from 'react'
  * - 色は必ず currentColor。呼び出し側が親要素の `color` で指定する。
  * - 装飾目的のため aria-hidden。項目名はテキストで併記されている。
  */
+
+/**
+ * アイコンコンポーネントの型。
+ * 表示サイズは画面ごとに違う（ドロワー 20px / 設定 19px）ため、
+ * 呼び出し側が要素ではなく「関数そのもの」を受け取ってサイズを指定できるようにしている。
+ */
+export type AppIcon = (props: SVGProps<SVGSVGElement>) => ReactElement
 
 /** アイコンタイルの配色トークン。index.css の --icon-*-bg / --icon-*-fg と対応する。 */
 export type IconTone =
@@ -20,6 +28,7 @@ export type IconTone =
   | 'indigo'
   | 'slate'
   | 'red'
+  | 'pink'
 
 function Base({ children, ...rest }: SVGProps<SVGSVGElement>) {
   return (
@@ -139,6 +148,76 @@ export function IconReset(props: SVGProps<SVGSVGElement>) {
     <Base {...props}>
       <path d="M18.28 6.73A8.2 8.2 0 1 1 12 3.8" />
       <path d="M8.7 1.6 12 3.8 8.7 6" />
+    </Base>
+  )
+}
+
+/* ========================================================================
+   設定画面（SettingsScreen）で使うアイコン
+   ====================================================================== */
+
+/** デフォルトルート: 往復矢印（大学発 / 松永発の 2 方向） */
+export function IconRouteSwap(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Base {...props}>
+      <path d="M3.6 8.8h13.2" />
+      <path d="M13.6 5.4 17 8.8l-3.4 3.4" />
+      <path d="M20.4 15.2H7.2" />
+      <path d="M10.4 11.8 7 15.2l3.4 3.4" />
+    </Base>
+  )
+}
+
+/**
+ * カラーテーマ: コントラスト円
+ *
+ * 右半分の塗り（r=8.7）は外周線（r=9・線幅 1.7 なので 8.15〜9.85 を占める）に
+ * わずかに食い込ませてある。ここを 9 未満に下げると塗りと線の間に隙間が出る。
+ */
+export function IconContrast(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Base {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 3.3a8.7 8.7 0 0 1 0 17.4z" fill="currentColor" stroke="none" />
+    </Base>
+  )
+}
+
+/** フォントサイズ: 大小の A（ベースラインを y=19.4 に揃えてある） */
+export function IconFontSize(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Base {...props}>
+      <path d="M3.4 19.4 6.2 12.4l2.8 7" />
+      <path d="M4.4 16.9h3.6" />
+      <path d="M11.8 19.4 16.4 5.4l4.6 14" />
+      <path d="M13.2 15.2h6.4" />
+    </Base>
+  )
+}
+
+/** 発車リマインダー: ベル */
+export function IconBell(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Base {...props}>
+      <path d="M17.8 11.9a5.8 5.8 0 1 0-11.6 0c0 4.6-1.9 6.2-1.9 6.2h15.4c0 0-1.9-1.6-1.9-6.2z" />
+      <path d="M12 6.1V4.3" />
+      <path d="M10.3 18.9a1.9 1.9 0 0 0 3.4 0" />
+    </Base>
+  )
+}
+
+/**
+ * バージョン: 情報（i）
+ *
+ * IconHelp（丸＋?）と外形が同じなのは承知のうえでの選択。
+ * 使う画面が違うため統一・差別化の変更はしないこと。
+ */
+export function IconInfo(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Base {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 16.6v-5.2" />
+      <circle cx="12" cy="7.8" r="1.1" fill="currentColor" stroke="none" />
     </Base>
   )
 }

@@ -9,7 +9,7 @@ import {
   IconHelp,
   IconReset,
   type IconTone,
-} from './DrawerIcons'
+} from './AppIcons'
 
 interface Props {
   open: boolean
