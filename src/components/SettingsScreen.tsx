@@ -1,5 +1,14 @@
 import { useState } from 'react'
 import type { AppSettings, DefaultRoute, Theme, FontSize } from '../types/timetable'
+import {
+  IconRouteSwap,
+  IconContrast,
+  IconFontSize,
+  IconBell,
+  IconInfo,
+  type AppIcon,
+  type IconTone,
+} from './AppIcons'
 
 interface Props {
   open: boolean
@@ -30,7 +39,33 @@ function NavBar({ title, onBack, backLabel = '戻る' }: { title: string; onBack
   )
 }
 
-function SettingRow({ icon, iconBg, title, sub, value, onClick }: { icon: string; iconBg: string; title: string; sub: string; value: string; onClick: () => void }) {
+/**
+ * 設定行のアイコンタイル（34×34 / 角丸 10）。
+ * アイコンは 19px。ドロワー（タイル 36 / アイコン 20）と同じ比率に揃えてある。
+ * 色は CSS 変数から引き、テーマ切替に自動追従する。
+ */
+function IconTile({ icon: Icon, tone }: { icon: AppIcon; tone: IconTone }) {
+  return (
+    <div
+      style={{
+        width: 34,
+        height: 34,
+        borderRadius: 10,
+        backgroundColor: `var(--icon-${tone}-bg)`,
+        color: `var(--icon-${tone}-fg)`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        transition: 'background-color 0.35s, color 0.35s',
+      }}
+    >
+      <Icon width={19} height={19} />
+    </div>
+  )
+}
+
+function SettingRow({ icon, tone, title, sub, value, onClick }: { icon: AppIcon; tone: IconTone; title: string; sub: string; value: string; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -38,7 +73,7 @@ function SettingRow({ icon, iconBg, title, sub, value, onClick }: { icon: string
       aria-label={`${title}（現在: ${value}）`}
       style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '.5px solid var(--border)', cursor: 'pointer', transition: 'background 0.12s', font: 'inherit', color: 'inherit' }}
     >
-      <div style={{ width: 34, height: 34, borderRadius: 10, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{icon}</div>
+      <IconTile icon={icon} tone={tone} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>
@@ -94,15 +129,15 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
 
         {/* 表示セクション */}
         <Section label="表示">
-          <SettingRow icon="🚌" iconBg="#d1fae5" title="デフォルトルート" sub="起動時に最初に表示するルート" value={SELECTS.route.current} onClick={() => setSelKey('route')} />
-          <SettingRow icon="🎨" iconBg="#ede9fe" title="カラーテーマ" sub="背景の表示モード" value={SELECTS.theme.current} onClick={() => setSelKey('theme')} />
-          <SettingRow icon="🔤" iconBg="#fef3c7" title="フォントサイズ" sub="時刻の文字の大きさ" value={SELECTS.font.current} onClick={() => setSelKey('font')} />
+          <SettingRow icon={IconRouteSwap} tone="green" title="デフォルトルート" sub="起動時に最初に表示するルート" value={SELECTS.route.current} onClick={() => setSelKey('route')} />
+          <SettingRow icon={IconContrast} tone="violet" title="カラーテーマ" sub="背景の表示モード" value={SELECTS.theme.current} onClick={() => setSelKey('theme')} />
+          <SettingRow icon={IconFontSize} tone="amber" title="フォントサイズ" sub="時刻の文字の大きさ" value={SELECTS.font.current} onClick={() => setSelKey('font')} />
         </Section>
 
         {/* 通知セクション（将来拡張用） */}
         <Section label="通知">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: '#fce7f3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🔔</div>
+            <IconTile icon={IconBell} tone="pink" />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>発車リマインダー</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>発車X分前に通知</div>
@@ -114,7 +149,7 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
         {/* アプリ情報 */}
         <Section label="アプリ情報">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: '#f0f4ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>ℹ️</div>
+            <IconTile icon={IconInfo} tone="indigo" />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>バージョン</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>最新の状態です</div>
