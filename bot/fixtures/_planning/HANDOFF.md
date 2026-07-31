@@ -1,7 +1,14 @@
 # campus-bus-navi バックエンド — 開発引き継ぎ一式（HANDOFF）
 
+> **【2026-08-01 追記】この HANDOFF は着手前の引き継ぎメモであり、内容は古くなっています。**
+> Bot は実装済みです（`bot/src/`・`bot/test/`・`.github/workflows/timetable-sync.yml`）。
+> 下記の「配置先」「着手の最短経路」はすでに完了しており、fixtures も配置済みです。
+> **現状を知りたい場合は `BACKEND_REQUIREMENTS.md`（v1.5）の §12.3・§13・§17 を読んでください。**
+> なお下の「画像が『見る用』でしかない理由」は誤り（Claude Code は画像を閲覧でき、実際に画像と
+> fixtures の突き合わせ検証を行っています）。
+
 このフォルダの中身さえ揃っていれば、バックエンドBot（時刻表自動取り込み）の開発に着手できます。
-**正本は `BACKEND_REQUIREMENTS.md`（v1.3）**。仕様で迷ったら常にこれを参照。
+**正本は `BACKEND_REQUIREMENTS.md`（最新は v1.5）**。仕様で迷ったら常にこれを参照。
 
 ---
 
