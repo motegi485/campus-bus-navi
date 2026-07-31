@@ -120,6 +120,27 @@ npm run validate:data
 
 `npm run build` にも同じ検証が組み込まれているため、不正なデータはビルド段階で検出されます。
 
+### 自動取り込み Bot（`bot/`）
+
+大学公式サイトの時刻表画像を日次で巡回し、Gemini API で JSON 化して上記データファイルを更新する **Pull Request を自動作成する** Bot が `bot/` にあります。**main へ直接 push はせず、必ず人がレビューしてマージします。**
+
+- 対象: 通常ダイヤ（授業日／休業日）、長期休暇ダイヤ（期間 override つき）、単日イベントダイヤ、祝日の override 自動生成、期限切れデータのクリーンアップ
+- 対象外: `news.json`、`timetable_closed.json`、`_examples/`、JR 松永駅の時刻表。フロントエンドのコードには一切触れません
+- 判定できないもの（分類不能な期間ダイヤ・OCR の読みが割れた画像など）は**書き込まずに PR の「⚠ 要手動確認」に出す**設計です。お盆期間のような「運休日・最終便の但し書き」を含むダイヤはここに落ちるので、手動対応してください
+- 要件定義・運用手順の正本は `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`
+
+```bash
+cd bot
+npm install
+npx vitest run                        # テスト
+$env:DRY_RUN="1"; $env:SKIP_OCR="1"   # 変更計画だけ出力（API を呼ばない）
+npx tsx src/index.ts
+```
+
+`GEMINI_API_KEY` はローカルでは `bot/.env.local`（git 管理外）、GitHub Actions では Secrets から渡します。
+
+> **注意**: GitHub Actions の定期実行は**デフォルトブランチにワークフローがある場合のみ**有効です。`.github/workflows/timetable-sync.yml` を main にマージする前に、リポジトリ設定で Secrets（`GEMINI_API_KEY`）の登録と「Allow GitHub Actions to create and approve pull requests」の有効化が必要です。
+
 ---
 
 ## 4. 開発者向け情報

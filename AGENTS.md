@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-このファイルは、Claude Code (claude.ai/code) がこのリポジトリで作業する際のガイダンスを提供します。
+このファイルは、Codex (Codex.ai/code) がこのリポジトリで作業する際のガイダンスを提供します。
 
 ## コマンド
 
@@ -39,26 +39,12 @@ npx tsc --noEmit       # ビルドせずに型チェックのみ実行
 
 ダイヤ改正時は該当 JSON ファイルを編集する。時刻表 JSON の `id` はファイル名（拡張子なし）と一致させること（`validate:data` が検証する）。リポジトリルートの `_headers` が Cloudflare に `/data/*.json` をキャッシュ無効化ヘッダー（`Cache-Control: no-cache, no-store, must-revalidate` ほか）で配信するよう指示しており、更新は即座に反映される。
 
-### バックエンド Bot（実装済み・main 未統合）
+### バックエンド Bot（計画中・未実装）
 
-大学公式サイトの時刻表画像を日次巡回し、Gemini API で JSON 化して `public/data/` 更新の PR を自動作成するバックエンド Bot。`bot/` に本体一式、`.github/workflows/timetable-sync.yml` にワークフローがある。フロントとは依存を完全分離（`bot/package.json` は独立、`bot/package-lock.json` はコミット必須）。
+大学公式サイトの時刻表画像を日次巡回し、Gemini API で JSON 化して `public/data/` 更新の PR を自動作成するバックエンド Bot を計画中。リポジトリルートの `bot/` には現状、計画資料と fixture 一式（`bot/fixtures/_planning/`）のみが置かれ、Bot 本体のコードや `.github/workflows/` はまだ存在しない。
 
-```bash
-cd bot
-npm install
-npx vitest run                        # ユニット/統合テスト
-npx tsc --noEmit                      # 型チェック
-$env:DRY_RUN="1"; $env:SKIP_OCR="1"   # 無料枠を消費せず変更計画だけ出力
-npx tsx src/index.ts
-npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/intermediate/regular.json
-```
-
-- **要件定義の正本（SSoT）は `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`（v1.5）**。他の資料と食い違う場合はこちらが優先（同ディレクトリの `HANDOFF.md` の版数表記は古く、正本冒頭の変更履歴表が正）。仕様の詳細は CLAUDE.md に転記せず、必要なときにこのファイルを読む。
-- 大原則: main へ直接 push しない（PR + 人間レビュー必須）。Bot はフロントエンド（`src/` 等）には一切触れない。書込は `files.ts` のホワイトリスト（`timetable_weekday/holiday`・`timetable_vacation_{season}_{weekday,holiday}`・`timetable_event_{YYYYMMDD}`）に限定され、削除は event ファイルのみ。`timetable_closed.json` と `_examples/` には触れない。
-- **JSON 整形は既存ハウススタイルを維持する**（`bus_stop_coords` と schedule 各要素は1行）。素の `JSON.stringify(_, null, 2)` にすると Bot が触った全ファイルが全行差分になり、本システムの中核である PR レビューが機能しなくなる。`bot/test/files.test.ts` が既存ファイルとの byte 一致を固定しているので、ここを壊す変更はテストが落ちる。
-- **`GEMINI_API_KEY` はローカルでは `bot/.env.local`（git 管理外）**、CI では GitHub Secrets。ファイルの中身を読み上げ・出力しない。
-- 無料枠は RPD（1日あたり）が小さい（実測 `gemini-3.5-flash` で 20）。リトライも枠を消費するため 1 実行あたりの呼び出し上限（`geminiMaxCallsPerRun`）がある。枠を使わずに計画だけ見たいときは `SKIP_OCR=1`。
-- **GitHub Actions の `schedule` / `workflow_dispatch` はデフォルトブランチにワークフローがある場合のみ動く。** main 統合までは Actions が起動しないため、検証はローカル実行（`DRY_RUN=1` と実走）で行う。統合前に Secrets 登録と「Allow GitHub Actions to create and approve pull requests」の有効化が必須。
+- 要件定義の正本（SSoT）は `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`。他の資料と食い違う場合はこちらが優先（同ディレクトリの `HANDOFF.md` にある「正本は v1.3」という版数表記は古く、正本冒頭の変更履歴表が正）。仕様の詳細は AGENTS.md に転記せず、必要なときにこのファイルを読む。
+- 大原則: main へ直接 push しない（PR + 人間レビュー必須）。Bot はフロントエンド（`src/` 等）には一切触れない。
 
 ### 重要な設計判断
 

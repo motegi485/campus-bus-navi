@@ -1,0 +1,75 @@
+{
+  "_comment": "fixtures/intermediate 用。0817-.jpg（2026年8月17日～9月23日 夏季休業ダイヤ）の中間構造。images/0817--1024x724.jpg から手動転記した（要目視照合）。この画像は『松永発｜時｜大学発』の共有『時』列レイアウトで、平日と土・日・祝の2表が左右に並ぶ。assemble() が timetable_vacation_summer_weekday / _holiday を生成できることの検証に使う。",
+  "day_types": [
+    {
+      "label": "平日",
+      "matsunaga": [
+        { "hour": 7,  "minutes": [] },
+        { "hour": 8,  "minutes": [0, 10, 35, 55] },
+        { "hour": 9,  "minutes": [20, 40] },
+        { "hour": 10, "minutes": [5] },
+        { "hour": 11, "minutes": [10] },
+        { "hour": 12, "minutes": [30] },
+        { "hour": 13, "minutes": [0, 30] },
+        { "hour": 14, "minutes": [0, 30] },
+        { "hour": 15, "minutes": [0, 30] },
+        { "hour": 16, "minutes": [0, 30] },
+        { "hour": 17, "minutes": [0, 30] },
+        { "hour": 18, "minutes": [15, 45] },
+        { "hour": 19, "minutes": [15, 45] },
+        { "hour": 20, "minutes": [25] },
+        { "hour": 21, "minutes": [15] }
+      ],
+      "university": [
+        { "hour": 7,  "minutes": [40] },
+        { "hour": 8,  "minutes": [20] },
+        { "hour": 9,  "minutes": [20, 50] },
+        { "hour": 10, "minutes": [35] },
+        { "hour": 11, "minutes": [0] },
+        { "hour": 12, "minutes": [15, 45] },
+        { "hour": 13, "minutes": [15, 45] },
+        { "hour": 14, "minutes": [15, 45] },
+        { "hour": 15, "minutes": [15, 45] },
+        { "hour": 16, "minutes": [15, 45] },
+        { "hour": 17, "minutes": [15, 45] },
+        { "hour": 18, "minutes": [0, 30] },
+        { "hour": 19, "minutes": [0, 30] },
+        { "hour": 20, "minutes": [10] },
+        { "hour": 21, "minutes": [0] }
+      ]
+    },
+    {
+      "label": "土・日・祝",
+      "matsunaga": [
+        { "hour": 7,  "minutes": [] },
+        { "hour": 8,  "minutes": [55] },
+        { "hour": 9,  "minutes": [40] },
+        { "hour": 10, "minutes": [40] },
+        { "hour": 11, "minutes": [] },
+        { "hour": 12, "minutes": [30] },
+        { "hour": 13, "minutes": [20] },
+        { "hour": 14, "minutes": [35] },
+        { "hour": 15, "minutes": [55] },
+        { "hour": 16, "minutes": [] },
+        { "hour": 17, "minutes": [20] },
+        { "hour": 18, "minutes": [25] },
+        { "hour": 19, "minutes": [35] }
+      ],
+      "university": [
+        { "hour": 7,  "minutes": [] },
+        { "hour": 8,  "minutes": [20] },
+        { "hour": 9,  "minutes": [15] },
+        { "hour": 10, "minutes": [0] },
+        { "hour": 11, "minutes": [30] },
+        { "hour": 12, "minutes": [0, 55] },
+        { "hour": 13, "minutes": [] },
+        { "hour": 14, "minutes": [20] },
+        { "hour": 15, "minutes": [40] },
+        { "hour": 16, "minutes": [] },
+        { "hour": 17, "minutes": [0] },
+        { "hour": 18, "minutes": [0] },
+        { "hour": 19, "minutes": [0] }
+      ]
+    }
+  ]
+}
