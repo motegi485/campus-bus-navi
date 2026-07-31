@@ -1,0 +1,7 @@
+node_modules/
+.out/
+
+# ローカル開発用の秘密情報（GEMINI_API_KEY 等）。絶対にコミットしない
+.env.local
+.env
+

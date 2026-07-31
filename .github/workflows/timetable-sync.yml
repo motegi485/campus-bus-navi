@@ -1,0 +1,73 @@
+# スクールバス時刻表の自動取り込み（要件定義 §10 の確定 YAML）
+#
+# 注意: GitHub Actions の schedule / workflow_dispatch は「デフォルトブランチにワークフローが
+# 存在する場合のみ」有効になる。このファイルが main にマージされるまで、このワークフローは
+# 起動しない（それまでの検証はローカル実行で行う）。
+#
+# main へマージする前に必ず実施すること（要件定義 §10.1 / §16.3）:
+#   1. Settings → Secrets and variables → Actions に GEMINI_API_KEY を登録（H-2）
+#   2. Settings → Actions → General → Workflow permissions を
+#      「Read and write permissions」にし、
+#      「Allow GitHub Actions to create and approve pull requests」にチェック（H-3）
+#      ※未設定だと create-pull-request が必ず失敗する
+
+name: timetable-sync
+
+on:
+  schedule:
+    - cron: '0 22 * * *' # 07:00 JST（UTC+9）。GitHub の cron は遅延し得る
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'ドライラン（PRを作らず計画のみログ出力）'
+        type: boolean
+        default: false
+
+concurrency:
+  group: timetable-sync
+  cancel-in-progress: false # 多重起動防止（前の実行を待つ）
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: Asia/Tokyo
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bot/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: bot
+
+      - name: Run sync
+        run: npx tsx src/index.ts
+        working-directory: bot
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
+
+      - name: Create Pull Request
+        if: ${{ inputs.dry_run != true }}
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: bot/timetable-sync
+          base: main
+          delete-branch: true
+          commit-message: 'bot: 時刻表データの自動更新'
+          title: '🤖 時刻表データの自動更新'
+          body-path: bot/.out/pr-body.md
+          add-paths: |
+            public/data/**
+            bot/state.json
+            bot/holidays.json
