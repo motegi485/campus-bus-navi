@@ -4,7 +4,7 @@
 
 🌐 **アプリを開く → <https://campus-bus-navi.pages.dev/>**
 
-> **現在 β 版（ver 1.0.2-beta）として運用中です。** 表示される時刻に万一誤りがあった場合に備え、試験や重要な予定の際は大学公式の時刻表も併せてご確認ください。
+> **現在 β 版（ver 1.1.0-beta）として運用中です。** 表示される時刻に万一誤りがあった場合に備え、試験や重要な予定の際は大学公式の時刻表も併せてご確認ください。
 
 バックエンドやデータベースを持たない静的構成（React PWA + JSON データ）で、Cloudflare Pages から配信しています。
 
@@ -135,7 +135,7 @@ npm run validate:data
 - 対象外: `news.json`、`timetable_closed.json`、`timetable_special.json`、`_examples/`、JR 松永駅の時刻表。フロントエンドのコードには一切触れません
 - 判定できないもの（分類不能な期間ダイヤ・OCR の読みが割れた画像など）は**時刻を書き込まず PR の「⚠ 要手動確認」に出す**設計です。さらに**期間が読み取れている場合はその期間を `timetable_special` で塗り潰します**（PR を見落としても誤った時刻を表示しないための保険）。お盆期間のような「運休日・最終便の但し書き」を含むダイヤはここに落ちるので、掲示を見て必要な日だけ手動で個別の `overrides` に置き換えてください
 - **手動で設定した `overrides` は Bot より優先されます。** Bot が張った override を人が書き換えると、その日付は以後 Bot の管理対象から外れます
-- 要件定義・運用手順の正本は `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`
+- 要件定義の正本は `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`、現状と次の作業手順は同ディレクトリの `HANDOFF.md`
 
 ```bash
 cd bot
@@ -147,7 +147,7 @@ npx tsx src/index.ts
 
 `GEMINI_API_KEY` はローカルでは `bot/.env.local`（git 管理外）、GitHub Actions では Secrets から渡します。
 
-> **注意**: GitHub Actions の定期実行は**デフォルトブランチにワークフローがある場合のみ**有効です。`.github/workflows/timetable-sync.yml` を main にマージする前に、リポジトリ設定で Secrets（`GEMINI_API_KEY`）の登録と「Allow GitHub Actions to create and approve pull requests」の有効化が必要です。
+> **現在の状態（2026-08-02〜）**: Bot のコードは main にありますが、**ワークフローは手動で Disable してあり日次実行は起動しません**。稼働させるには ①Secrets に `GEMINI_API_KEY` を登録 ②リポジトリ設定で「Allow GitHub Actions to create and approve pull requests」を有効化 ③Actions 画面でワークフローを Enable — の 3 つが必要です（②が未設定だと PR 作成が必ず失敗します）。詳細な手順は `bot/fixtures/_planning/HANDOFF.md` を参照してください。
 
 ---
 

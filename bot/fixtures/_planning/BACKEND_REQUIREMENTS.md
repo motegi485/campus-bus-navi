@@ -12,7 +12,7 @@
 | 作成日 | 2026-06-13 |
 | 位置づけ | **実装の正本**。BACKEND_DESIGN.md（v2ドラフト）と矛盾する場合は本書が優先する |
 | 実装者 | Claude Code（本書を実装指示書として渡す） |
-| 実装状況 | **Phase 0〜1 実装済み（2026-08-01）＋特別ダイヤ対応（2026-08-02）**。`bot/` 一式・`.github/workflows/timetable-sync.yml` を配置し、ユニット/統合テスト 107 件が緑。実 API での通し実行（ローカル）で AC-1〜AC-3 相当を確認済み。**未了は Actions 実走系（AC-4/AC-7）と H-2/H-3 のみで、これは main 統合時に持ち越し**（作業ブランチ `sandbox` のままにする運用判断のため） |
+| 実装状況 | **main 統合済み・ワークフローは Disable 中（2026-08-02）**。`bot/` 一式・`.github/workflows/timetable-sync.yml` が main にあり、ユニット/統合テスト 109 件が緑。実 API での通し実行（ローカル）で AC-1〜AC-3 相当を確認済み。**未了は Actions 実走系（AC-4/AC-7）と H-2/H-3 のみ。2026-08-23 前後に実施予定**（§17.3・手順は `HANDOFF.md`） |
 | 主要な訂正（v2ドラフトから） | ① SDKは `@google/genai`（旧 `@google/generative-ai` は使用禁止） ② Gemini 3系は **temperature を指定しない**（公式推奨。temp 0 指定は誤り） ③ `thinking_level` / `media_resolution` を使用 ④ create-pull-request は **v8** ⑤ 出力先は `public/data/timetables/` |
 
 ---
@@ -963,8 +963,8 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 | # | 作業 | 手段 | これがないと | 状況（2026-08-01） |
 |---|---|---|---|---|
 | H-1 | Google AI Studio で **`GEMINI_API_KEY` を発行**（ローカル検証では `bot/.env.local` に置く） | AI Studio（Google ログイン要） | OCR 不能 | ✅ 完了（2026-08-01） |
-| H-2 | GitHub に **`GEMINI_API_KEY` を登録** | `Settings → Secrets and variables → Actions`（または `gh secret set`） | Actions 実行時に OCR 不能 | ⏸ main 統合時 |
-| H-3 | **「Allow GitHub Actions to create and approve pull requests」を有効化**＋Workflow permissions を Read/Write に | `Settings → Actions → General`（または `gh api -X PUT repos/:owner/:repo/actions/permissions/workflow -F default_workflow_permissions=write -F can_approve_pull_request_reviews=true`） | **PR 作成が必ず失敗**（create-pull-request 公式要件） | ⏸ main 統合時 |
+| H-2 | GitHub に **`GEMINI_API_KEY` を登録** | `Settings → Secrets and variables → Actions`（または `gh secret set`） | Actions 実行時に OCR 不能 | ⏸ 2026-08-23 前後（main 統合は済。ワークフローを Disable 中） |
+| H-3 | **「Allow GitHub Actions to create and approve pull requests」を有効化**＋Workflow permissions を Read/Write に | `Settings → Actions → General`（または `gh api -X PUT repos/:owner/:repo/actions/permissions/workflow -F default_workflow_permissions=write -F can_approve_pull_request_reviews=true`） | **PR 作成が必ず失敗**（create-pull-request 公式要件） | ⏸ 2026-08-23 前後（main 統合は済。ワークフローを Disable 中） |
 | H-4 | （C-10 に移管・完了） | — | — | ✅ |
 | H-5 | Bot が出した **PR をレビューしてマージ**（本システムの人間ゲート） | GitHub PR 画面。元画像と便を突き合わせ | データが反映されない（設計どおり） | 運用時 |
 | H-6 | マージ後の **Cloudflare Pages デプロイ反映を確認** | Pages のデプロイ履歴／実機 | — | 運用時 |
@@ -1009,23 +1009,41 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 [Claude Code] Phase 2: STEP_SUMMARY・便数±50%警告・本書 v1.5 更新
 ```
 
-### 17.2 残（main 統合時に実施）
+### 17.2 実施済み（2026-08-02）
 
 ```
-[人間] H-2 Secrets 登録 / H-3 PR作成権限の有効化   ← Actions 実走の前に必須
+[Claude Code] 特別ダイヤ（timetable_special）の新設 — フロント・データ・Bot・本書 v1.6
+[人間]        お盆ダイヤ（8/8〜）を手動で投入（8/8-11 obon / 8/12・16 special / 8/13-15 closed）
+[人間]        sandbox → main へマージ
+[人間]        Actions → timetable-sync を手動 Disable
+[検証]        本番サイトで overrides 24件・時刻表4ファイル・JS バンドルの
+              SHA-256 一致を確認（2026-08-02）
+```
+
+**当初は「H-2/H-3 を済ませてから main へマージ」という順序だったが、お盆ダイヤ（8/8 開始）を
+本番へ届ける必要が生じたため、マージを先行させ、代わりにワークフローを Disable する形に変えた。**
+結果として「コードは本番、日次実行は保留」という状態になっている。
+
+### 17.3 残（2026-08-23 前後に実施）
+
+```
+[人間] H-2 Secrets 登録 / H-3 PR作成権限の有効化   ← 実行の前に必須
         ↓
-[人間] bot/ と .github/workflows/ を main へマージ  ← これで初めて cron / workflow_dispatch が有効になる
+[人間] Actions → timetable-sync → Enable workflow  ← Disable を解除
         ↓
 [人間 or 手動トリガー] workflow_dispatch(dry_run=true) → 計画ログ確認
                        workflow_dispatch(dry_run=false) → 初回 PR 生成（AC-4 の確認もここ）
 [人間] H-5 初回 PR をレビュー（元画像と突き合わせ）→ マージ → H-6 デプロイ確認
         ↓
 [人間] AC-7 の実走確認（2026-08-23 オープンキャンパスの override とファイルが、
-       適用日前に追加され、適用日経過後に削除されること）
+       適用日経過後に削除されること。8/24 以降の実行で観測できる）
 [人間] H-8 新 primary（gemini-3.6-flash）の無料枠実値を確認・必要なら間隔/上限を調整
 ```
 
-- **依存の急所**: H-3（PR作成権限）は main 統合の前までに必ず実施。未実施だと最初の自動実行で PR 作成が失敗する。
-- **【v1.5 重要】GitHub Actions の `schedule` / `workflow_dispatch` はデフォルトブランチにワークフローファイルがある場合のみ動作する。**
-  作業ブランチに置いている間は Actions が一切起動しないため、それまでの検証はローカル実行で行う（§12.3 の注記）。
+- **依存の急所**: H-3（PR作成権限）未実施だと最初の実行で PR 作成が必ず失敗する。
+- **作業手順の具体（GitHub の画面操作・切り分け表・ローカル再現）は `HANDOFF.md` §4〜5 にまとめてある。**
+  次に着手する人（人間・AI とも）はまずそちらを読む。
+- **【v1.5 重要 / v1.6 で状況更新】GitHub Actions の `schedule` / `workflow_dispatch` はデフォルトブランチにワークフローファイルがある場合のみ動作する。**
+  この前提は main 統合（2026-08-02）で満たされた。**現在停止しているのは手動 Disable によるもの**なので、
+  稼働させるには Actions 画面で Enable する（§17.3）。それまでの検証は引き続きローカル実行で行う（§12.3 の注記）。
 - **鍵なしでも進む範囲**: `SKIP_OCR=1` を付ければ抽出・分類・祝日・カレンダー計算まで無料枠を消費せず検証できる。
