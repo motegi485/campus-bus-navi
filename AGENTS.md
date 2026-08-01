@@ -16,7 +16,7 @@ npx tsc --noEmit       # ビルドせずに型チェックのみ実行
 
 ## アーキテクチャ
 
-福山大学のバス時刻表を表示する **React 18 + TypeScript PWA**。全データは静的 JSON でバックエンドなし（データ更新を自動化する Bot は計画中 — 後述「バックエンド Bot」節を参照）。Cloudflare Pages にデプロイ。エンドユーザー向け説明・お知らせ追加やダイヤ改正時の運用手順・デプロイ設定の具体値は `README.md` にまとまっている。
+福山大学のバス時刻表を表示する **React 18 + TypeScript PWA**。全データは静的 JSON でバックエンドなし（データ更新を自動化する Bot は実装済みだが main 未統合 — 後述「バックエンド Bot」節を参照）。Cloudflare Pages にデプロイ。エンドユーザー向け説明・お知らせ追加やダイヤ改正時の運用手順・デプロイ設定の具体値は `README.md` にまとまっている。
 
 **スタック:** Vite 5、Tailwind CSS v4（`tailwind.config.js` は不要 — `index.css` 内の `@theme` ブロックで設定、`@tailwindcss/vite` プラグイン使用）、Leaflet + react-leaflet（地図）、Day.js（JST 時刻処理）、vite-plugin-pwa + Workbox（サービスワーカーキャッシュ。クライアント側の更新検知は workbox-window）。
 
@@ -34,17 +34,33 @@ npx tsc --noEmit       # ビルドせずに型チェックのみ実行
 
 - `calendar_rules.json` — 曜日デフォルト + 日付単位の上書き（YYYY-MM-DD キー）
 - `news.json` — お知らせ（本文に HTML 使用可、`tag` フィールドで `important/info/change/event` を分類）
-- `timetables/` — 路線ごとの発車時刻。本番運用する時刻表のみを置く（現状 `timetable_weekday.json`・`timetable_holiday.json`・`timetable_closed.json`〔全便運休日、`schedule` が空配列〕）。`timetable_closed.json` は運休日を設ける際に `overrides` から参照させる待機ファイルで、`calendar_rules.json` から参照されていない期間があってよい
+- `timetables/` — 路線ごとの発車時刻。本番運用する時刻表のみを置く。常設は `timetable_weekday.json`（授業日）・`timetable_holiday.json`（休業日）で、これに Bot が生成する `timetable_vacation_{季節}_{weekday,holiday}` / `timetable_event_{YYYYMMDD}` と、手動運用の期間ダイヤ（例 `timetable_vacation_obon.json`）が加わる。`timetable_closed.json`〔全便運休日〕と `timetable_special.json`〔特別ダイヤ〕は **`schedule` が空配列の待機ファイル**で、必要な日に `overrides` から参照させる（`calendar_rules.json` から参照されていない期間があってよい）
 - `_examples/` — 長期休暇・イベント日ダイヤのテンプレートと構造サンプル。`calendar_rules.json` からは参照されず、`validate:data` の検証対象にも含まれない（`public/` 配下のため `dist/data/_examples/` へは他の静的ファイルと同様にコピーされるが、アプリからは読み込まれないダミーデータである点に注意）。新しいダイヤを作るときはここからコピーして値を実データに置き換え、`timetables/` に配置する
 
 ダイヤ改正時は該当 JSON ファイルを編集する。時刻表 JSON の `id` はファイル名（拡張子なし）と一致させること（`validate:data` が検証する）。リポジトリルートの `_headers` が Cloudflare に `/data/*.json` をキャッシュ無効化ヘッダー（`Cache-Control: no-cache, no-store, must-revalidate` ほか）で配信するよう指示しており、更新は即座に反映される。
 
-### バックエンド Bot（計画中・未実装）
+### バックエンド Bot（実装済み・main 未統合）
 
-大学公式サイトの時刻表画像を日次巡回し、Gemini API で JSON 化して `public/data/` 更新の PR を自動作成するバックエンド Bot を計画中。リポジトリルートの `bot/` には現状、計画資料と fixture 一式（`bot/fixtures/_planning/`）のみが置かれ、Bot 本体のコードや `.github/workflows/` はまだ存在しない。
+大学公式サイトの時刻表画像を日次巡回し、Gemini API で JSON 化して `public/data/` 更新の PR を自動作成するバックエンド Bot。`bot/` に本体一式、`.github/workflows/timetable-sync.yml` にワークフローがある。フロントとは依存を完全分離（`bot/package.json` は独立、`bot/package-lock.json` はコミット必須）。
 
-- 要件定義の正本（SSoT）は `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`。他の資料と食い違う場合はこちらが優先（同ディレクトリの `HANDOFF.md` にある「正本は v1.3」という版数表記は古く、正本冒頭の変更履歴表が正）。仕様の詳細は AGENTS.md に転記せず、必要なときにこのファイルを読む。
-- 大原則: main へ直接 push しない（PR + 人間レビュー必須）。Bot はフロントエンド（`src/` 等）には一切触れない。
+```bash
+cd bot
+npm install
+npx vitest run                        # ユニット/統合テスト
+npx tsc --noEmit                      # 型チェック
+$env:DRY_RUN="1"; $env:SKIP_OCR="1"   # 無料枠を消費せず変更計画だけ出力
+npx tsx src/index.ts
+npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/intermediate/regular.json
+```
+
+- **要件定義の正本（SSoT）は `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`（v1.6）**。他の資料と食い違う場合はこちらが優先（同ディレクトリの `HANDOFF.md` の版数表記は古く、正本冒頭の変更履歴表が正）。仕様の詳細は AGENTS.md に転記せず、必要なときにこのファイルを読む。
+- 大原則: main へ直接 push しない（PR + 人間レビュー必須）。Bot はフロントエンド（`src/` 等）には一切触れない。書込は `files.ts` のホワイトリスト（`timetable_weekday/holiday`・`timetable_vacation_{season}_{weekday,holiday}`・`timetable_event_{YYYYMMDD}`）に限定され、削除は event ファイルのみ。`timetable_closed.json`・`timetable_special.json` と `_examples/` には触れない（`timetable_special` は override から**参照する**だけ）。
+- **読めない掲示は特別ダイヤで塗り潰す（フェイルセーフ）:** `needs_review` と判定したリンクのうち**期間の両端が読めているもの**は、その期間に `timetable_special` の override を自動で張る（`plan.ts` の `applySpecials` → `calendar.ts`）。PR を見落としても誤った時刻を表示しないための保険で、override の優先順位は **手動 > special > event > vacation > 祝日 > default_rules**。日付が読めない `needs_review` は従来どおり警告のみ。期間が `CONFIG.specialMaxRangeDays`（92日）を超えるものは日付の誤読を疑って適用しない。
+- **手動 override は不可侵:** Bot が張った override を人が書き換える／削除すると、その日付は `suppressed_overrides` に記録され以後 Bot は触らない。お盆のように「読める日は個別ダイヤ、読めない日は特別ダイヤ」と人が精緻化した結果は上書きされない。
+- **JSON 整形は既存ハウススタイルを維持する**（`bus_stop_coords` と schedule 各要素は1行）。素の `JSON.stringify(_, null, 2)` にすると Bot が触った全ファイルが全行差分になり、本システムの中核である PR レビューが機能しなくなる。`bot/test/files.test.ts` が既存ファイルとの byte 一致を固定しているので、ここを壊す変更はテストが落ちる。
+- **`GEMINI_API_KEY` はローカルでは `bot/.env.local`（git 管理外）**、CI では GitHub Secrets。ファイルの中身を読み上げ・出力しない。
+- 無料枠は RPD（1日あたり）が小さい（実測 `gemini-3.5-flash` で 20）。リトライも枠を消費するため 1 実行あたりの呼び出し上限（`geminiMaxCallsPerRun`）がある。枠を使わずに計画だけ見たいときは `SKIP_OCR=1`。
+- **GitHub Actions の `schedule` / `workflow_dispatch` はデフォルトブランチにワークフローがある場合のみ動く。** main 統合までは Actions が起動しないため、検証はローカル実行（`DRY_RUN=1` と実走）で行う。統合前に Secrets 登録と「Allow GitHub Actions to create and approve pull requests」の有効化が必須。
 
 ### 重要な設計判断
 
@@ -67,7 +83,14 @@ npx tsc --noEmit       # ビルドせずに型チェックのみ実行
 
 **オーバースクロール（バウンス）表現:** JS による弾性エミュレーション（touchmove 乗っ取り + rAF）はコンポジタ駆動のネイティブ慣性に体感レベルで追従できないことが実機検証で確定しており、再挑戦しない。両 OS とも OS ネイティブ表現を解放する方式が最終形 — `useNativeBounce.ts` が iOS には `bounce-native`（ラバーバンドバウンス + ヘッダークッションのグラデ stop 位置算出）、Android 等のタッチ主体端末には `bounce-stretch`（`overscroll-behavior-y: contain` + ネイティブストレッチ）を適用し、PC はバウンス無し。改修は `overscroll-behavior` とクッションの枠内で行う。詳細は同フック冒頭のコメントを参照。
 
-**ダイヤ種別** は時刻表 ID 文字列から推定（6種類）：`closed` を含む → `'closed'`（全便運休日）、`event` を含む → `'event'`、`vacation` を含む → `holiday` も含めば `'vacation_holiday'` / 含まなければ `'vacation_weekday'`、`holiday` を含む → `'holiday'`、それ以外 → `'weekday'`。`vacation_*_holiday` は `vacation` と `holiday` の両方を含むため、`vacation` を `holiday` より先に判定する順序が必須。判定順序は `closed → event → vacation → holiday → weekday`。推定ロジックは `DayBadge.tsx` の `resolveDiagramType()` に実装されている。全便運休日は時刻表の `schedule` を空配列にすることで表現し、`App.tsx` はこれを `isNoService` として検出して次発カードの代わりに「本日の運行はありません」＋翌日始発を表示する（`timetable_closed.json` を `calendar_rules.json` の `overrides` から参照させて運用する）。
+**ダイヤ種別** は時刻表 ID 文字列から推定（8種類）：`closed` を含む → `'closed'`（全便運休日）、`special` を含む → `'special'`（特別ダイヤ）、`event` を含む → `'event'`、`vacation` を含む → `holiday` も含めば `'vacation_holiday'` / `weekday` も含めば `'vacation_weekday'` / どちらも無ければ `'vacation'`（平日・休日で分かれない単一表。お盆ダイヤ等）、`holiday` を含む → `'holiday'`、それ以外 → `'weekday'`。`vacation_*_holiday` は `vacation` と `holiday` の両方を含むため、`vacation` を `holiday` より先に判定する順序が必須。判定順序は `closed → special → event → vacation → holiday → weekday`。推定ロジックは `DayBadge.tsx` の `resolveDiagramType()` に実装されている。
+
+**時刻を表示しない2つの状態:** どちらも時刻表の `schedule` を空配列にして表現し、待機ファイルを `calendar_rules.json` の `overrides` から参照させて運用する。
+
+- **全便運休日**（`timetable_closed.json`）— `App.tsx` が `isNoService` として検出し、次発カードの代わりに「本日の運行はありません」＋翌日始発を表示する
+- **特別ダイヤ**（`timetable_special.json`）— 既定のフォーマットで表現できないダイヤ（運休日と通常日が混在する期間、「大学発のみ最終便が変わる」といった但し書き付きのダイヤなど）。`App.tsx` が `isSpecial` として検出し、`SpecialScheduleCard` で大学ホームページ（`src/constants/links.ts` の `SCHOOL_BUS_INFO_URL`）へ誘導する。掲示に書かれていない側（多くは松永発）を推測で埋めると「行きはあるが帰りが無い」時刻を出しかねないため、**推測するより出さない**という判断にもとづく
+
+**両者は `schedule` が空という点で同じなので、描画側は `isSpecial` を `isNoService` より先に判定すること。** 直近4本（`nextBus` が null になる）と全時刻表（`FullTimetable` が null を返す）は空 schedule のガードで自動的に消えるため、追加の分岐は要らない。
 
 **路線:** 2路線のみ — `station_to_campus`（松永駅→大学）と `campus_to_station`（大学→松永駅）。`RouteKey` 型は `src/types/timetable.d.ts` で定義。
 
@@ -95,7 +118,10 @@ src/utils/
   parseTime.ts           ← HH:mm 文字列を分単位の数値に変換（findNextBus が使用）
 src/components/          ← UI コンポーネント（NextBusCard, UpcomingList,
                             FullTimetable, BusStopMap, DrawerMenu,
+                            EndOfServiceCard, SpecialScheduleCard,
                             MobilePwaGuide, ErrorBoundary, Toast 等）
+src/constants/
+  links.ts               ← 複数画面から参照する外部リンク（SCHOOL_BUS_INFO_URL）
 src/types/
   timetable.d.ts         ← 共通 TypeScript 型定義
 scripts/

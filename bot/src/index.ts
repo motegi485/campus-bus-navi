@@ -156,6 +156,7 @@ async function main(): Promise<void> {
     decisions: detected.decisions,
     intermediates,
     ocrFailures,
+    needsReviewLinks: classified.filter((c) => c.kind === 'needs_review'),
     state,
     liveOverrides: rules.overrides,
     holidays: holidaysResult.holidays,

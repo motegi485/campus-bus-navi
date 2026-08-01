@@ -119,7 +119,20 @@ export interface StateEvent {
   processed_at: string
 }
 
+export interface StateSpecial {
+  url: string
+  /** 掲示行のテキスト（PR 表示用） */
+  line: string
+  /** 特別ダイヤを適用する期間。過去日の切り捨ては calendar.ts が行う */
+  period: { start: string; end: string }
+  /** needs_review と判定した理由 */
+  reason: string
+  processed_at: string
+}
+
 export interface ManagedOverrides {
+  /** 読めない掲示の期間を塗り潰した特別ダイヤ（最優先） */
+  special: Record<string, string>
   event: Record<string, string>
   vacation: Record<string, string>
   holiday: Record<string, string>
@@ -130,6 +143,12 @@ export interface State {
   regular?: StateRegular
   vacations?: Partial<Record<Season, StateVacation>>
   events?: Record<string, StateEvent>
+  /**
+   * 読み取れなかった掲示（needs_review）のうち、期間が判明しているもの。
+   * キーは期間の開始日。calculateOverrides がここから timetable_special の override を張る。
+   * 掲示がページから消えればこの記録も消え、override も自動で外れる。
+   */
+  specials?: Record<string, StateSpecial>
   managed_overrides?: ManagedOverrides
   /**
    * 人が削除した管理 override の記録（日付 → 削除時点の時刻表 ID）。

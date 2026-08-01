@@ -265,7 +265,18 @@ export function classifyLink(link: LinkInfo, today: string = todayJst()): Classi
   const hasTilde = TILDE_RE.test(normalizedLine)
   const vac = matchVacation(normalizedLine)
 
-  const reviewed = (reason: string): ClassifiedLink => ({ ...base, kind: 'needs_review' as LinkKind, reason })
+  /**
+   * needs_review でも【期間の両端が読めているときは start/end を残す】。
+   * plan.ts がこれを見て、その期間を特別ダイヤ（timetable_special）で塗り潰す。
+   * 読めない掲示の期間に通常ダイヤの時刻を出し続けないためのフェイルセーフ。
+   */
+  const reviewed = (reason: string, range?: { start?: string; end?: string }): ClassifiedLink => ({
+    ...base,
+    kind: 'needs_review' as LinkKind,
+    reason,
+    ...(range?.start ? { start: range.start } : {}),
+    ...(range?.end ? { end: range.end } : {}),
+  })
 
   // 優先1: 長期休暇
   if (vac) {
@@ -274,7 +285,11 @@ export function classifyLink(link: LinkInfo, today: string = todayJst()): Classi
     }
     const season = detectSeason(vac.matched, normalizedLine)
     if (!season) {
-      return reviewed(`長期休暇の告知ですが季節（春/夏/冬）が特定できません: 「${normalizedLine}」`)
+      const { dates } = resolveDates(raws.slice(0, 2), today)
+      return reviewed(`長期休暇の告知ですが季節（春/夏/冬）が特定できません: 「${normalizedLine}」`, {
+        start: dates[0],
+        end: dates[1],
+      })
     }
     const { dates, yearGuessed } = resolveDates(raws.slice(0, 2), today)
     return {
@@ -307,9 +322,11 @@ export function classifyLink(link: LinkInfo, today: string = todayJst()): Classi
 
   // 日付が2つ以上 ＋ `～` あり だが休暇語彙に不一致 → 通常ダイヤを期間ダイヤで上書きする事故を防ぐ
   if (raws.length >= 2 && hasTilde) {
+    const { dates } = resolveDates(raws.slice(0, 2), today)
     return reviewed(
       '期間指定（日付2つ＋波ダッシュ）ですが長期休暇の語彙に一致しません。' +
         `通常ダイヤの誤上書きを避けるため取り込みません: 「${normalizedLine}」`,
+      { start: dates[0], end: dates[1] },
     )
   }
 

@@ -2,7 +2,8 @@
 
 | 項目 | 内容 |
 |---|---|
-| 文書バージョン | 1.5（実装完了・実走検証にもとづく確定） |
+| 文書バージョン | 1.6（特別ダイヤの導入） |
+| v1.6 変更点 | 2026-08-02、既定のフォーマットで表現できないダイヤ（お盆期間のように運休日と通常日が混在し、「大学発のみ最終便が変わる」等の但し書きを含むもの）への対処として **特別ダイヤ `timetable_special`** を新設：**§3.4** に `special` と無印 `vacation` を追加（判定順序 `closed → special → event → vacation → holiday → weekday`）／**FR-3** の needs_review に「期間の両端が読めていれば `start`/`end` を残す」を追加／**FR-9 の優先順位を 手動 > special > event > 長期休暇 > 祝日 > default_rules に変更**し、needs_review の期間を `timetable_special` で塗り潰す手順 3a を追加（PR を見落としても誤った時刻を表示しないフェイルセーフ）／FR-9 の改ざん検査で「値が**変更**された」場合も `suppressed_overrides` に記録するよう変更（同じ衝突警告が毎実行 PR に出続けるのを防ぐ）／**§9 に `specials`** 追加／§7.2 に `specialTimetableId`・`specialMaxRangeDays` 追加 |
 | v1.5 変更点 | 2026-08-01 に Phase 0〜1 を実装し、実 API で通し検証した結果を反映：**§5/§7.2 モデル変更**（primary `gemini-3.6-flash` / fallback `gemini-3.5-flash`）／**§7.2 vacation 判定を季節接頭辞つき正規表現へ**（「夏季休業」に対応）／**§8.5.3 OCR プロンプトをレイアウト非依存に全面改稿**＋注記除外・label 規則追加／**§8.5.5 に 503 等の一時障害リトライ・RPD 枯渇の扱い・1実行あたり呼び出し上限**を追加（無料枠 RPD=20 の実測値）／**§3.5 JSON 整形をハウススタイル維持に**／**§9 に `suppressed_overrides`** 追加／FR-10 を「CSV の SHA-256 が変わったときだけ書き換え」に（冪等性）／FR-7 に「label が日付だけのときのフォールバック」追加／§7.1 に `time.ts`・`plan.ts`・`env.ts`・`tools/ocr-check.ts` 追加／§7.3 に `SKIP_OCR`・`.env.local`／§12 の fixtures 供給元と AC を実態へ更新／§4.3 の画像レイアウト記述を実測で訂正 |
 | v1.1 変更点 | §3.1 SW プレキャッシュ挙動の正確化／§3.3 旧スナップショット混在の明記／§7.1 lockfile コミット必須／§7.4 テンプレ実名の確定／FR-9 手動キー欠損の情報警告追加／§15-6 追加 |
 | v1.2 変更点 | §16（実装・導入の役割分担：Claude Code / 人間の分界と画像由来 fixtures の供給元）・§17（導入シーケンス）を追加 |
@@ -11,7 +12,7 @@
 | 作成日 | 2026-06-13 |
 | 位置づけ | **実装の正本**。BACKEND_DESIGN.md（v2ドラフト）と矛盾する場合は本書が優先する |
 | 実装者 | Claude Code（本書を実装指示書として渡す） |
-| 実装状況 | **Phase 0〜1 実装済み（2026-08-01）**。`bot/` 一式・`.github/workflows/timetable-sync.yml` を配置し、ユニット/統合テスト 99 件が緑。実 API での通し実行（ローカル）で AC-1〜AC-3 相当を確認済み。**未了は Actions 実走系（AC-4/AC-7）と H-2/H-3 のみで、これは main 統合時に持ち越し**（作業ブランチ `sandbox` のままにする運用判断のため） |
+| 実装状況 | **Phase 0〜1 実装済み（2026-08-01）＋特別ダイヤ対応（2026-08-02）**。`bot/` 一式・`.github/workflows/timetable-sync.yml` を配置し、ユニット/統合テスト 107 件が緑。実 API での通し実行（ローカル）で AC-1〜AC-3 相当を確認済み。**未了は Actions 実走系（AC-4/AC-7）と H-2/H-3 のみで、これは main 統合時に持ち越し**（作業ブランチ `sandbox` のままにする運用判断のため） |
 | 主要な訂正（v2ドラフトから） | ① SDKは `@google/genai`（旧 `@google/generative-ai` は使用禁止） ② Gemini 3系は **temperature を指定しない**（公式推奨。temp 0 指定は誤り） ③ `thinking_level` / `media_resolution` を使用 ④ create-pull-request は **v8** ⑤ 出力先は `public/data/timetables/` |
 
 ---
@@ -108,12 +109,15 @@ Bot はフロントを変更しない。以下はリポジトリの現状から�
 |---|---|---|
 | 授業日 | `timetable_weekday` | （他に該当なし）→ weekday |
 | 休業日 | `timetable_holiday` | `holiday` を含む |
+| 長期休暇（平日/休日の別なし） | `timetable_vacation_{季節等}` | `vacation` を含み `weekday`/`holiday` を含まない【v1.6】 |
 | 長期休暇・平日 | `timetable_vacation_{season}_weekday` | `vacation` を含む（`holiday` 判定より先） |
 | 長期休暇・休日 | `timetable_vacation_{season}_holiday` | `vacation` かつ `holiday` |
 | イベント | `timetable_event_{YYYYMMDD}` | `event` を含む |
 | 全便運休日 | timetable_closed | closed を含む（判定は最優先） |
+| 特別ダイヤ | timetable_special | special を含む（closed の次）【v1.6】 |
 
-- **`timetable_closed`（全便運休ダイヤ）は Bot の生成・更新・削除の対象外**。`schedule` を空配列にした手動運用ファイルで、人が overrides から参照させて使う。判定順序は closed → event → vacation → holiday → weekday（`DayBadge.tsx` の実装と一致することを 2026-07-07 に確認済み）。
+- **`timetable_closed`（全便運休ダイヤ）と `timetable_special`（特別ダイヤ）は Bot の生成・更新・削除の対象外**。どちらも `schedule` を空配列にした手動運用の待機ファイルで、overrides から参照させて使う。**ただし `timetable_special` だけは Bot が override を張る対象になる**（FR-9 の 3a。ファイル自体は書かない）。判定順序は closed → special → event → vacation → holiday → weekday（`DayBadge.tsx` の実装と一致することを 2026-08-02 に確認済み）。
+- 【v1.6】**特別ダイヤの意味**: 既定の timetable スキーマ（路線ごとの発車時刻の配列）で表現できないダイヤ。アプリは発車時刻を一切表示せず、大学の通学情報ページへのリンクを案内する。掲示に書かれていない側（多くは松永発）を推測で埋めると「行きはあるが帰りが無い」時刻を表示しかねないため、**推測するより出さない**という判断（2026-08-02 ユーザー決定）。無印 `vacation` は、お盆ダイヤのように平日・休日で表が分かれない単一表のための種別。
 - `{season}` ∈ `spring` / `summer` / `winter`。**年を含めない**（季節ごとに上書き）。
 - `{YYYYMMDD}` は**適用日**。1日1ダイヤなので一意（ユーザー決定）。
 - **ID 文字列に `vac` 等の短縮形を使わない**（`vacation` 完全一致包含が必須）。
@@ -317,8 +321,17 @@ export const CONFIG = {
     /休暇/,                                // 単独の「休暇」（regular 行には出現しない）
   ],
 
+  /**
+   * 【v1.6】特別ダイヤの待機ファイル ID（§3.4）。
+   * needs_review と判定した期間はこの ID で塗り潰す。Bot はファイル自体を【書かない】—
+   * ホワイトリスト外なので、override から参照するだけ。
+   */
+  specialTimetableId: 'timetable_special',
+  specialMaxRangeDays: 92,             // 特別ダイヤを張る期間の上限。日付の誤読で長大な期間を塗り潰さない
+
   protectedFiles: [                    // §7.4。書込/削除はホワイトリスト方式が正であり、これは追加の明示ガード
     'timetable_closed.json',           // 全便運休ダイヤ（手動運用）。Bot は読み書き・削除しない
+    'timetable_special.json',          // 【v1.6】特別ダイヤ（手動運用）。Bot は override から参照するのみ
   ],
 
   newFileNames: {                      // 新規作成時のみ使用（§3.5）
@@ -376,7 +389,7 @@ export const CONFIG = {
 | 1 | `vacationPatterns`（§7.2・v1.5 で正規表現化）のいずれかに一致 | **vacation** | season（`seasonMap` の漢字 1 文字を検索。`春季/夏季/冬期/冬季/春休み…` を吸収）、期間 `start`〜`end`（`(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日` を行内から最大2つ抽出（**年月日の間の空白を許容** — 2026-07 ライブの「2026年 7月  5日」形式に対応。年なし形は `(\d{1,2})月\s*(\d{1,2})日`）。`～` 区切り） |
 | 2 | 日付が1つ以上あり `～` を**含まない** | **event** | 行内の**全日付**（複数日掲載に対応。各日付ごとに 1 ファイル＋1 override を生成、OCR は 1 回で結果を共用）、label（行から日付・曜日括弧・記号・「時刻表はコチラ」を除去した残り。例 `日商簿記検定試験日`→ trim） |
 | 3 | 日付が**ちょうど1つ**＋`～` あり | **regular** | 開始日（情報としてログ・PR に記載。処理上は常設扱い）。※日付が2つ以上あるのに `vacationPatterns` に不一致の行は regular に落とさず **needs_review**（通常ダイヤを期間ダイヤで上書きする事故の防止）。**実例（2026-08-01 ライブ）**: お盆特別ダイヤ「2026年 8月 8日（土）～ 8月16日（日）」は休暇語彙が無いのでここに落ちる。この画像は 8/13〜15 運休・8/12 最終便・8/16 始発といったスキーマで表現できない但し書きを含むため、**人間対応に回すのが正しい挙動**であり修正しない |
-| 4 | 上記いずれにも該当しない | **needs_review** | OCR せず PR 警告のみ（「分類不能の時刻表リンクあり」＋URL） |
+| 4 | 上記いずれにも該当しない | **needs_review** | OCR せず PR 警告（「分類不能の時刻表リンクあり」＋URL）。【v1.6】**期間の両端が読めている場合は `start`/`end` を残す**（FR-9 の 3a が特別ダイヤの適用先に使う）。該当するのは「日付2つ＋`～`だが休暇語彙なし」（お盆型）と「休暇語彙はあるが季節不明」の2ケース。日付が取れないケースでは `start`/`end` とも undefined のままにし、特別ダイヤも張らない |
 
 補助規則:
 - 2つ目の日付に年が無い場合（例 `8月1日～9月20日`）: 開始日と同年。それでも `end < start` なら end に +1 年。
@@ -563,27 +576,40 @@ const json = JSON.parse(res.text);
 
 ### FR-9: カレンダー更新（calendar）— 中核アルゴリズム
 
-**優先順位（確定）: 手動 > イベント > 長期休暇 > 祝日(baseline) > default_rules**
+**優先順位（確定）【v1.6 で special を追加】: 手動 > 特別ダイヤ > イベント > 長期休暇 > 祝日(baseline) > default_rules**
+
+特別ダイヤをイベントより上に置くのは安全側の判断。「読めなかった掲示」が指す期間に、別に読めた掲示のダイヤを重ねると、実際にはその掲示で上書きされている運行を表示してしまいうるため。
 
 ```
 入力: live overrides O, state.managed_overrides M(前回), 
       今回の有効データ {events, vacations(期間), holidays(CSV)}, today(JST)
 
 1) 改ざん検査: 各 (k,v) ∈ M について
-   - O[k] が存在し v と異なる → k を「手動化」: M から除外し、O[k] は現状維持。PR 警告（revert しない）
+   - O[k] が存在し v と異なる → k を「手動化」: M から除外し、O[k] は現状維持。PR 警告（revert しない）。
+     【v1.6】削除時と同様に state.suppressed_overrides に記録し、以後この日付は計算対象にしない
+     （記録しないと毎実行 D に現れては「手動と衝突」を報告し続け、PR に同じ警告が出続ける）
    - O[k] が存在しない（人が削除）→ M から除外し、【v1.5】state.suppressed_overrides に記録して
      **以後この日付には override を生成しない**。PR 警告
 2) 手動キー集合 H = { k ∈ O | k ∉ M }   // Bot は H に一切触れない
 3) 望ましい管理集合 D を優先順に構築（today 以降 かつ suppressed_overrides に無い日付のみ）:
-   a. event: 各イベント日 d → D[d] = timetable_event_{d}
-   b. vacation: 各期間内の日 d（d ∉ D）→ 月〜金かつ祝日でない → _weekday / 土日または祝日 → _holiday
-   c. holiday baseline: CSV の祝日 d（today ≤ d ≤ CSV最終日, 月〜金, d ∉ D）→ timetable_holiday
+   a.【v1.6】special: state.specials の各期間 [start, end] 内の日 d → D[d] = timetable_special
+   b. event: 各イベント日 d（d ∉ D）→ D[d] = timetable_event_{d}
+   c. vacation: 各期間内の日 d（d ∉ D）→ 月〜金かつ祝日でない → _weekday / 土日または祝日 → _holiday
+   d. holiday baseline: CSV の祝日 d（today ≤ d ≤ CSV最終日, 月〜金, d ∉ D）→ timetable_holiday
 4) 衝突解決: d ∈ D かつ d ∈ H → D から削除（手動が勝つ）。値が異なる場合のみ PR 警告
 5) 整合: D の各値 id に対応する {id}.json が（今回の書き込み後に）存在しない → その d を D から外し PR 警告
 6) 新 overrides = H ∪ D を日付昇順で並べ、calendar_rules.json を再構築
    （default_rules は無変更。ただし参照先ファイル欠如を検知したら PR 警告）
-7) state.managed_overrides ← D（カテゴリ別 holiday/vacation/event に分けて記録）
+7) state.managed_overrides ← D（カテゴリ別 special/event/vacation/holiday に分けて記録）
 ```
+- 【v1.6】**state.specials の作り方**（`plan.ts` の `applySpecials`）: FR-3 で `needs_review` に落ちたリンクのうち、
+  **期間の両端（`start`/`end`）が読めているもの**だけを記録する。日付が読めないものは適用先を決められないので
+  従来どおり警告のみ。期間が `CONFIG.specialMaxRangeDays`（92日）を超えるものは日付の誤読を疑って適用せず警告する。
+  記録するのは期間そのもの（適用日リストではない）。日が進むたびに state が書き換わって「state だけが変わった PR」が
+  期間中ずっと立つのを避けるため。過去日の切り捨ては 3) の「today 以降のみ」規則が担う。
+  掲示がページから消えれば state.specials からも消え、override も自然に外れる。
+- 【v1.6】特別ダイヤの適用は `warn` レベルの警告として PR の「⚠ 要手動確認」に出す。人は掲示を見て、
+  通常どおり読める日だけ個別の時刻表ファイルを作って手動 override に置き換えられる（手動が最優先なので上書きされない）。
 - **D の構築は「本実行の結果を反映した後の state」から行う**（state.regular / state.vacations / state.events の全既知エントリ＋holidays キャッシュ。今回 OCR した分だけを入力にすると、変更のなかった日の管理 override が消える誤実装になる）。state.events の過去日プルーニングは FR-4 参照。
 - クリーンアップは 3) の「today 以降のみ」から自然に導かれる: **過去日付の旧管理キーは新 overrides に含まれず消える**。
 - **event ファイル削除**: 旧 `M.event` にあり、日付 < today、ファイル名が `^timetable_event_\d{8}\.json$`、かつ保護リスト外 → 削除（PR の Deleted 欄に列挙）。**state に記録のない event ファイル（人が手置きしたもの）は削除しない**。
@@ -658,7 +684,14 @@ const json = JSON.parse(res.text);
                     "dates": ["2026-06-14"],
                     "derived": ["timetable_event_20260614"], "processed_at": "…" }
   },
+  "specials": {
+    "2026-08-08": { "url": "…", "line": "● 2026年 8月 8日（土）～ 8月16日（日） 時刻表はコチラ",
+                    "period": { "start": "2026-08-08", "end": "2026-08-16" },
+                    "reason": "期間指定（日付2つ＋波ダッシュ）ですが長期休暇の語彙に一致しません…",
+                    "processed_at": "…" }
+  },
   "managed_overrides": {
+    "special":  { "2026-08-12": "timetable_special", "2026-08-16": "timetable_special" },
     "event":    { "2026-06-14": "timetable_event_20260614", "2026-06-20": "timetable_event_20260620" },
     "vacation": { "2026-08-03": "timetable_vacation_summer_weekday", "...": "..." },
     "holiday":  { "2026-09-21": "timetable_holiday", "...": "..." }
@@ -667,6 +700,11 @@ const json = JSON.parse(res.text);
   "holidays_source": { "fetched_at": "…", "sha256": "…" }
 }
 ```
+- **【v1.6 追加】`specials`**（期間開始日 → 読み取れなかった掲示の記録）: FR-3 で `needs_review` に落ちたリンクのうち
+  **期間の両端が読めているもの**だけを記録する。FR-9 の 3a がこれを見て `timetable_special` の override を張り、
+  アプリはその日、発車時刻を出さずに大学ホームページへ誘導する。**適用日リストではなく期間そのもの**を持つのは、
+  日が進むたびに state が書き換わって「state だけが変わった PR」が期間中ずっと立つのを避けるため。
+  掲示がページから消えればこの記録も消え、override も自然に外れる。
 - **【v1.5 追加】`suppressed_overrides`**（日付 → 削除された時点の時刻表 ID）:
   FR-9 の「人が削除した管理キーは再追加しない」は、記録を残さないと**1実行分しか効かない**。
   削除されたキーはその実行で M から外れるため、次回の実行では「未知の日付」として祝日 baseline 等が
@@ -813,6 +851,17 @@ jobs:
 13. **統合テスト**（`test/integration.test.ts`・ネットワーク無し）: ライブ凍結スナップショット＋ fixtures の中間構造で
     抽出→分類→組立→検証→カレンダー→PR本文まで通し、生成ファイル一覧・override の値・state・PR 本文を固定する。
     2回目の実行で差分ゼロになること（AC-3 相当）も含む。
+
+**【v1.6 追加】**
+
+14. `extractLinks`: needs_review でも期間の両端が読めていれば `start`/`end` が入る（お盆型・季節不明の休暇告知）。
+    日付が無い行では両方 undefined のまま。
+15. `calendar`: 特別ダイヤが祝日 baseline・event・長期休暇より優先される／手動 override には負ける／
+    期間内でも過去日には張らない／`timetable_special.json` が無ければ張らずに警告する。
+16. `calendar`: 管理キーを人が**変更**した場合も `suppressed_overrides` に記録され、翌実行以降
+    「手動と衝突」の警告が出続けない。
+17. **統合テスト**: お盆リンク（needs_review）で 8/8〜8/16 の 9 日が `timetable_special` になり、
+    山の日（8/11）は祝日 baseline より特別ダイヤが優先される。時刻表ファイルは 1 つも生成しない。
 
 ### 12.3 受け入れ基準（実環境）
 > 前提: ライブ掲載は変動するため、AC はライブ状態に依存しない形で定義する（「実行時点のライブ掲載リンク集合」を基準に読む）。ロジックの網羅検証は §12.2 のユニットテスト（凍結 fixtures）が担い、実走 AC は配線の確認を主目的とする。

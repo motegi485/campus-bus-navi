@@ -63,7 +63,9 @@ const BASELINE: Record<string, string> = {
 }
 const baselineRead = (fileName: string) =>
   BASELINE[fileName] ? readJson<Timetable>(BASELINE[fileName]!) : null
-const baselineExists = (fileName: string) => fileName in BASELINE || fileName === 'timetable_closed.json'
+// timetable_closed / timetable_special は手動運用の待機ファイルで、Bot 導入前から存在する
+const baselineExists = (fileName: string) =>
+  fileName in BASELINE || fileName === 'timetable_closed.json' || fileName === 'timetable_special.json'
 
 function runPipeline(state: State = { version: 1 }) {
   const classified = classifyLinks(extractLinks(read('page_snapshot_20260801.html')).links, TODAY)
@@ -76,6 +78,7 @@ function runPipeline(state: State = { version: 1 }) {
   const planned = buildPlan({
     decisions,
     intermediates,
+    needsReviewLinks: classified.filter((c) => c.kind === 'needs_review'),
     state,
     liveOverrides: { ...liveRules.overrides },
     holidays,
@@ -132,9 +135,14 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
     expect(planned.calendar.managed.event).toEqual({ '2026-08-23': 'timetable_event_20260823' })
   })
 
-  it('山の日（8/11・火）は祝日 baseline で休業日ダイヤになる', () => {
-    expect(planned.calendar.nextOverrides['2026-08-11']).toBe('timetable_holiday')
-    expect(planned.calendar.managed.holiday['2026-08-11']).toBe('timetable_holiday')
+  it('祝日は祝日 baseline で休業日ダイヤになる（10/12 スポーツの日・月）', () => {
+    expect(planned.calendar.nextOverrides['2026-10-12']).toBe('timetable_holiday')
+    expect(planned.calendar.managed.holiday['2026-10-12']).toBe('timetable_holiday')
+  })
+
+  it('山の日（8/11・火）はお盆期間内なので祝日 baseline より特別ダイヤが優先される', () => {
+    expect(planned.calendar.nextOverrides['2026-08-11']).toBe('timetable_special')
+    expect(planned.calendar.managed.holiday['2026-08-11']).toBeUndefined()
   })
 
   it('既存の手動 override 10件はすべて保持される', () => {
@@ -143,10 +151,19 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
     }
   })
 
-  it('お盆特別ダイヤ（needs_review）は取り込まれず、8/8〜8/16 に override が付かない', () => {
+  it('お盆ダイヤ（needs_review）は時刻を取り込まず、8/8〜8/16 を特別ダイヤで塗り潰す', () => {
+    // 時刻表ファイルは一切作らない
+    expect(planned.filePlans.some((f) => f.sourceUrl?.includes('0808'))).toBe(false)
     for (const date of ['2026-08-08', '2026-08-10', '2026-08-13', '2026-08-16']) {
-      expect(planned.calendar.nextOverrides[date], date).toBeUndefined()
+      expect(planned.calendar.nextOverrides[date], date).toBe('timetable_special')
     }
+    expect(planned.calendar.nextOverrides['2026-08-07']).toBeUndefined() // 期間外
+    expect(Object.keys(planned.calendar.managed.special)).toHaveLength(9)
+    expect(planned.nextState.specials?.['2026-08-08']).toMatchObject({
+      period: { start: '2026-08-08', end: '2026-08-16' },
+    })
+    // 人が対応すべき事項として PR に出す
+    expect(planned.warnings.some((w) => w.code === 'special_applied' && w.level === 'warn')).toBe(true)
   })
 
   it('state に記録する URL は「リンクの正規化 URL」（毎回の再ダウンロードを防ぐ要）', () => {
@@ -220,14 +237,16 @@ describe('統合: 2回目の実行（冪等性・AC-3）', () => {
     const second = buildPlan({
       decisions,
       intermediates: new Map(),
+      // ページに掲示が残っている以上、needs_review も毎回同じものが渡される
+      needsReviewLinks: classified.filter((c) => c.kind === 'needs_review'),
       state: merged,
       liveOverrides: { ...first.planned.calendar.nextOverrides },
       holidays,
       today: TODAY,
       runAt: RUN_AT,
-      // 1回目で書き込まれたはずのファイルが存在する前提にする
+      // 1回目で書き込まれたファイル ＋ 元から在るファイル（待機ファイル含む）が存在する前提にする
       timetableExists: (fileName) =>
-        first.planned.filePlans.some((f) => f.fileName === fileName) || fileName === 'timetable_weekday.json',
+        first.planned.filePlans.some((f) => f.fileName === fileName) || baselineExists(fileName),
       readTimetable: () => null,
     })
 

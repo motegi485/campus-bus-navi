@@ -13,6 +13,7 @@ import { NextBusCard } from './components/NextBusCard'
 import { UpcomingList } from './components/UpcomingList'
 import { FullTimetable } from './components/FullTimetable'
 import { EndOfServiceCard } from './components/EndOfServiceCard'
+import { SpecialScheduleCard } from './components/SpecialScheduleCard'
 import { DrawerMenu } from './components/DrawerMenu'
 import { NewsScreen } from './components/NewsScreen'
 import { SettingsScreen } from './components/SettingsScreen'
@@ -137,6 +138,13 @@ export default function App() {
 
   // ダイヤ種別バッジ
   const diagramType = timetable ? resolveDiagramType(timetable.id) : 'weekday'
+
+  // 特別ダイヤ: 既定のフォーマットで表現できないダイヤの日（お盆期間など）。
+  // 発車時刻は出さずに大学ホームページへ誘導する。schedule が空になる点は
+  // 運休日(isNoService)と同じなので、描画側では isSpecial を先に判定すること。
+  // 直近4本(nextBus が null)と全時刻表(FullTimetable が null を返す)は
+  // 空 schedule のガードで自動的に消えるため、追加の分岐は要らない。
+  const isSpecial = diagramType === 'special'
 
   // フォントサイズクラス（CSS変数経由ではなくコンポーネントprops渡し）
   const fontSize = settings.fontSize
@@ -388,10 +396,12 @@ export default function App() {
                 </div>
               )}
 
-              {/* 次のバス / 終バス後 / 運休日 */}
+              {/* 次のバス / 終バス後 / 運休日 / 特別ダイヤ */}
               {!loading && currentRoute && (
                 <>
-                  {isNoService ? (
+                  {isSpecial ? (
+                    <SpecialScheduleCard isOnline={isOnline} />
+                  ) : isNoService ? (
                     <EndOfServiceCard
                       message="本日の運行はありません"
                       tomorrowFirstBus={tomorrowFirstBus}
