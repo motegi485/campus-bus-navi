@@ -23,6 +23,8 @@ describe('JSON 整形規約（NFR-2 / §3.5）', () => {
     'public/data/timetables/timetable_weekday.json',
     'public/data/timetables/timetable_holiday.json',
     'public/data/timetables/timetable_closed.json',
+    'public/data/timetables/timetable_special.json',
+    'public/data/timetables/timetable_vacation_obon.json',
   ])('%s を再整形しても既存ファイルと完全一致する', (rel) => {
     const raw = readRaw(rel)
     expect(formatTimetable(JSON.parse(raw))).toBe(raw)
@@ -91,6 +93,8 @@ describe('保護ガード（§7.4・テスト7）', () => {
 
   it('保護ファイル・未知ファイルへの書込を拒否する', () => {
     expect(isWritableTimetableFile('timetable_closed.json')).toBe(false)
+    // 特別ダイヤは override から参照するだけで、Bot はファイルを書かない
+    expect(isWritableTimetableFile('timetable_special.json')).toBe(false)
     expect(isWritableTimetableFile('timetable_sample.json')).toBe(false)
     expect(isWritableTimetableFile('timetable_event_example.json')).toBe(false)
     expect(isWritableTimetableFile('timetable_event_YYYYMMDD.json')).toBe(false)
@@ -106,6 +110,7 @@ describe('保護ガード（§7.4・テスト7）', () => {
     expect(isDeletableTimetableFile('timetable_holiday.json')).toBe(false)
     expect(isDeletableTimetableFile('timetable_vacation_summer_weekday.json')).toBe(false)
     expect(isDeletableTimetableFile('timetable_closed.json')).toBe(false)
+    expect(isDeletableTimetableFile('timetable_special.json')).toBe(false)
     expect(() => assertDeletable('timetable_weekday.json')).toThrow()
   })
 })

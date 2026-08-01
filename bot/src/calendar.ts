@@ -1,11 +1,16 @@
 /**
  * FR-9: calendar_rules.overrides の再構築（中核アルゴリズム）。
- * 優先順位: 手動 > イベント > 長期休暇 > 祝日(baseline) > default_rules
+ * 優先順位: 手動 > 特別ダイヤ > イベント > 長期休暇 > 祝日(baseline) > default_rules
  *
  * 大原則「手動データ不可侵」: Bot は state.managed_overrides に記録した自分の管理分だけを
  * 変更・削除する。それ以外のキー（手動 override）は読み取り専用として素通しする。
+ *
+ * 特別ダイヤ（timetable_special）をイベントより上に置くのは安全側の判断。
+ * 「読めなかった掲示」が指す期間に、別に読めた掲示のダイヤを重ねると、
+ * 実際にはその掲示で上書きされている運行を表示してしまいうるため。
  */
 
+import { CONFIG } from './config.js'
 import type { Holiday, ManagedOverrides, OverrideChange, Season, State, Warning } from './types.js'
 import { dayOfWeek, eachDate, isBefore, todayJst } from './time.js'
 
@@ -35,10 +40,11 @@ export interface CalendarResult {
   deletions: string[]
 }
 
-const emptyManaged = (): ManagedOverrides => ({ event: {}, vacation: {}, holiday: {} })
+const emptyManaged = (): ManagedOverrides => ({ special: {}, event: {}, vacation: {}, holiday: {} })
 
 function flatten(managed: ManagedOverrides): Record<string, string> {
-  return { ...managed.event, ...managed.vacation, ...managed.holiday }
+  // special は後から追加したフィールドなので、旧 state.json を読んだときは undefined になりうる
+  return { ...(managed.special ?? {}), ...managed.event, ...managed.vacation, ...managed.holiday }
 }
 
 export function eventIdForDate(date: string): string {
@@ -73,6 +79,9 @@ export function calculateOverrides(input: CalendarInput): CalendarResult {
       continue
     }
     if (O[key] !== value) {
+      // 削除と同じく恒久記録する。記録しないと Bot が毎回この日付を再計算しては
+      // 「手動と衝突」を報告し続け、PR に同じ警告が出続けてレビューの妨げになる。
+      if (!isBefore(key, today)) suppressed[key] = value
       warnings.push({
         level: 'warn',
         code: 'managed_override_modified',
@@ -105,7 +114,14 @@ export function calculateOverrides(input: CalendarInput): CalendarResult {
     category[date] = cat
   }
 
-  // 3a. event（最優先）
+  // 3a. 特別ダイヤ（最優先）。読めなかった掲示が指す期間には誤った時刻を出さない
+  for (const entry of Object.values(input.state.specials ?? {})) {
+    for (const date of eachDate(entry.period.start, entry.period.end)) {
+      put(date, CONFIG.specialTimetableId, 'special')
+    }
+  }
+
+  // 3b. event
   for (const entry of Object.values(input.state.events ?? {})) {
     for (const date of entry.dates) put(date, eventIdForDate(date), 'event')
   }
@@ -206,7 +222,7 @@ export function calculateOverrides(input: CalendarInput): CalendarResult {
   for (const [date, id] of Object.entries(D)) {
     managed[category[date]!][date] = id
   }
-  for (const cat of ['event', 'vacation', 'holiday'] as const) {
+  for (const cat of ['special', 'event', 'vacation', 'holiday'] as const) {
     const sorted: Record<string, string> = {}
     for (const date of Object.keys(managed[cat]).sort()) sorted[date] = managed[cat][date]!
     managed[cat] = sorted
