@@ -16,7 +16,7 @@ npx tsc --noEmit       # ビルドせずに型チェックのみ実行
 
 ## アーキテクチャ
 
-福山大学のバス時刻表を表示する **React 18 + TypeScript PWA**。全データは静的 JSON でバックエンドなし（データ更新を自動化する Bot は実装済みだが main 未統合 — 後述「バックエンド Bot」節を参照）。Cloudflare Pages にデプロイ。エンドユーザー向け説明・お知らせ追加やダイヤ改正時の運用手順・デプロイ設定の具体値は `README.md` にまとまっている。
+福山大学のバス時刻表を表示する **React 18 + TypeScript PWA**。全データは静的 JSON でバックエンドなし（データ更新を自動化する Bot は main 統合済みだが日次実行は停止中 — 後述「バックエンド Bot」節を参照）。Cloudflare Pages にデプロイ。エンドユーザー向け説明・お知らせ追加やダイヤ改正時の運用手順・デプロイ設定の具体値は `README.md` にまとまっている。
 
 **スタック:** Vite 5、Tailwind CSS v4（`tailwind.config.js` は不要 — `index.css` 内の `@theme` ブロックで設定、`@tailwindcss/vite` プラグイン使用）、Leaflet + react-leaflet（地図）、Day.js（JST 時刻処理）、vite-plugin-pwa + Workbox（サービスワーカーキャッシュ。クライアント側の更新検知は workbox-window）。
 
@@ -39,7 +39,7 @@ npx tsc --noEmit       # ビルドせずに型チェックのみ実行
 
 ダイヤ改正時は該当 JSON ファイルを編集する。時刻表 JSON の `id` はファイル名（拡張子なし）と一致させること（`validate:data` が検証する）。リポジトリルートの `_headers` が Cloudflare に `/data/*.json` をキャッシュ無効化ヘッダー（`Cache-Control: no-cache, no-store, must-revalidate` ほか）で配信するよう指示しており、更新は即座に反映される。
 
-### バックエンド Bot（実装済み・main 未統合）
+### バックエンド Bot（main 統合済み・実行は停止中）
 
 大学公式サイトの時刻表画像を日次巡回し、Gemini API で JSON 化して `public/data/` 更新の PR を自動作成するバックエンド Bot。`bot/` に本体一式、`.github/workflows/timetable-sync.yml` にワークフローがある。フロントとは依存を完全分離（`bot/package.json` は独立、`bot/package-lock.json` はコミット必須）。
 
@@ -60,7 +60,7 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 - **JSON 整形は既存ハウススタイルを維持する**（`bus_stop_coords` と schedule 各要素は1行）。素の `JSON.stringify(_, null, 2)` にすると Bot が触った全ファイルが全行差分になり、本システムの中核である PR レビューが機能しなくなる。`bot/test/files.test.ts` が既存ファイルとの byte 一致を固定しているので、ここを壊す変更はテストが落ちる。
 - **`GEMINI_API_KEY` はローカルでは `bot/.env.local`（git 管理外）**、CI では GitHub Secrets。ファイルの中身を読み上げ・出力しない。
 - 無料枠は RPD（1日あたり）が小さい（実測 `gemini-3.5-flash` で 20）。リトライも枠を消費するため 1 実行あたりの呼び出し上限（`geminiMaxCallsPerRun`）がある。枠を使わずに計画だけ見たいときは `SKIP_OCR=1`。
-- **GitHub Actions の `schedule` / `workflow_dispatch` はデフォルトブランチにワークフローがある場合のみ動く。** main 統合までは Actions が起動しないため、検証はローカル実行（`DRY_RUN=1` と実走）で行う。統合前に Secrets 登録と「Allow GitHub Actions to create and approve pull requests」の有効化が必須。
+- **ワークフローは 2026-08-02 から手動 Disable 中。** コードは main にあるので `schedule` の前提（デフォルトブランチにワークフローが在ること）は満たしているが、実行は止めてある。稼働させるには ①Secrets に `GEMINI_API_KEY` 登録 ②Workflow permissions で「Allow GitHub Actions to create and approve pull requests」を有効化 ③ワークフローを Enable — の3つが必要。**現状と手順の詳細は `bot/fixtures/_planning/HANDOFF.md`**（次の作業は 2026-08-23 前後を予定）。それまでの検証はローカル実行（`DRY_RUN=1` / `SKIP_OCR=1`）で行う。
 
 ### 重要な設計判断
 

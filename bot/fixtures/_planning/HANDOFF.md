@@ -1,81 +1,160 @@
-# campus-bus-navi バックエンド — 開発引き継ぎ一式（HANDOFF）
+# campus-bus-navi バックエンド — 引き継ぎ（HANDOFF）
 
-> **【2026-08-01 追記】この HANDOFF は着手前の引き継ぎメモであり、内容は古くなっています。**
-> Bot は実装済みです（`bot/src/`・`bot/test/`・`.github/workflows/timetable-sync.yml`）。
-> 下記の「配置先」「着手の最短経路」はすでに完了しており、fixtures も配置済みです。
-> **現状を知りたい場合は `BACKEND_REQUIREMENTS.md`（v1.6）の §12.3・§13・§17 を読んでください。**
-> なお下の「画像が『見る用』でしかない理由」は誤り（Claude Code は画像を閲覧でき、実際に画像と
-> fixtures の突き合わせ検証を行っています）。
-
-このフォルダの中身さえ揃っていれば、バックエンドBot（時刻表自動取り込み）の開発に着手できます。
-**正本は `BACKEND_REQUIREMENTS.md`（最新は v1.6）**。仕様で迷ったら常にこれを参照。
+> **最終更新: 2026-08-02**
+> このファイルは「今どうなっていて、次に何をするか」だけを書く。仕様の正本は
+> **`BACKEND_REQUIREMENTS.md`（v1.6）** で、食い違う場合はそちらが優先。
+> （2026-08-02 以前の本ファイルは着手前の引き継ぎメモだった。内容はすべて完了・陳腐化したため
+> 書き換えた。旧版が必要なら git 履歴を参照。）
 
 ---
 
-## 同梱ファイルと配置先
+## 1. 結論から: 次にやること
 
-| ファイル | 役割 | リポジトリ配置先 |
-|---|---|---|
-| `BACKEND_REQUIREMENTS.md` | **要件定義書（実装の正本）**。Claude Code に読み込ませる | 任意（例: `docs/` か `bot/REQUIREMENTS.md`） |
-| `page_snapshot.html` | 大学ページの凍結スナップショット（イベント含む3リンク版）。抽出・分類テスト用 | `bot/fixtures/page_snapshot.html` |
-| `timetable_weekday.json` | 正解データ（通常・授業日）。本番データと一致確認済み | `bot/fixtures/expected/timetable_weekday.json` |
-| `timetable_holiday.json` | 正解データ（通常・休業日）。本番データと一致確認済み | `bot/fixtures/expected/timetable_holiday.json` |
-| `timetable_event_20260614.json` | 正解データ（イベント・簿記検定）※歴史的 | `bot/fixtures/expected/timetable_event_20260614.json` |
-| `timetable_event_20260620.json` | 正解データ（イベント・オープンキャンパス）※歴史的 | `bot/fixtures/expected/timetable_event_20260620.json` |
-| `intermediate_regular.json` | OCR中間構造の正解（通常）→ `regular.json` にリネーム | `bot/fixtures/intermediate/regular.json` |
-| `intermediate_event_20260614.json` | OCR中間構造の正解（簿記）→ `event_20260614.json` にリネーム | `bot/fixtures/intermediate/event_20260614.json` |
-| `intermediate_event_20260620.json` | OCR中間構造の正解（OC）→ `event_20260620.json` にリネーム | `bot/fixtures/intermediate/event_20260620.json` |
-| `R8スクールバス時刻表.jpg` | 元画像（通常ダイヤ）。出所保全（provenance）用 | `bot/fixtures/images/` |
-| `0614_簿記-724x1024.jpg` | 元画像（簿記）。provenance 用 | `bot/fixtures/images/` |
-| `0620_オープンキャンパス-724x1024.jpg` | 元画像（OC）。provenance 用 | `bot/fixtures/images/` |
+**2026-08-23（オープンキャンパス）前後に、Bot を本番稼働させる。**
+コードはすべて main にあり、動作検証も済んでいる。残っているのは **GitHub 側の設定 3 つと、初回実行の見届け**だけ。
 
-> リネーム: `intermediate_*.json` は配置時に接頭辞を外す（`intermediate/regular.json` 等）。
-> 中身は変更しないこと。
+所要はおよそ 30 分（うち大半は初回 PR のレビュー）。手順は §4。
 
 ---
 
-## このフォルダに「入っていない」もの（理由つき）
+## 2. 現在の状態（2026-08-02 時点）
 
-- **`BACKEND_DESIGN.md`（旧設計ドラフト）**: 内容は要件定義書 v1.3 に統合・上書き済み。旧ドラフトには
-  既に訂正した誤り（`@google/generative-ai`／temperature 0／2カテゴリ／旧パス）が残るため、
-  混乱回避のため**意図的に同梱しません**。
-- **Claude Code が自動生成するフィクスチャ**: `bot/fixtures/holidays_sample.csv`（Shift_JIS）、
-  `bot/fixtures/calendar_rules_live.json`（HEAD からコピー）、`bot/holidays.json`（内閣府CSV取得）は
-  Claude Code 側で生成する（要件定義書 §16.2 C-5/C-6）。人間が用意する必要なし。
-- **Bot のソースコード一式**: これから Claude Code が実装する（要件定義書 §7・§8）。
+| 項目 | 状態 |
+|---|---|
+| main | `ab00c4e`（Bot 一式・特別ダイヤ機構・お盆データを含む） |
+| 本番サイト | https://campus-bus-navi.pages.dev/ — 上記が配信済み・確認済み |
+| アプリバージョン | `1.1.0-beta` |
+| Bot のコード | main にあり。テスト 109 件緑・型チェック通過 |
+| ワークフロー | `.github/workflows/timetable-sync.yml` は main にあるが **手動で Disable 済み**（＝日次実行は起動しない） |
+| `GEMINI_API_KEY`（Secrets） | **未登録** |
+| Workflow permissions | **未設定**（"Allow GitHub Actions to create and approve pull requests" が無効） |
+| `bot/state.json` | 2026-08-01 のローカル実走時点。`regular` / `vacations.summer` / `events["2026-08-23"]` を記録済み |
+
+### なぜ止めてあるのか
+
+Bot は 2026-08-01 にローカルで実走検証を終えたが、**日次自動実行はまだ様子を見たい**という運用判断で
+sandbox に留めていた。その後、お盆ダイヤ（8/8〜）の対応を本番へ届ける必要が生じたため
+**main へマージし、ワークフローだけを Disable する**形にした。
+つまり「コードは本番、実行は保留」という状態。
+
+### 手動で入れてあるデータ（Bot は触らない）
+
+`public/data/calendar_rules.json` の 8/8〜8/16（9日分）は**人が手で入れた override** で、
+Bot はこれを手動キーとして尊重し上書きしない（`calendar.ts` の手動不可侵ルール）。
+
+| 日付 | 参照先 |
+|---|---|
+| 8/8〜8/11 | `timetable_vacation_obon`（画像から手動転記） |
+| 8/12・8/16 | `timetable_special`（掲示に大学発しか書かれておらず時刻を確定できないため） |
+| 8/13〜8/15 | `timetable_closed`（全便運休） |
+
+**8/17 以降が過ぎたら、この 9 日分の override と `timetable_vacation_obon.json` は不要になる。**
+消すかどうかは任意（手動キーなので放置しても Bot は困らない）。消す場合は人が手で消す。
 
 ---
 
-## 画像が「見る用」でしかない理由
+## 3. 予備知識（実測で分かっていること）
 
-Claude Code は画像を閲覧できない。よってテストは**画像そのものではなく、画像から起こした
-JSONフィクスチャ（expected/ と intermediate/）**に対して走る。同梱の元画像3枚は、ライブの
-大学ページから削除された後でも正解データの出所を辿れるようにする **provenance（監査用）** であり、
-テストでは使用しない。
+初見でつまずきやすい点だけ。詳細は要件定義書。
 
-## page_snapshot.html を「あえて古い版」にしている理由
-
-ライブのページからイベント画像は既に削除されている（イベント終了後に消える運用）。だが
-extractLinks / classify のテストは「regular と event を正しく見分けられるか」を検証する必要がある。
-ライブを取り直すとイベントが無くなりテストの前提が崩れるため、**イベントを含む3リンクの歴史的
-スナップショットを固定**して使う。実環境の受け入れ基準（要件定義書 §12.3）は別途「通常ダイヤのみ」の
-現状に合わせてある。
+- **GitHub Actions の `schedule` / `workflow_dispatch` はデフォルトブランチにワークフローがある場合のみ動く。** これは既に満たしている（main にある）。今止まっているのは手動 Disable のため。
+- **Gemini 無料枠の RPD（1日あたり）が小さい。** 実測で `gemini-3.5-flash` は 20。リトライも枠を消費する。リセットは太平洋時間の深夜＝**JST 16:00**。枠はモデル別。
+- **枠を使わずに計画だけ見たいときは `SKIP_OCR=1`。** `DRY_RUN=1` と併用すれば副作用ゼロで挙動を確認できる。
+- **`GEMINI_API_KEY` はローカルでは `bot/.env.local`（git 管理外）。** 中身を読み上げ・出力しない。
+- **JSON 整形はハウススタイルを維持する**（`bus_stop_coords` と schedule 各要素は1行）。素の `JSON.stringify(_, null, 2)` にすると Bot が触った全ファイルが全行差分になり、本システムの中核である PR レビューが機能しなくなる。`bot/test/files.test.ts` が byte 一致を固定しているので、壊すとテストが落ちる。
+- **読めない掲示は特別ダイヤで塗り潰される。** `needs_review` のうち期間の両端が読めているものは、その期間に `timetable_special` の override が自動で張られる。PR を見落としても誤った時刻を出さないための保険。人が後から個別の override に精緻化できる（手動が最優先）。
 
 ---
 
-## 着手の最短経路（詳細は要件定義書 §17）
+## 4. 本番稼働の手順（8/23 前後）
 
-1. （人間）`bot/fixtures/` に上記ファイルを配置（expected×4 / intermediate×3 / page_snapshot.html / images×3）。
-2. （人間）Google AI Studio で `GEMINI_API_KEY` を発行（§16.3 H-1）。
-3. （Claude Code）Phase 0：`bot/` 雛形＋抽出・分類・祝日・state・**ドライラン**＋テスト。
-4. （Claude Code）Phase 1：OCR・組立・検証・calendar・PR本文＋テスト。
-5. （人間）GitHub に `GEMINI_API_KEY` 登録＋「Allow GitHub Actions to create and approve pull requests」を有効化（§16.3 H-2/H-3、**忘れると初回PR作成が失敗**）。
-6. 初回 workflow 実行 → PR を人間がレビュー＆マージ → デプロイ確認。
+### 事前（人間・GitHub の Web UI）
 
-ローカル（Windows 11 / PowerShell）ドライラン例:
+1. **Secrets 登録** — `Settings → Secrets and variables → Actions → New repository secret`
+   - Name: `GEMINI_API_KEY`
+   - Value: Google AI Studio で発行した鍵
+   - ※ 2026-08-01 に発行した鍵をローカルで使っている。**ここで新しい鍵を発行して差し替え、旧鍵を AI Studio で削除するのが衛生的**（無料枠キーなので緊急性は無いが、ついでに済ませられる）
+2. **PR 作成権限** — `Settings → Actions → General → Workflow permissions`
+   - 「Read and write permissions」を選択
+   - 「Allow GitHub Actions to create and approve pull requests」にチェック
+   - **未設定だと `create-pull-request` が必ず失敗する**（初回でここに引っかかるのが定番）
+3. **ワークフローを再有効化** — `Actions → timetable-sync → 右上「…」→ Enable workflow`
+
+### 初回実行（人間）
+
+4. **まずドライラン** — `Actions → timetable-sync → Run workflow → dry_run: true → Run`
+   - PR は作られない。ログに変更計画（JSON）が出る
+   - 見るところ: リンクが 4 件前後正しく分類されているか／`decisions` に想定外の `ocr` が無いか／`warnings` に見慣れないものが無いか
+5. **本番実行** — `Run workflow → dry_run: false → Run`
+   - `bot/timetable-sync` ブランチに PR が立つ
+6. **PR をレビューしてマージ**
+   - PR 本文の「⚠ 要手動確認」を必ず読む
+   - 時刻表の差分は**元画像と突き合わせて確認する**（PR 本文に画像リンクがある）
+   - JR 松永駅の時刻が混入していないか（通常ダイヤ画像は JR 列が同居している）
+7. **デプロイ確認** — マージ後 1〜2 分で Cloudflare Pages が反映する
+   ```powershell
+   $j = (Invoke-WebRequest "https://campus-bus-navi.pages.dev/data/calendar_rules.json" -UseBasicParsing).Content | ConvertFrom-Json
+   $j.overrides.PSObject.Properties.Name | Where-Object { $_ -like '2026-*' }
+   ```
+
+### 見届け（8/24 以降）
+
+8. **イベントのライフサイクル確認（AC-7・唯一の未検証項目）**
+   - 8/23 が過去日になると、翌日の実行で `timetable_event_20260823.json` の**削除**と
+     `overrides["2026-08-23"]` の**除去**が計画されるはず
+   - 8/24 以降の PR にこれが現れれば、Bot の一巡（追加 → 適用 → 自動クリーンアップ）が実証される
+9. **数日〜1週間、日次実行を観察** — 掲示に変化が無ければ PR は立たない（差分ゼロなら PR は作られない）のが正常
+
+---
+
+## 5. 動かなかったときの切り分け
+
+| 症状 | 原因の第一候補 |
+|---|---|
+| `create-pull-request` で失敗 | 手順 2 の PR 作成権限が未設定 |
+| ジョブが「GEMINI_API_KEY が設定されていません」で落ちる | 手順 1 の Secrets 未登録（かつ新規/変更画像があった） |
+| 429 が連続して読み取れない | 無料枠 RPD 枯渇。JST 16:00 のリセットを待つ。`SKIP_OCR=1` なら枠を使わず計画だけ見られる |
+| 503 が続く | Gemini 側の高負荷。一時障害リトライ（5/15/45秒）→ フォールバックモデル切替が入る。それでも駄目なら翌日 |
+| 毎日 PR が立ち続ける | 掲示が変わっていないのに state が書き換わっている疑い。`bot/state.json` の差分を見る |
+| PR の差分が全行置換になっている | JSON 整形のハウススタイルが壊れている（§3 参照）。`bot/test/files.test.ts` が落ちているはず |
+
+### ローカルでの再現
+
 ```powershell
 cd bot
 npm install
-$env:DRY_RUN="1"
+npx vitest run                        # テスト 109 件
+npx tsc --noEmit                      # 型チェック
+$env:DRY_RUN="1"; $env:SKIP_OCR="1"   # 無料枠を使わず計画だけ出力
 npx tsx src/index.ts
 ```
+
+実 OCR を伴う確認は `bot/.env.local` に `GEMINI_API_KEY` を置いてから `SKIP_OCR` を外す。
+`DRY_RUN` を外すと **`public/data/` を実際に書き換える**ので、その前に必ず `git status` で作業ツリーが
+きれいなことを確認する（巻き戻せるように）。
+
+---
+
+## 6. 参照先
+
+| 知りたいこと | ファイル |
+|---|---|
+| 仕様の正本（FR・AC・state スキーマ・優先順位） | `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`（v1.6） |
+| 残タスクの一覧 | 同 §17.2 |
+| リポジトリ全体の設計判断 | ルートの `CLAUDE.md`（Codex 用は `AGENTS.md`。内容は同一） |
+| 運用者向けの手順（ダイヤ改正・お知らせ追加） | ルートの `README.md` §3 |
+| 実装コード | `bot/src/`（オーケストレータは `index.ts`、純粋な計画部分は `plan.ts`） |
+
+---
+
+## 7. 用語の対応（コードを読むとき）
+
+| 用語 | 意味 |
+|---|---|
+| `regular` | 通年の通常ダイヤ（授業日／休業日の2ファイルを生成） |
+| `vacation` | 長期休暇ダイヤ（期間 override つき。平日／休日の2ファイル） |
+| `event` | 単日イベントダイヤ（`timetable_event_YYYYMMDD`） |
+| `needs_review` | 分類できなかった掲示。時刻は取り込まない。期間が読めれば特別ダイヤで塗り潰す |
+| 管理 override | Bot が張り、`state.managed_overrides` に記録したキー。Bot が自分で消せる |
+| 手動 override | 上記以外。**Bot は絶対に触らない** |
+| 抑止（suppressed） | 管理 override を人が消した／変えた日付。以後 Bot は再生成しない |
