@@ -10,6 +10,7 @@ import {
   IconReset,
   type IconTone,
 } from './AppIcons'
+import { SCHOOL_BUS_INFO_URL } from '../constants/links'
 
 interface Props {
   open: boolean
@@ -23,7 +24,7 @@ interface Props {
 
 const LINKS: { icon: ReactNode; tone: IconTone; title: string; sub: string; url: string }[] = [
   { icon: <IconGradCap />,   tone: 'violet', title: '大学ホームページ', sub: 'fukuyama-u.ac.jp', url: 'https://www.fukuyama-u.ac.jp/' },
-  { icon: <IconBusStop />,   tone: 'blue',   title: '通学情報', sub: 'スクールバス、駐車場・駐輪場', url: 'https://www.fukuyama-u.ac.jp/campuslife/student-affairs/attending-school/' },
+  { icon: <IconBusStop />,   tone: 'blue',   title: '通学情報', sub: 'スクールバス、駐車場・駐輪場', url: SCHOOL_BUS_INFO_URL },
   { icon: <IconTrain />,     tone: 'green',  title: 'JR松永駅時刻表', sub: '糸崎・三原方面 / 岡山・福山方面', url: 'https://transit.yahoo.co.jp/timetable/27407' },
   { icon: <IconLaptopCode />, tone: 'yellow', title: 'サークルホームページ', sub: 'fukupro.club', url: 'https://www.fukupro.club/' },
 ]

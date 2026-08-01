@@ -7,10 +7,21 @@
 
 import { assemble } from './assemble.js'
 import { calculateOverrides, type CalendarResult } from './calendar.js'
+import { CONFIG } from './config.js'
 import { pruneEvents, type ChangeDecision } from './detectChanges.js'
 import { readTimetable as readTimetableFromRepo, timetableExists as timetableExistsInRepo } from './files.js'
+import { eachDate, isBefore } from './time.js'
 import { validateTimetable } from './validate.js'
-import type { FilePlan, Holiday, Intermediate, State, Timetable, Warning } from './types.js'
+import type {
+  ClassifiedLink,
+  FilePlan,
+  Holiday,
+  Intermediate,
+  State,
+  StateSpecial,
+  Timetable,
+  Warning,
+} from './types.js'
 
 export interface PlanInput {
   decisions: ChangeDecision[]
@@ -18,6 +29,8 @@ export interface PlanInput {
   intermediates: Map<string, Intermediate>
   /** 論理キー → OCR 失敗理由 */
   ocrFailures?: Map<string, string>
+  /** 分類できなかったリンク。期間が読めているものは特別ダイヤで塗り潰す */
+  needsReviewLinks?: ClassifiedLink[]
   state: State
   liveOverrides: Record<string, string>
   holidays: Holiday[]
@@ -130,6 +143,7 @@ export function buildPlan(input: PlanInput): PlanOutput {
 
   let nextState = applyToState(input.state, succeeded, input.runAt)
   nextState = pruneEvents(nextState, input.today)
+  nextState = applySpecials(nextState, input.needsReviewLinks ?? [], input.today, input.runAt, warnings)
 
   const calendar = calculateOverrides({
     liveOverrides: input.liveOverrides,
@@ -151,6 +165,77 @@ export function buildPlan(input: PlanInput): PlanOutput {
   }
 
   return { filePlans, calendar, nextState, validationFailures, warnings }
+}
+
+/**
+ * 分類できなかった掲示（needs_review）のうち【期間の両端が読めているもの】を state に記録する。
+ * calculateOverrides がこれを見て timetable_special の override を張り、アプリはその日
+ * 発車時刻を出さずに大学ホームページへ誘導する。PR を見落としても誤った時刻を出さないための保険。
+ *
+ * 【適用日リストではなく period を持つ理由】
+ * 適用日を展開して持つと、日が進むたびに state.json が書き換わり
+ * 「state だけが変わった PR」が期間中ずっと毎日立つ。過去日の切り捨ては
+ * calculateOverrides の put() が行うので、ここは掲示の内容だけを写し取る。
+ */
+export function applySpecials(
+  state: State,
+  links: ClassifiedLink[],
+  today: string,
+  runAt: string,
+  warnings: Warning[],
+): State {
+  const next: State = { ...state }
+  const specials: Record<string, StateSpecial> = {}
+
+  for (const link of links) {
+    // 期間の両端が読めないものは適用先を決められない（needs_review 自体の警告は detectChanges が出す）
+    if (!link.start || !link.end) continue
+    // 掲示は残っているが期間は終わっている
+    if (isBefore(link.end, today)) continue
+
+    const span = eachDate(link.start, link.end)
+    if (span.length > CONFIG.specialMaxRangeDays) {
+      warnings.push({
+        level: 'warn',
+        code: 'special_range_too_long',
+        message:
+          `読み取れない時刻表の期間が ${span.length} 日（${link.start}〜${link.end}）と長すぎるため、` +
+          `特別ダイヤを適用しません。日付の誤読の可能性があります: 「${link.normalizedLine}」`,
+        url: link.url,
+      })
+      continue
+    }
+
+    const prev = state.specials?.[link.start]
+    specials[link.start] = {
+      url: link.url,
+      line: link.normalizedLine,
+      period: { start: link.start, end: link.end },
+      reason: link.reason ?? '',
+      // 掲示が変わっていなければ前回値を保つ（同じ日に2回実行しても state が変わらないように）
+      processed_at: prev && prev.url === link.url ? prev.processed_at : runAt,
+    }
+
+    warnings.push({
+      level: 'warn',
+      code: 'special_applied',
+      message:
+        `読み取れない時刻表のため ${link.start}〜${link.end} を特別ダイヤにしました` +
+        '（アプリは発車時刻を出さず大学ホームページへ誘導します）。' +
+        `掲示を確認し、通常どおり読める日があれば手動で override を設定してください: 「${link.normalizedLine}」`,
+      url: link.url,
+    })
+  }
+
+  const keys = Object.keys(specials).sort()
+  if (keys.length === 0) {
+    delete next.specials
+    return next
+  }
+  const sorted: Record<string, StateSpecial> = {}
+  for (const key of keys) sorted[key] = specials[key]!
+  next.specials = sorted
+  return next
 }
 
 export function applyToState(

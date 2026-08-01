@@ -116,6 +116,9 @@ export function buildPrBody(input: PrBodyInput): string {
   lines.push('## レビュー観点')
   lines.push('- [ ] 元画像と便の突き合わせ（特に JR 列の混入がないか）')
   lines.push('- [ ] override の日付・参照先')
+  if (input.warnings.some((w) => w.code === 'special_applied')) {
+    lines.push('- [ ] 特別ダイヤにした期間の妥当性（通常どおり読める日は手動で個別 override に置き換えられる）')
+  }
   lines.push('')
 
   return lines.join('\n')

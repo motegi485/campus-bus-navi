@@ -21,6 +21,7 @@ const HOLIDAYS: Holiday[] = [
 ]
 
 const managed = (partial: Partial<ManagedOverrides> = {}): ManagedOverrides => ({
+  special: {},
   event: {},
   vacation: {},
   holiday: {},
@@ -250,5 +251,96 @@ describe('テスト6: calendar（FR-9）', () => {
       },
     }
     expect(run({ state }).nextOverrides['2026-06-14']).toBeUndefined()
+  })
+
+  it('(c3) 管理キーを人が「変更」したら以後 Bot は再計算しない（suppressed に記録）', () => {
+    // Bot が張った 2026-08-11 → timetable_holiday を、人が timetable_weekday に書き換えた状況
+    const liveOverrides = { ...liveRules.overrides, '2026-08-11': 'timetable_weekday' }
+    const prevManaged = managed({ holiday: { '2026-08-11': 'timetable_holiday' } })
+
+    const first = run({ liveOverrides, prevManaged })
+    expect(first.warnings.some((w) => w.code === 'managed_override_modified')).toBe(true)
+    expect(first.suppressed['2026-08-11']).toBe('timetable_holiday')
+    expect(first.nextOverrides['2026-08-11']).toBe('timetable_weekday')
+    // 抑止済みなので「手動と衝突」の警告は出ない（毎実行 PR に出続けるのを防ぐ）
+    expect(first.warnings.some((w) => w.code === 'override_conflict_manual_wins')).toBe(false)
+
+    const second = run({
+      liveOverrides,
+      prevManaged: first.managed,
+      prevSuppressed: first.suppressed,
+    })
+    expect(second.nextOverrides['2026-08-11']).toBe('timetable_weekday')
+    expect(second.managed.holiday['2026-08-11']).toBeUndefined()
+    expect(second.warnings.some((w) => w.code === 'override_conflict_manual_wins')).toBe(false)
+  })
+})
+
+describe('テスト6b: 特別ダイヤ（読めない掲示の期間を塗り潰す）', () => {
+  const withSpecial = (start: string, end: string): State => ({
+    version: 1,
+    specials: {
+      [start]: {
+        url: 'https://example.invalid/obon.jpg',
+        line: `2026年8月8日（土）～8月16日（日）`,
+        period: { start, end },
+        reason: '長期休暇の語彙に一致しません',
+        processed_at: 'x',
+      },
+    },
+  })
+
+  it('祝日 baseline より特別ダイヤが優先される（8/11 山の日）', () => {
+    const result = run({ state: withSpecial('2026-08-08', '2026-08-16') })
+    expect(result.nextOverrides['2026-08-11']).toBe('timetable_special')
+    expect(result.managed.special['2026-08-11']).toBe('timetable_special')
+    expect(result.managed.holiday['2026-08-11']).toBeUndefined()
+    expect(Object.keys(result.managed.special)).toHaveLength(9)
+  })
+
+  it('event・長期休暇より特別ダイヤが優先される', () => {
+    const state: State = {
+      ...withSpecial('2026-09-01', '2026-09-30'),
+      events: {
+        '2026-09-21': { url: 'u', sha256: 's', label: 'OC', dates: ['2026-09-21'], derived: [], processed_at: 'x' },
+      },
+      vacations: {
+        summer: {
+          url: 'u',
+          sha256: 's',
+          period: { start: '2026-09-01', end: '2026-09-23' },
+          derived: [],
+          processed_at: 'x',
+        },
+      },
+    }
+    const result = run({ state })
+    expect(result.nextOverrides['2026-09-21']).toBe('timetable_special')
+    expect(result.nextOverrides['2026-09-10']).toBe('timetable_special')
+    expect(Object.keys(result.managed.event)).toEqual([])
+    expect(Object.keys(result.managed.vacation)).toEqual([])
+  })
+
+  it('手動 override は特別ダイヤより優先される', () => {
+    const liveOverrides = { ...liveRules.overrides, '2026-08-11': 'timetable_weekday' }
+    const result = run({ liveOverrides, state: withSpecial('2026-08-08', '2026-08-16') })
+    expect(result.nextOverrides['2026-08-11']).toBe('timetable_weekday')
+    expect(result.warnings.some((w) => w.code === 'override_conflict_manual_wins')).toBe(true)
+  })
+
+  it('期間内でも過去日には張らない', () => {
+    // TODAY = 2026-08-01
+    const result = run({ state: withSpecial('2026-07-28', '2026-08-05') })
+    expect(result.nextOverrides['2026-07-30']).toBeUndefined()
+    expect(result.nextOverrides['2026-08-03']).toBe('timetable_special')
+  })
+
+  it('timetable_special.json が無ければ張らずに警告する', () => {
+    const result = run({
+      state: withSpecial('2026-08-08', '2026-08-16'),
+      timetableExists: (id) => id !== 'timetable_special',
+    })
+    expect(result.nextOverrides['2026-08-11']).toBeUndefined()
+    expect(result.warnings.some((w) => w.code === 'override_target_missing')).toBe(true)
   })
 })

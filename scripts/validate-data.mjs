@@ -122,6 +122,12 @@ function validateTimetables() {
         continue
       }
 
+      // 特別ダイヤ（大学ホームページへ誘導する日）は発車時刻を表示しない。
+      // 時刻を書いても画面に出ないため、書いてしまった事故をここで検出する。
+      if (idFromFilename.includes('special') && schedule.length > 0) {
+        errors.push(`timetables/${file}: 特別ダイヤ（id に "special" を含む）の routes.${key}.schedule は空配列である必要があります`)
+      }
+
       let prevMinutes = -1
       schedule.forEach((entry, i) => {
         const dep = entry?.departure

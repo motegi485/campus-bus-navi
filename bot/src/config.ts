@@ -96,9 +96,23 @@ export const CONFIG = {
     /休暇/,
   ] as RegExp[],
 
+  /**
+   * 「特別ダイヤ」の待機ファイル ID。
+   *
+   * 【要件定義 v1.5 への追加・2026-08-02 承認済み】
+   * needs_review（読めない・解釈が割れる掲示）と判定した期間は、この ID で塗り潰す。
+   * フロントは id に 'special' を含むことを見て、発車時刻を出さず大学ホームページへ誘導する。
+   * PR を見落としても誤った時刻を表示しないためのフェイルセーフ。
+   * Bot はこのファイルを【書かない】（files.ts のホワイトリスト外。参照するだけ）。
+   */
+  specialTimetableId: 'timetable_special',
+  /** 特別ダイヤを張る期間の上限日数。日付の誤読で長大な期間を塗り潰すのを防ぐ */
+  specialMaxRangeDays: 92,
+
   protectedFiles: [
     // §7.4。書込/削除はホワイトリスト方式（files.ts）が正であり、これは追加の明示ガード。
     'timetable_closed.json', // 全便運休ダイヤ（手動運用）。Bot は読み書き・削除しない
+    'timetable_special.json', // 特別ダイヤ（手動運用）。Bot は override から参照するだけで書かない
   ] as string[],
 
   newFileNames: {

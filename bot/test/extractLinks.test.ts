@@ -93,6 +93,9 @@ describe('追加: extractLinks(page_snapshot_20260801.html) — 実ライブの4
     const c = classifyLinks(extractLinks(html).links, TODAY)
     expect(c[1]!.kind).toBe('needs_review')
     expect(c[1]!.reason).toContain('長期休暇の語彙に一致しません')
+    // 時刻は取り込まないが、期間は残す（特別ダイヤの適用先になる）
+    expect(c[1]!.start).toBe('2026-08-08')
+    expect(c[1]!.end).toBe('2026-08-16')
   })
 
   it('「夏季休業」を vacation(summer) として期間つきで取り込む', () => {
@@ -217,6 +220,8 @@ describe('テスト3: 正規化と日付パース', () => {
     const c = classifyLink(link('2026年8月17日～9月23日 長期休業'), TODAY)
     expect(c.kind).toBe('needs_review')
     expect(c.reason).toContain('季節')
+    expect(c.start).toBe('2026-08-17')
+    expect(c.end).toBe('2026-09-23')
   })
 
   it('複数日イベントは全日付を拾う', () => {
@@ -226,8 +231,12 @@ describe('テスト3: 正規化と日付パース', () => {
     expect(c.label).toBe('オープンキャンパス')
   })
 
-  it('日付が無い行は needs_review になる', () => {
-    expect(classifyLink(link('スクールバス時刻表について'), TODAY).kind).toBe('needs_review')
+  it('日付が無い行は needs_review になり、期間も持たない', () => {
+    const c = classifyLink(link('スクールバス時刻表について'), TODAY)
+    expect(c.kind).toBe('needs_review')
+    // 適用先を決められないので特別ダイヤも張らない
+    expect(c.start).toBeUndefined()
+    expect(c.end).toBeUndefined()
   })
 
   it('イベントラベルから日付・曜日・記号・リンク文言を除去する', () => {
