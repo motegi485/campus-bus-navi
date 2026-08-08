@@ -22,6 +22,27 @@ function readJSON(filePath) {
   return JSON.parse(readFileSync(filePath, 'utf-8'))
 }
 
+/**
+ * YYYY-MM-DD が実在する日付かどうか。
+ * 形式が合っていても 2026-02-30 のような非実在日は Date が別日へ正規化してしまうため、
+ * 組み立て直した文字列と一致するかで判定する。
+ */
+function isRealDate(value) {
+  if (!DATE_RE.test(value)) return false
+  const [y, m, d] = value.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+}
+
+/** そのフィールドが空でない文字列か */
+function requireString(label, value) {
+  if (typeof value !== 'string' || value === '') {
+    errors.push(`${label} が文字列ではありません（実際の値: ${JSON.stringify(value)}）`)
+    return false
+  }
+  return true
+}
+
 function validateCalendarRules() {
   const file = 'calendar_rules.json'
   const filePath = path.join(DATA_DIR, file)
@@ -53,20 +74,23 @@ function validateCalendarRules() {
     }
   }
 
+  // overrides は resolveCalendar が直接参照する。欠落するとランタイムで壊れるため必須にする。
   const overrides = rules.overrides
-  if (overrides !== undefined) {
-    if (typeof overrides !== 'object' || Array.isArray(overrides)) {
-      errors.push(`${file}: overrides はオブジェクトである必要があります`)
-    } else {
-      for (const [key, id] of Object.entries(overrides)) {
-        if (!DATE_RE.test(key)) {
-          errors.push(`${file}: overrides のキー "${key}" は YYYY-MM-DD 形式ではありません`)
-        }
-        if (typeof id !== 'string') {
-          errors.push(`${file}: overrides["${key}"] の値が文字列ではありません`)
-        } else {
-          referencedIds.add(id)
-        }
+  if (overrides === undefined) {
+    errors.push(`${file}: overrides が存在しません（空でも {} を置くこと）`)
+  } else if (typeof overrides !== 'object' || Array.isArray(overrides)) {
+    errors.push(`${file}: overrides はオブジェクトである必要があります`)
+  } else {
+    for (const [key, id] of Object.entries(overrides)) {
+      if (!DATE_RE.test(key)) {
+        errors.push(`${file}: overrides のキー "${key}" は YYYY-MM-DD 形式ではありません`)
+      } else if (!isRealDate(key)) {
+        errors.push(`${file}: overrides のキー "${key}" は実在しない日付です`)
+      }
+      if (typeof id !== 'string') {
+        errors.push(`${file}: overrides["${key}"] の値が文字列ではありません`)
+      } else {
+        referencedIds.add(id)
       }
     }
   }
@@ -103,6 +127,7 @@ function validateTimetables() {
     if (data.id !== idFromFilename) {
       errors.push(`timetables/${file}: id ("${data.id}") がファイル名 ("${idFromFilename}") と一致しません`)
     }
+    requireString(`timetables/${file}: name`, data.name)
 
     const routes = data.routes
     if (!routes || typeof routes !== 'object') {
@@ -110,22 +135,38 @@ function validateTimetables() {
       continue
     }
 
+    // 時刻を表示しない2つの状態（AGENTS.md「時刻を表示しない2つの状態」）。
+    // どちらも schedule 空配列で表現するので、それ以外の表が空になっていたら
+    // 「本日の運行はありません」と誤表示される事故なのでビルドを止める。
+    const isEmptyByDesign = idFromFilename.includes('special') || idFromFilename.includes('closed')
+
     for (const key of ROUTE_KEYS) {
       const route = routes[key]
       if (!route) {
         errors.push(`timetables/${file}: routes.${key} が存在しません`)
         continue
       }
+      requireString(`timetables/${file}: routes.${key}.origin`, route.origin)
+      requireString(`timetables/${file}: routes.${key}.destination`, route.destination)
+      requireString(`timetables/${file}: routes.${key}.bus_stop_name`, route.bus_stop_name)
+      const coords = route.bus_stop_coords
+      if (!coords || typeof coords.lat !== 'number' || typeof coords.lng !== 'number') {
+        errors.push(`timetables/${file}: routes.${key}.bus_stop_coords の lat / lng が数値ではありません`)
+      }
+
       const schedule = route.schedule
       if (!Array.isArray(schedule)) {
         errors.push(`timetables/${file}: routes.${key}.schedule が配列ではありません`)
         continue
       }
 
-      // 特別ダイヤ（大学ホームページへ誘導する日）は発車時刻を表示しない。
+      // 特別ダイヤ（大学ホームページへ誘導する日）・全便運休日は発車時刻を表示しない。
       // 時刻を書いても画面に出ないため、書いてしまった事故をここで検出する。
-      if (idFromFilename.includes('special') && schedule.length > 0) {
-        errors.push(`timetables/${file}: 特別ダイヤ（id に "special" を含む）の routes.${key}.schedule は空配列である必要があります`)
+      if (isEmptyByDesign && schedule.length > 0) {
+        errors.push(`timetables/${file}: 時刻を表示しないダイヤ（id に "special" / "closed" を含む）の routes.${key}.schedule は空配列である必要があります`)
+      }
+      if (!isEmptyByDesign && schedule.length === 0) {
+        errors.push(`timetables/${file}: routes.${key}.schedule が空です（空配列は運休日・特別ダイヤ専用の表現です）`)
       }
 
       let prevMinutes = -1
@@ -175,7 +216,9 @@ function validateNews() {
   }
 
   const seenIds = new Set()
-  const requiredFields = ['tagLabel', 'date', 'title', 'preview', 'body', 'unread']
+  // 存在だけでなく型も見る。特に unread は truthy 判定なので、"false" という
+  // 文字列が入ると既読にできない未読として表示され続ける。
+  const stringFields = ['tagLabel', 'date', 'title', 'preview', 'body']
   news.forEach((item, i) => {
     if (typeof item.id !== 'number') {
       errors.push(`${file}: [${i}] の id が数値ではありません`)
@@ -189,10 +232,18 @@ function validateNews() {
       errors.push(`${file}: [${i}] の tag "${item.tag}" が不正です（${VALID_TAGS.join('|')} のいずれかである必要があります）`)
     }
 
-    for (const field of requiredFields) {
+    for (const field of stringFields) {
       if (!(field in item)) {
         errors.push(`${file}: [${i}] に必須フィールド "${field}" がありません`)
+      } else {
+        requireString(`${file}: [${i}] の ${field}`, item[field])
       }
+    }
+
+    if (!('unread' in item)) {
+      errors.push(`${file}: [${i}] に必須フィールド "unread" がありません`)
+    } else if (typeof item.unread !== 'boolean') {
+      errors.push(`${file}: [${i}] の unread が真偽値ではありません（実際の値: ${JSON.stringify(item.unread)}）`)
     }
   })
 }
