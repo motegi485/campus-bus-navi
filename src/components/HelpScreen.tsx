@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useOverlayA11y } from '../hooks/useOverlayA11y'
 
 // GoogleフォームのURLを設定すると接続
 const FEEDBACK_URL = 'https://forms.gle/CD5qh8MpFZZVubTw5'
@@ -46,10 +47,13 @@ export function HelpScreen({ open, onClose }: Props) {
     if (!open) setOpenFaqs(new Set())
   }, [open])
 
+  // 閉時の inert 化、開いた直後の初期フォーカス、閉時のフォーカス復帰、Esc で閉じる
+  const rootRef = useOverlayA11y(open, { onEscape: onClose })
+
   return (
     /* fixed: ビューポート基準の全画面パネル。touchAction: NavBar 等起点の
        背後 body への貫通スクロールを防ぐ（詳細は DrawerMenu.tsx のコメント参照） */
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', touchAction: 'pinch-zoom' }}>
+    <div ref={rootRef} aria-hidden={!open} style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', touchAction: 'pinch-zoom' }}>
       {/* ナビバー */}
       <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
         <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#10b981', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>

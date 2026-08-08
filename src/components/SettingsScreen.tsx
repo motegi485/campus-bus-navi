@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { setInert, useOverlayA11y } from '../hooks/useOverlayA11y'
 import type { AppSettings, DefaultRoute, Theme, FontSize } from '../types/timetable'
 import {
   IconRouteSwap,
@@ -30,9 +31,13 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
   )
 }
 
-function NavBar({ title, onBack, backLabel = '戻る' }: { title: string; onBack: () => void; backLabel?: string }) {
+function NavBar({ title, onBack, backLabel = '戻る', covered = false }: { title: string; onBack: () => void; backLabel?: string; covered?: boolean }) {
+  // covered: サブ画面（選択リスト）が上に重なっている間は Tab 順から外す
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => { setInert(ref.current, covered) }, [covered])
+
   return (
-    <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
+    <div ref={ref} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
       <BackButton label={backLabel} onClick={onBack} />
       <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>{title}</span>
     </div>
@@ -117,21 +122,57 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
     SELECTS[selKey].apply(v)
   }
 
+  // 閉時の inert 化、開いた直後の初期フォーカス、閉時のフォーカス復帰。
+  // Escape はサブ画面を開いていればサブ画面を、そうでなければ設定画面を閉じる。
+  const rootRef = useOverlayA11y(open, {
+    onEscape: () => { if (selKey) closeSelect(); else onClose() },
+  })
+
+  // サブ画面（選択リスト）を開いている間は背後の設定一覧を操作対象から外す
+  const listRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { setInert(listRef.current, selKey !== null) }, [selKey])
+
+  // 画面を閉じたらサブ画面も畳む
+  useEffect(() => { if (!open) setSelKey(null) }, [open])
+
+  // サブ画面の開閉時のフォーカス移動（開いたら「設定」(戻る)へ、閉じたら元の行へ）
+  const subRef = useRef<HTMLDivElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    if (!selKey) return
+    subRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+  }, [selKey])
+
+  const openSelect = (key: SelectKey) => {
+    returnFocusRef.current = document.activeElement as HTMLElement | null
+    setSelKey(key)
+  }
+
+  const closeSelect = () => {
+    setSelKey(null)
+    const prev = returnFocusRef.current
+    returnFocusRef.current = null
+    // 設定一覧の inert 解除（再描画後の effect）を待ってから戻す
+    setTimeout(() => {
+      if (prev && document.contains(prev)) prev.focus()
+    }, 0)
+  }
+
   return (
     /* fixed: ビューポート基準の全画面パネル。touchAction: NavBar 等起点の
        背後 body への貫通スクロールを防ぐ（詳細は DrawerMenu.tsx のコメント参照） */
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', touchAction: 'pinch-zoom' }}>
-      <NavBar title="設定" onBack={onClose} />
+    <div ref={rootRef} aria-hidden={!open} style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', touchAction: 'pinch-zoom' }}>
+      <NavBar title="設定" onBack={onClose} covered={selKey !== null} />
 
       {/* スクローラ（contain + 常時スクロール可能化。露出色 = --bg-page） */}
-      <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+      <div ref={listRef} style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
         <div style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         {/* 表示セクション */}
         <Section label="表示">
-          <SettingRow icon={IconRouteSwap} tone="green" title="デフォルトルート" sub="起動時に最初に表示するルート" value={SELECTS.route.current} onClick={() => setSelKey('route')} />
-          <SettingRow icon={IconContrast} tone="violet" title="カラーテーマ" sub="背景の表示モード" value={SELECTS.theme.current} onClick={() => setSelKey('theme')} />
-          <SettingRow icon={IconFontSize} tone="amber" title="フォントサイズ" sub="時刻の文字の大きさ" value={SELECTS.font.current} onClick={() => setSelKey('font')} />
+          <SettingRow icon={IconRouteSwap} tone="green" title="デフォルトルート" sub="起動時に最初に表示するルート" value={SELECTS.route.current} onClick={() => openSelect('route')} />
+          <SettingRow icon={IconContrast} tone="violet" title="カラーテーマ" sub="背景の表示モード" value={SELECTS.theme.current} onClick={() => openSelect('theme')} />
+          <SettingRow icon={IconFontSize} tone="amber" title="フォントサイズ" sub="時刻の文字の大きさ" value={SELECTS.font.current} onClick={() => openSelect('font')} />
         </Section>
 
         {/* 通知セクション（将来拡張用） */}
@@ -162,8 +203,8 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
 
       {/* 選択サブスクリーン */}
       {selKey && (
-        <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: selKey ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.3s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 60, display: 'flex', flexDirection: 'column', overflow: 'hidden', touchAction: 'pinch-zoom' }}>
-          <NavBar title={SELECTS[selKey].title} onBack={() => setSelKey(null)} backLabel="設定" />
+        <div ref={subRef} style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: selKey ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.3s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 60, display: 'flex', flexDirection: 'column', overflow: 'hidden', touchAction: 'pinch-zoom' }}>
+          <NavBar title={SELECTS[selKey].title} onBack={closeSelect} backLabel="設定" />
           <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
             <div style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px' }}>
             <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>

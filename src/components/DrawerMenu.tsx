@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
+import { useOverlayA11y } from '../hooks/useOverlayA11y'
 import {
   IconGradCap,
   IconBusStop,
@@ -14,6 +15,8 @@ import { SCHOOL_BUS_INFO_URL } from '../constants/links'
 
 interface Props {
   open: boolean
+  /** お知らせ／設定／ヘルプがこの上に重なっている（ドロワーは操作対象外にする） */
+  covered: boolean
   hasUnread: boolean
   onClose: () => void
   onOpenNews: () => void
@@ -29,14 +32,9 @@ const LINKS: { icon: ReactNode; tone: IconTone; title: string; sub: string; url:
   { icon: <IconLaptopCode />, tone: 'yellow', title: 'サークルホームページ', sub: 'fukupro.club', url: 'https://www.fukupro.club/' },
 ]
 
-export function DrawerMenu({ open, hasUnread, onClose, onOpenNews, onOpenSettings, onOpenHelp, onInitApp }: Props) {
-  // Esc キーでドロワーを閉じる（キーボード操作対応）
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+export function DrawerMenu({ open, covered, hasUnread, onClose, onOpenNews, onOpenSettings, onOpenHelp, onInitApp }: Props) {
+  // 閉時／被覆時の inert 化、開いた直後の初期フォーカス、閉時のフォーカス復帰、Esc で閉じる
+  const rootRef = useOverlayA11y(open, { covered, onEscape: onClose })
 
   return (
     /*
@@ -47,6 +45,7 @@ export function DrawerMenu({ open, hasUnread, onClose, onOpenNews, onOpenSetting
       スクロールコンテナで判定が止まるため通常どおり動く。ピンチズームは許可）。
     */
     <div
+      ref={rootRef}
       style={{
         position: 'fixed', inset: 0, zIndex: 30, pointerEvents: open ? 'all' : 'none',
         background: open ? 'rgba(0,0,0,0.38)' : 'rgba(0,0,0,0)',
@@ -54,7 +53,7 @@ export function DrawerMenu({ open, hasUnread, onClose, onOpenNews, onOpenSetting
         touchAction: 'pinch-zoom',
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      aria-hidden={!open}
+      aria-hidden={!open || covered}
     >
       {/* ドロワー本体 */}
       <div
