@@ -97,6 +97,10 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 
 **オーバースクロール（バウンス）表現:** JS による弾性エミュレーション（touchmove 乗っ取り + rAF）はコンポジタ駆動のネイティブ慣性に体感レベルで追従できないことが実機検証で確定しており、再挑戦しない。両 OS とも OS ネイティブ表現を解放する方式が最終形 — `useNativeBounce.ts` が iOS には `bounce-native`（ラバーバンドバウンス + ヘッダークッションのグラデ stop 位置算出）、Android 等のタッチ主体端末には `bounce-stretch`（`overscroll-behavior-y: contain` + ネイティブストレッチ）を適用し、PC はバウンス無し。改修は `overscroll-behavior` とクッションの枠内で行う。詳細は同フック冒頭のコメントを参照。
 
+**押下フィードバック（アフォーダンス）:** `index.css` の `* { -webkit-tap-highlight-color: transparent }` が OS 標準のタップ反応を全要素で消しているため、その代替を `usePressable`（`src/hooks/usePressable.ts`）に集約している。CSS の `:active` は iOS Safari のタッチで発火しないことがあるので使わず、Pointer Events で押下状態を持つ。適用先はヘッダーの 2 ボタン（ハンバーガー・更新）・「表示する」チップ・設定行。触覚は `src/utils/haptics.ts` の `tapFeedback()` に集約し、ルート切替・更新ボタン・チップ開閉の 3 箇所だけで呼ぶ（iOS Safari は Vibration API 非対応で無反応なのが正常。`prefers-reduced-motion` は視覚モーションの設定なので触覚は抑制対象にしない）。**更新ボタンの 720° 回転は `<button>` ではなく内側の `<svg>` に掛ける** — ボタン側は押下の `scale()` を使うので、同一要素に 2 つの transform を書くと片方が消える。
+
+**ルート切替トグルの配色（重要）:** 面は `.frost-surface`、ノブは `.toggle-knob`（どちらも `index.css`）。`RouteToggle` は位置・アニメーションと、ダーク用ティント（`--toggle-tint` / `--toggle-tint-fb`）を route ごとに渡す役目だけを持つ。**ライトは透明な白ガラス、ダークはルート色のスモークガラス＋黒ガラスのノブ**とテーマで作りが反転するため、選択中ラベルの色もテーマ変数（`--toggle-on-campus` / `--toggle-on-station`）で切り替える。未選択ラベルはヘッダーの他の文字（タイトル・日付）と揃えて白。**ライトではこの白ラベルが地のグラデに対して 1.5〜2.7:1 で WCAG AA を満たさないが、これは見た目を優先した意図的な選択**（変更前の元デザインと同水準）であり、可読性を理由に面を暗くしない。ダークは 5.3〜7.5:1 で AA を満たす。面の alpha・ティント・ラベル色を触るときは、`backdrop-filter` の `saturate()` を含めた合成後の色から相対輝度を計算し直すこと。ノブ幅 `calc(50% - 4px)` がボタン位置と一致するのはトラックの `padding: 4px`・ボタン `flex:1`・**`gap` なし**の 3 つが揃っているからで、`gap` を足すと崩れる。初回ナッジは localStorage キー `campusBusNaviRouteToggleHinted`（設定本体の `campusBusNaviSettings` とは別）で 1 回に制限し、`prefers-reduced-motion` ではアニメーションのみ止める。
+
 **ダイヤ種別** は時刻表 ID 文字列から推定（8種類）：`closed` を含む → `'closed'`（全便運休日）、`special` を含む → `'special'`（特別ダイヤ）、`event` を含む → `'event'`、`vacation` を含む → `holiday` も含めば `'vacation_holiday'` / `weekday` も含めば `'vacation_weekday'` / どちらも無ければ `'vacation'`（平日・休日で分かれない単一表。お盆ダイヤ等）、`holiday` を含む → `'holiday'`、それ以外 → `'weekday'`。`vacation_*_holiday` は `vacation` と `holiday` の両方を含むため、`vacation` を `holiday` より先に判定する順序が必須。判定順序は `closed → special → event → vacation → holiday → weekday`。推定ロジックは `DayBadge.tsx` の `resolveDiagramType()` に実装されている。
 
 **時刻を表示しない2つの状態:** どちらも時刻表の `schedule` を空配列にして表現し、待機ファイルを `calendar_rules.json` の `overrides` から参照させて運用する。
@@ -124,6 +128,7 @@ src/hooks/
   useOnlineStatus.ts     ← オンライン/オフライン検知
   useNativeBounce.ts     ← バウンス/ストレッチ表現のネイティブ委譲（iOS はクッションの stop 位置も算出）
   useOverlayA11y.ts      ← オーバーレイの inert / 初期フォーカス / フォーカス復帰 / Esc（setInert も export）
+  usePressable.ts        ← ポインタ押下状態（tap-highlight 無効化の代替。押下表現の共通土台）
 src/utils/
   findNextBus.ts         ← findNextBus / findUpcomingBuses / findFirstBus（翌日始発）/ countRemainingBuses（本日の残り本数）を export
   resolveCalendar.ts     ← 日付 → 時刻表 ID のマッピング
@@ -131,6 +136,7 @@ src/utils/
   buildMapUrl.ts         ← iOS / Android 向けナビ URL 生成
   platform.ts            ← isIOS() / isAndroid() 判定の共通実装
   parseTime.ts           ← HH:mm 文字列を分単位の数値に変換（findNextBus が使用）
+  haptics.ts             ← tapFeedback()（navigator.vibrate のラッパー。呼び出しはここ 1 箇所に集約）
 src/components/          ← UI コンポーネント（NextBusCard, UpcomingList,
                             FullTimetable, BusStopMap, DrawerMenu,
                             EndOfServiceCard, SpecialScheduleCard,
@@ -145,7 +151,7 @@ scripts/
 
 ### テーマ
 
-Tailwind v4 + CSS カスタムプロパティ — `index.css` 内で `:root`（ライト）と `.dark` クラス（ダーク）に定義。主要変数: `--bg-page`、`--bg-card`、`--bg-card2`、`--bg-input`、`--text-primary`、`--text-muted`、`--text-secondary`、`--border`、`--border2`、`--past-text`、`--past-bg`。フォントサイズは設定でトグルされる CSS クラスで制御。
+Tailwind v4 + CSS カスタムプロパティ — `index.css` 内で `:root`（ライト）と `.dark` クラス（ダーク）に定義。主要変数: `--bg-page`、`--bg-card`、`--bg-card2`、`--bg-input`、`--text-primary`、`--text-muted`、`--text-secondary`、`--border`、`--border2`、`--past-text`、`--past-bg`。アフォーダンス用に `--row-active`（設定行の押下ハイライト）、`--chip-border` / `--chip-highlight` / `--chip-rim` / `--chip-text`（「表示する」チップの厚みと文字。`--text-secondary` は 12px に対し 4.26:1 で AA 未達のため専用変数を持つ）、`--toggle-on-campus` / `--toggle-on-station`（トグルの選択中ラベル）が加わる。フォントサイズは設定でトグルされる CSS クラスで制御。
 
 テーマ設定は `light` / `dark` / `system` の 3 種（`useSettings` で localStorage 管理）。`system` は `prefers-color-scheme` に追従し、`App.tsx` が `<html>` の `.dark` を同期する。初回描画の FOUC 防止のため、React マウント前に `index.html` のインラインスクリプトが同一ロジックで `.dark` を付与する（判定ロジックとストレージキー `campusBusNaviSettings` は `useSettings` / `App.tsx` と一致させること）。
 

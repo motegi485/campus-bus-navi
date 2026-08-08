@@ -198,11 +198,14 @@ src/
 │   ├── useJSTClock          # 分境界に同期した JST 時計（1 分間隔）
 │   ├── useTimetable         # カレンダー解決 + 時刻表フェッチ
 │   ├── useNews / useSettings / useOnlineStatus / useNativeBounce
+│   ├── useOverlayA11y       # オーバーレイの inert・フォーカス制御
+│   ├── usePressable         # ポインタ押下状態（押下フィードバックの共通土台）
 ├── utils/
 │   ├── resolveCalendar      # 日付 → 時刻表 ID
 │   ├── findNextBus          # 次発・直近・残数・翌日始発の算出
 │   ├── normalizeTimetable   # 取得データの構造検証・ソート
 │   ├── parseTime / buildMapUrl / platform（iOS・Android 判定）
+│   ├── haptics              # tapFeedback()（navigator.vibrate。iOS は非対応）
 └── types/timetable.d.ts     # 共通型定義
 ```
 
@@ -247,6 +250,7 @@ src/
 - SW urlPattern 末尾の **`(\?.*)?`** — 手動更新のキャッシュバスター付き URL をマッチさせるために必須。
 - **バウンス表現**（`useNativeBounce` + `.header-cushion`）— OS ネイティブに委譲する現構成が実機検証済みの最終形です。
 - ブレークポイント判定は CSS メディアクエリではなく `main.tsx` の `syncBpActiveClass`（`html.bp-active`）で行います（iPadOS の `innerWidth` 復元バグ回避）。
+- **ルート切替トグルのライト時の配色** — 未選択ラベル（白）は背景に対して意図的に低コントラストです。見た目を優先した判断なので、面を暗くする方向の「修正」はしないでください（経緯と数値は CLAUDE.md / AGENTS.md）。
 
 ---
 
