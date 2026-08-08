@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto'
 import { CONFIG } from './config.js'
 import { fetchWithTimeout } from './fetchPage.js'
 import { readHolidaysCache } from './files.js'
-import { formatDate, nowIsoJst } from './time.js'
+import { formatDate, nowIsoJst, parseDate, todayJst } from './time.js'
 import type { Holiday, HolidaysCache, Warning } from './types.js'
 
 /** Shift_JIS の CSV バッファを Holiday[] にする。CRLF・最終行の改行欠落を許容する。 */
@@ -45,13 +45,39 @@ export interface HolidaysResult {
   warnings: Warning[]
 }
 
-export async function fetchHolidays(): Promise<HolidaysResult> {
+/**
+ * 祝日データの将来カバレッジを検査する。
+ *
+ * 収録が今日から `holidayCoverageMinDays` 先に届かないまま気づかないと、
+ * カバレッジが尽きた先の祝日を平日として扱い、誤った発車時刻を表示してしまう。
+ * CSV の公開範囲は年に1回まとめて延びるため、閾値は余裕をもって設ける。
+ */
+function checkCoverage(holidays: Holiday[], warnings: Warning[], today: string): void {
+  if (holidays.length === 0) return
+  const last = holidays.reduce((a, b) => (a.date > b.date ? a : b)).date
+  const horizon = parseDate(today).add(CONFIG.holidayCoverageMinDays, 'day').format('YYYY-MM-DD')
+  if (last < horizon) {
+    warnings.push({
+      level: 'warn',
+      code: 'holiday_coverage_short',
+      message:
+        `祝日データの収録が ${last} までしかありません（${today} から ${CONFIG.holidayCoverageMinDays} 日先までを期待）。` +
+        'それ以降の祝日は平日ダイヤとして扱われます。内閣府CSVの公開状況と取得経路を確認してください。',
+      url: CONFIG.holidayCsvUrl,
+    })
+  }
+}
+
+export async function fetchHolidays(today: string = todayJst()): Promise<HolidaysResult> {
   const warnings: Warning[] = []
   const cached = readHolidaysCache()
 
   let buffer: Buffer | null = null
   try {
-    const res = await fetchWithTimeout(CONFIG.holidayCsvUrl)
+    const res = await fetchWithTimeout(CONFIG.holidayCsvUrl, {
+      allowedHostSuffixes: CONFIG.allowedHolidayHostSuffixes,
+      maxBytes: CONFIG.maxCsvBytes,
+    })
     if (res.ok) {
       buffer = res.buffer
     } else {
@@ -79,6 +105,7 @@ export async function fetchHolidays(): Promise<HolidaysResult> {
       // 冪等性（NFR-1）: 内容が変わっていなければ holidays.json を書き換えない。
       // 毎回 fetched_at を更新すると、データ変更が無い日でも差分が出て PR が作られてしまう。
       if (cached && cached.source_sha256 === sha256) {
+        checkCoverage(cached.holidays, warnings, today)
         return {
           holidays: cached.holidays,
           cacheToWrite: null,
@@ -87,6 +114,7 @@ export async function fetchHolidays(): Promise<HolidaysResult> {
         }
       }
 
+      checkCoverage(holidays, warnings, today)
       const cache: HolidaysCache = { fetched_at: nowIsoJst(), source_sha256: sha256, holidays }
       return { holidays, cacheToWrite: cache, source: { fetched_at: cache.fetched_at, sha256 }, warnings }
     } catch (e) {
@@ -105,6 +133,20 @@ export async function fetchHolidays(): Promise<HolidaysResult> {
       code: 'holiday_csv_cache_fallback',
       message: `祝日CSVを取得できなかったため既存キャッシュ（${cached.fetched_at} 取得・${cached.holidays.length}件）を使用します。`,
     })
+    // 取得失敗が続いても `if (cached)` だけで無期限に古いキャッシュを使い続けてしまうため、
+    // 経過日数と将来カバレッジの両方を見張る（取得経路の恒久障害を見落とさないため）。
+    const ageDays = parseDate(today).diff(parseDate(cached.fetched_at.slice(0, 10)), 'day')
+    if (ageDays > CONFIG.holidayCacheMaxAgeDays) {
+      warnings.push({
+        level: 'warn',
+        code: 'holiday_cache_stale',
+        message:
+          `祝日キャッシュの取得日から ${ageDays} 日経過しています（上限 ${CONFIG.holidayCacheMaxAgeDays} 日）。` +
+          '内閣府CSVの URL 変更や恒久的な取得障害が疑われます。',
+        url: CONFIG.holidayCsvUrl,
+      })
+    }
+    checkCoverage(cached.holidays, warnings, today)
     return {
       holidays: cached.holidays,
       cacheToWrite: null,
