@@ -12,7 +12,7 @@
 
 import { CONFIG } from './config.js'
 import type { Holiday, ManagedOverrides, OverrideChange, Season, State, Warning } from './types.js'
-import { dayOfWeek, eachDate, isBefore, todayJst } from './time.js'
+import { dayOfWeek, eachDate, isAfter, isBefore, todayJst } from './time.js'
 
 export interface CalendarInput {
   /** live の overrides（リポジトリ HEAD の calendar_rules.json） */
@@ -25,6 +25,12 @@ export interface CalendarInput {
   state: State
   holidays: Holiday[]
   today?: string
+  /**
+   * 撤去された event 時刻表の ID（掲載から消えた・適用日から外れた）。
+   * どの override からも参照されなくなっていれば削除計画に載せる。
+   * 手動 override が参照している場合は残す（nextOverrides に入るので stillNeeded で守られる）。
+   */
+  retiredEventIds?: string[]
   /** 書き込み後に {id}.json が存在するか */
   timetableExists: (id: string) => boolean
 }
@@ -137,6 +143,14 @@ export function calculateOverrides(input: CalendarInput): CalendarResult {
       })
       continue
     }
+    if (isAfter(entry.period.start, entry.period.end)) {
+      warnings.push({
+        level: 'warn',
+        code: 'vacation_period_invalid',
+        message: `長期休暇（${season}）の期間が逆転しています（${entry.period.start}〜${entry.period.end}）。日付の誤読の可能性があるため override を生成しません。`,
+      })
+      continue
+    }
     for (const date of eachDate(entry.period.start, entry.period.end)) {
       const dow = dayOfWeek(date)
       const isHolidayLike = dow === 0 || dow === 6 || holidaySet.has(date)
@@ -237,6 +251,13 @@ export function calculateOverrides(input: CalendarInput): CalendarResult {
   const stillNeeded = new Set(Object.values(nextOverrides))
   for (const [date, id] of Object.entries(prevManaged.event ?? {})) {
     if (!isBefore(date, today)) continue
+    if (stillNeeded.has(id)) continue
+    const fileName = `${id}.json`
+    if (!/^timetable_event_\d{8}\.json$/.test(fileName)) continue
+    if (!deletions.includes(fileName)) deletions.push(fileName)
+  }
+  // 撤去された event（中止・延期・適用日から外れた）。過去日でなくても消す
+  for (const id of input.retiredEventIds ?? []) {
     if (stillNeeded.has(id)) continue
     const fileName = `${id}.json`
     if (!/^timetable_event_\d{8}\.json$/.test(fileName)) continue
