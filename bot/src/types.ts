@@ -117,6 +117,12 @@ export interface StateEvent {
   dates: string[]
   derived: string[]
   processed_at: string
+  /**
+   * 掲載ページからこのイベントのリンクが見つからなかった連続回数。
+   * CONFIG.eventMissingRunsBeforeRemoval に達したら「取消・延期」と判断して撤去する。
+   * 見つかった回に 0 へ戻す（＝キー自体を消す）。
+   */
+  missing_count?: number
 }
 
 export interface StateSpecial {
