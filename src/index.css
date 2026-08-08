@@ -62,11 +62,17 @@
      明度差が小さいので、接地影 + 中距離 + 拡散の 3 層を重ねて輪郭を作る。
      光源は左上に置き、影は下から右へ回す（x:y ≒ 1:2。x を y と同じだけ振ると
      斜めに浮いて見えるので、あくまで「下寄りで、右にも出る」比率に留める）。 */
-  --card-border: rgba(15, 23, 42, 0.05);
+  --card-border: rgba(15, 23, 42, 0.065);
   --card-shadow:
     1px 2px 3px rgba(15, 23, 42, 0.06),
     3px 6px 12px -2px rgba(15, 23, 42, 0.10),
     8px 16px 30px -12px rgba(15, 23, 42, 0.18);
+  /* 縁の稜線（.section-card::after が読む）。光源は落ち影と同じ左上。
+     ライトのカード面は白なので上左に明るいリムは置けず、右下を沈ませる側だけで
+     立体を作る。1px の稜線が「縁の厚み」、ぼかした下端が「面の湾曲」。 */
+  --card-rim:
+    inset -1px -1px 0 rgba(15, 23, 42, 0.08),
+    inset 0 -3px 4px -3px rgba(15, 23, 42, 0.085);
 
   /* ── アプリ共通アイコン配色 ──
      bg = タイル背景 / fg = アイコンの線色（currentColor で参照される）
@@ -112,12 +118,17 @@
 
   /* セクションカードの縁と影（ダーク）。暗い地の上では落ち影だけだと沈むため、
      ライトより強い黒影に加えて上端の内側リムで縁を立てる。 */
-  --card-border: rgba(255, 255, 255, 0.06);
+  --card-border: rgba(255, 255, 255, 0.08);
   --card-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
     1px 2px 3px rgba(0, 0, 0, 0.45),
     4px 8px 16px -3px rgba(0, 0, 0, 0.50),
     10px 20px 36px -14px rgba(0, 0, 0, 0.65);
+  /* 縁の稜線（ダーク）。ライトと違い、カード面が地より明るいので上左に光の
+     リムを置ける。落ち影が沈みがちなぶん、ここが縁を立てる主役になる。 */
+  --card-rim:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.10),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.40),
+    inset 0 -4px 5px -4px rgba(0, 0, 0, 0.45);
 
   /* ── アプリ共通アイコン配色（ダーク）──
      淡いパステルはダーク背景で浮くため、fg を明度の高い同系色にし、
@@ -318,13 +329,19 @@ html.bounce-native .header-cushion {
    落ちる影はカード間の隙間ぶんだけが見える。z-index を足さないので、
    オーバーレイ（ドロワー 30・各画面 50・PWA 案内 100・バナー 110・Toast 200）
    との重なりは変わらない。
+
+   ── 縁は border ではなく ::after に集約する（重要）──
+   inset の box-shadow は要素の背景の上・子要素の下に描かれるため、中身が端まで
+   敷き詰まるカード（乗り場マップ = Leaflet が全面を覆う）では稜線がタイルに
+   隠れて消える。そこで境界線（--card-border）も稜線（--card-rim）も、子要素
+   より手前に来る ::after の inset シャドウで描く。border を持たせないので
+   ::after の inset: 0 と border-radius: inherit が要素の外形とぴったり一致する。
    ============================================================ */
 .section-card {
   position: relative;
   background: var(--bg-card);
-  border: 1px solid var(--card-border);
   box-shadow: var(--card-shadow);
-  transition: background .3s, border-color .35s, box-shadow .35s;
+  transition: background .3s, box-shadow .35s;
 }
 
 .hero-card {
@@ -342,6 +359,32 @@ html.bounce-native .header-cushion {
     1px 2px 4px rgba(0, 0, 0, 0.50),
     4px 8px 20px -4px rgba(var(--hero-tint, 0, 0, 0), 0.32),
     10px 20px 40px -16px rgba(0, 0, 0, 0.62);
+}
+
+.section-card::after,
+.hero-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  transition: box-shadow .35s;
+}
+
+/* べた塗りカード: 全周のヘアライン + 右下の稜線 */
+.section-card::after {
+  box-shadow:
+    inset 0 0 0 1px var(--card-border),
+    var(--card-rim);
+}
+
+/* グラデーションカード: 面が濃色なので上左に白の稜線が素直に乗る。
+   テーマで面の色が変わらないので、ライト・ダーク共通で 1 セット。 */
+.hero-card::after {
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.28),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.18),
+    inset 0 -4px 6px -4px rgba(0, 0, 0, 0.15);
 }
 
 /* ============================================================
