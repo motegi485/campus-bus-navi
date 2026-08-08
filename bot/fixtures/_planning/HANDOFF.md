@@ -1,8 +1,8 @@
 # campus-bus-navi バックエンド — 引き継ぎ（HANDOFF）
 
-> **最終更新: 2026-08-02**
+> **最終更新: 2026-08-08**
 > このファイルは「今どうなっていて、次に何をするか」だけを書く。仕様の正本は
-> **`BACKEND_REQUIREMENTS.md`（v1.6）** で、食い違う場合はそちらが優先。
+> **`BACKEND_REQUIREMENTS.md`（v1.7）** で、食い違う場合はそちらが優先。
 > （2026-08-02 以前の本ファイルは着手前の引き継ぎメモだった。内容はすべて完了・陳腐化したため
 > 書き換えた。旧版が必要なら git 履歴を参照。）
 
@@ -24,7 +24,7 @@
 | main | `ab00c4e`（Bot 一式・特別ダイヤ機構・お盆データを含む） |
 | 本番サイト | https://campus-bus-navi.pages.dev/ — 上記が配信済み・確認済み |
 | アプリバージョン | `1.1.0-beta` |
-| Bot のコード | main にあり。テスト 109 件緑・型チェック通過 |
+| Bot のコード | main にあり。テスト 153 件緑・型チェック通過 |
 | ワークフロー | `.github/workflows/timetable-sync.yml` は main にあるが **手動で Disable 済み**（＝日次実行は起動しない） |
 | `GEMINI_API_KEY`（Secrets） | **未登録** |
 | Workflow permissions | **未設定**（"Allow GitHub Actions to create and approve pull requests" が無効） |
@@ -104,6 +104,13 @@ Bot はこれを手動キーとして尊重し上書きしない（`calendar.ts`
      `overrides["2026-08-23"]` の**除去**が計画されるはず
    - 8/24 以降の PR にこれが現れれば、Bot の一巡（追加 → 適用 → 自動クリーンアップ）が実証される
 9. **数日〜1週間、日次実行を観察** — 掲示に変化が無ければ PR は立たない（差分ゼロなら PR は作られない）のが正常
+10. **2026-08-08 の公開前レビュー対応で入った挙動も併せて確認する**（詳細は要件定義 v1.7 の変更点）
+    - ジョブが**赤くなったのに PR が無い**とき: 「警告はあるが差分ゼロ」の実行。Actions の成果物
+      `timetable-sync-out`（`pr-body.md`）と Step Summary に理由が出ている。従来はこれが緑で終わっていた
+    - イベントが掲載から消えたとき: 1〜2 回目は警告のみ（`event_link_missing`）、**3 回連続**で
+      `event_removed` になり override とファイルが撤去される。中止でないなら PR をマージせず掲載を確認する
+    - PR 本文に「**年を推定した日付**」の節が出たら、原文と解決後の日付が合っているか必ず見る
+    - 実行が 15 分に達すると OCR を打ち切って `run_deadline_exceeded` を出す（ジョブの 20 分強制終了より前）
 
 ---
 
@@ -117,13 +124,17 @@ Bot はこれを手動キーとして尊重し上書きしない（`calendar.ts`
 | 503 が続く | Gemini 側の高負荷。一時障害リトライ（5/15/45秒）→ フォールバックモデル切替が入る。それでも駄目なら翌日 |
 | 毎日 PR が立ち続ける | 掲示が変わっていないのに state が書き換わっている疑い。`bot/state.json` の差分を見る |
 | PR の差分が全行置換になっている | JSON 整形のハウススタイルが壊れている（§3 参照）。`bot/test/files.test.ts` が落ちているはず |
+| ジョブが赤いのに PR が無い | 「警告があるが差分ゼロ」で意図的に失敗させている。成果物 `timetable-sync-out` の `pr-body.md` と Step Summary を見る |
+| `link_host_not_allowed` / `image_fetch_failed` が出る | 大学が画像の配信先を別ホストへ変えた可能性。`bot/src/config.ts` の `allowedImageHostSuffixes` に追加する |
+| `run_deadline_exceeded` が出る | Gemini の応答が遅い日。15 分で打ち切って翌日再試行する設計。続くようなら `runDeadlineMs` と画像枚数を見直す |
+| `holiday_coverage_short` / `holiday_cache_stale` が出る | 内閣府 CSV の URL 変更か長期障害。`holidayCsvUrl` を確認する |
 
 ### ローカルでの再現
 
 ```powershell
 cd bot
 npm install
-npx vitest run                        # テスト 109 件
+npx vitest run                        # テスト 153 件
 npx tsc --noEmit                      # 型チェック
 $env:DRY_RUN="1"; $env:SKIP_OCR="1"   # 無料枠を使わず計画だけ出力
 npx tsx src/index.ts
@@ -139,8 +150,8 @@ npx tsx src/index.ts
 
 | 知りたいこと | ファイル |
 |---|---|
-| 仕様の正本（FR・AC・state スキーマ・優先順位） | `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`（v1.6） |
-| 残タスクの一覧 | 同 §17.2 |
+| 仕様の正本（FR・AC・state スキーマ・優先順位） | `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`（v1.7） |
+| 残タスクの一覧 | 同 §17.3「残（2026-08-23 前後に実施）」（§17.1・§17.2 は実施済みの記録） |
 | リポジトリ全体の設計判断 | ルートの `CLAUDE.md`（Codex 用は `AGENTS.md`。内容は同一） |
 | 運用者向けの手順（ダイヤ改正・お知らせ追加） | ルートの `README.md` §3 |
 | 実装コード | `bot/src/`（オーケストレータは `index.ts`、純粋な計画部分は `plan.ts`） |

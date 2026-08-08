@@ -2,7 +2,8 @@
 
 | 項目 | 内容 |
 |---|---|
-| 文書バージョン | 1.6（特別ダイヤの導入） |
+| 文書バージョン | 1.7（公開前レビュー指摘の反映） |
+| v1.7 変更点 | 2026-08-08、Codex による公開前システムレビュー（`_codexReview/CODEX_REVIEW_2026-08-08.md`）で妥当と判定した指摘を実装に反映。**FR-3**: 日付は `time.ts` の `isRealDate()` で実在検証し、非実在日・逆転期間（start > end）の掲示は**期間を残さず** `needs_review`（特別ダイヤの塗り潰しもしない）／年を推定した日付（`yearGuessed`）を PR 本文の専用節と Step Summary に出す。**FR-4**: 掲載から消えた未来イベントを `state.events[].missing_count` で数え、`CONFIG.eventMissingRunsBeforeRemoval`（3 回連続）で state・override・event ファイルを撤去する（`plan.ts` の `reconcileEvents`）。ページから時刻表リンクを 1 件も抽出できなかった実行は数えない／同一 URL で event の日付が増減したときに、追加日の `timetable_event_YYYYMMDD` を既存 derived から複製し、外れた日のファイルを撤去する（`syncEventFiles`）。**FR-5 / NFR-8**: 取得先を `url.ts` の allowlist（https のみ・資格情報付き不可・IP リテラル不可・許可ホストのみ）で制限し、リダイレクトは自前で追って各ホップで再検証。応答サイズは Content-Length 事前判定とストリーム上限で頭打ちにし、画像はマジックバイトで実体を確認（§7.2 に `allowed*HostSuffixes`・`maxPageBytes`・`maxCsvBytes`・`maxRedirects` 追加）。**FR-10**: 祝日キャッシュに鮮度（`holidayCacheMaxAgeDays`）と将来カバレッジ（`holidayCoverageMinDays`）の警告を追加。**FR-11/§10**: `level: 'warn'` があるのにリポジトリ差分が 0 の実行は `process.exitCode = 1` で失敗させ、`bot/.out/**` を `if: always()` で成果物に残す（PR も通知も残らないサイレント失敗の解消）／1 実行の締切 `runDeadlineMs`（15 分）を追加し、OCR のリトライがワークフローの `timeout-minutes: 20` を越えないようにする／workflow の action を full commit SHA で固定し、checkout を `persist-credentials: false` にした。**§9**: `state.events[].missing_count` を追加 |
 | v1.6 変更点 | 2026-08-02、既定のフォーマットで表現できないダイヤ（お盆期間のように運休日と通常日が混在し、「大学発のみ最終便が変わる」等の但し書きを含むもの）への対処として **特別ダイヤ `timetable_special`** を新設：**§3.4** に `special` と無印 `vacation` を追加（判定順序 `closed → special → event → vacation → holiday → weekday`）／**FR-3** の needs_review に「期間の両端が読めていれば `start`/`end` を残す」を追加／**FR-9 の優先順位を 手動 > special > event > 長期休暇 > 祝日 > default_rules に変更**し、needs_review の期間を `timetable_special` で塗り潰す手順 3a を追加（PR を見落としても誤った時刻を表示しないフェイルセーフ）／FR-9 の改ざん検査で「値が**変更**された」場合も `suppressed_overrides` に記録するよう変更（同じ衝突警告が毎実行 PR に出続けるのを防ぐ）／**§9 に `specials`** 追加／§7.2 に `specialTimetableId`・`specialMaxRangeDays` 追加 |
 | v1.5 変更点 | 2026-08-01 に Phase 0〜1 を実装し、実 API で通し検証した結果を反映：**§5/§7.2 モデル変更**（primary `gemini-3.6-flash` / fallback `gemini-3.5-flash`）／**§7.2 vacation 判定を季節接頭辞つき正規表現へ**（「夏季休業」に対応）／**§8.5.3 OCR プロンプトをレイアウト非依存に全面改稿**＋注記除外・label 規則追加／**§8.5.5 に 503 等の一時障害リトライ・RPD 枯渇の扱い・1実行あたり呼び出し上限**を追加（無料枠 RPD=20 の実測値）／**§3.5 JSON 整形をハウススタイル維持に**／**§9 に `suppressed_overrides`** 追加／FR-10 を「CSV の SHA-256 が変わったときだけ書き換え」に（冪等性）／FR-7 に「label が日付だけのときのフォールバック」追加／§7.1 に `time.ts`・`plan.ts`・`env.ts`・`tools/ocr-check.ts` 追加／§7.3 に `SKIP_OCR`・`.env.local`／§12 の fixtures 供給元と AC を実態へ更新／§4.3 の画像レイアウト記述を実測で訂正 |
 | v1.1 変更点 | §3.1 SW プレキャッシュ挙動の正確化／§3.3 旧スナップショット混在の明記／§7.1 lockfile コミット必須／§7.4 テンプレ実名の確定／FR-9 手動キー欠損の情報警告追加／§15-6 追加 |
@@ -10,9 +11,9 @@
 | v1.3 変更点 | ライブからイベント画像が削除された事実を反映：§12.1（page_snapshot は歴史的スナップショット・images/ 追加）・§12.3（実環境AC を「通常ダイヤのみ」に再構成、イベント経路はユニットテストへ、AC-7 追加） |
 | v1.4 変更点 | 2026-07-07 の実地検証を反映：§3.1 プレキャッシュ記述の訂正（データJSONは globIgnores で除外済・NetworkFirst 3秒）／§3.4 に closed 追加／§4 命名非依存原則・画像レイアウト2種・除外根拠訂正・robots.txt／FR-2〜FR-5・FR-7・FR-9 の規則追加（空白許容日付パース・未来 start の regular 保留・過去 event スキップ・「日付ちょうど1つ」規則・event name 生成元確定・警告2種）／§7 保護ファイルの実態反映（テンプレは _examples/ へ移動済み・timetable_closed.json 明記）／§9 state スキーマ統一／§12 AC 再構成（AC-7 は 2026-07-18 で実走可）／§15-6・C-8 削除／§16-17 役割分担更新（fixtures 配置は C-10 化、_reviewRSD 削除前に複製必須） |
 | 作成日 | 2026-06-13 |
-| 位置づけ | **実装の正本**。BACKEND_DESIGN.md（v2ドラフト）と矛盾する場合は本書が優先する |
+| 位置づけ | **実装の正本（SSoT）**。他の資料（`HANDOFF.md`、ルートの `CLAUDE.md` / `AGENTS.md`、`README.md`）と矛盾する場合は本書が優先する。※ v1.4 まで併記していた `BACKEND_DESIGN.md`（v2ドラフト）は本書へ統合済みで、リポジトリには存在しない |
 | 実装者 | Claude Code（本書を実装指示書として渡す） |
-| 実装状況 | **main 統合済み・ワークフローは Disable 中（2026-08-02）**。`bot/` 一式・`.github/workflows/timetable-sync.yml` が main にあり、ユニット/統合テスト 109 件が緑。実 API での通し実行（ローカル）で AC-1〜AC-3 相当を確認済み。**未了は Actions 実走系（AC-4/AC-7）と H-2/H-3 のみ。2026-08-23 前後に実施予定**（§17.3・手順は `HANDOFF.md`） |
+| 実装状況 | **main 統合済み・ワークフローは Disable 中（2026-08-02）**。`bot/` 一式・`.github/workflows/timetable-sync.yml` が main にあり、ユニット/統合テスト 153 件が緑（v1.7 の回帰テストを含む）。実 API での通し実行（ローカル）で AC-1〜AC-3 相当を確認済み。**未了は Actions 実走系（AC-4/AC-7）と H-2/H-3 のみ。2026-08-23 前後に実施予定**（§17.3・手順は `HANDOFF.md`） |
 | 主要な訂正（v2ドラフトから） | ① SDKは `@google/genai`（旧 `@google/generative-ai` は使用禁止） ② Gemini 3系は **temperature を指定しない**（公式推奨。temp 0 指定は誤り） ③ `thinking_level` / `media_resolution` を使用 ④ create-pull-request は **v8** ⑤ 出力先は `public/data/timetables/` |
 
 ---
@@ -361,9 +362,15 @@ export const CONFIG = {
 | `TZ` | – | ワークフローで `Asia/Tokyo` を設定（日付演算の事故防止。コード側でも dayjs.tz を明示） |
 
 ### 7.4 保護ファイル（FR-PROT）
-- **実体（2026-07-07 HEAD で確認済み）**: `public/data/timetables/` に存在するのは本番3ファイル（`timetable_weekday.json`・`timetable_holiday.json`・`timetable_closed.json`）のみ。テンプレート（`timetable_vacation_SEASON_weekday.json`・`timetable_vacation_SEASON_holiday.json`・`timetable_event_YYYYMMDD.json` 等）は **`public/data/_examples/` へ移動済み**で、Bot の入出力ディレクトリ（`CONFIG.dataDir`）の外にある。`timetable_event_temp.json` はリポジトリに存在しない。
+- **実体（2026-08-08 HEAD で確認済み）**: `public/data/timetables/` にあるのは次の 8 ファイル。
+  - 常設・Bot 書込対象: `timetable_weekday.json`・`timetable_holiday.json`
+  - Bot 生成: `timetable_vacation_summer_weekday.json`・`timetable_vacation_summer_holiday.json`・`timetable_event_20260823.json`
+  - 手動運用・Bot 書込対象外: `timetable_closed.json`（全便運休日）・`timetable_special.json`（特別ダイヤ）・`timetable_vacation_obon.json`（期間ダイヤ）
+  - テンプレート（`timetable_vacation_SEASON_weekday.json`・`timetable_vacation_SEASON_holiday.json`・`timetable_event_YYYYMMDD.json` 等）は **`public/data/_examples/` へ移動済み**で、Bot の入出力ディレクトリ（`CONFIG.dataDir`）の外にある。`timetable_event_temp.json` はリポジトリに存在しない。
+  - ※ v1.4 まで「本番3ファイルのみ」と記していたが、これは Bot 導入前・長期休暇取込前の状態である。
 - **防御はホワイトリスト方式を正とする**: `files.ts` は、書込を `^timetable_(weekday|holiday)\.json$`・`^timetable_vacation_(spring|summer|winter)_(weekday|holiday)\.json$`・`^timetable_event_\d{8}\.json$` に合致するファイル名のみに、削除を `^timetable_event_\d{8}\.json$` のみに許可し、それ以外への書込・削除要求は例外を投げる。`timetable_closed.json`・`_examples/` 配下・その他の未知ファイルは構造的に対象外となる。
-- `CONFIG.protectedFiles`（現在は `timetable_closed.json` のみ）は上記に加えた明示ガードであり、リストのファイルが存在しなくてもエラーにしない。Bot は `public/data/_examples/` に一切アクセスしない。
+- `CONFIG.protectedFiles`（**`timetable_closed.json` と `timetable_special.json` の 2 件**。§7.2 の定義が正）は上記に加えた明示ガードであり、リストのファイルが存在しなくてもエラーにしない。`timetable_special.json` は FR-9 の 3a で override から**参照する**だけで、ファイルは書かない。Bot は `public/data/_examples/` に一切アクセスしない。
+- なお `timetable_vacation_obon.json` のような手動運用の期間ダイヤは、ホワイトリストのどのパターンにも合致しないため構造的に書込・削除の対象外である（`protectedFiles` に列挙する必要はない）。
 
 ---
 
@@ -709,8 +716,12 @@ const json = JSON.parse(res.text);
   FR-9 の「人が削除した管理キーは再追加しない」は、記録を残さないと**1実行分しか効かない**。
   削除されたキーはその実行で M から外れるため、次回の実行では「未知の日付」として祝日 baseline 等が
   再生成され、人の削除が翌日には復活してしまう。ここに残すことで削除判断を恒久的に尊重する。
-  過去日になったエントリは自動的に捨てる。なお「値を別のダイヤに変更」した場合は手動キー（H）になるので
-  この仕組みを使わなくても恒久的に維持される。
+  過去日になったエントリは自動的に捨てる。
+  **【v1.6 で変更】「値を別のダイヤに変更」した場合もここに記録する。**
+  変更されたキーはその実行で手動キー（H）になるため値そのものは維持されるが、記録しないと Bot は毎実行
+  その日付を D に再計算しては「手動と衝突」を報告し続け、同じ警告が PR に出続けてレビューの妨げになる。
+  FR-9 の 1) がこの動作の正であり、v1.5 までの「変更時は記録不要」という記述は本項で撤回する
+  （実装は `calendar.ts` の改ざん検査が削除・変更の両方を `suppressed` に入れる）。
 - 初期値はリポジトリに `{ "version": 1 }` でコミット（＝初回実行で全件が「新規」扱いになり、現行ページの全時刻表を取り込む PR が出る）。
 - **初回導入の注意**: 既存 overrides（祝日・土曜授業日等の手動分）はすべて「手動」扱いとなり Bot は触れない。祝日 baseline が手動キーと同日になった場合は衝突スキップ（値が同じなら警告も不要）。
 
@@ -812,12 +823,14 @@ jobs:
 ### 12.1 フィクスチャ（`bot/fixtures/`）
 > **重要**: fixtures は意図的に「凍結したスナップショット」である。大学サイトのライブ状態（イベント画像はイベント終了後に削除される）とは独立。イベント処理の検証はライブではなくこの凍結データで行う。
 >
-> **【v1.5 更新】供給元と配置は完了済み。** v1.4 が供給元としていた `_reviewRSD/` は既に存在せず、原本は `bot/fixtures/_planning/` に移動していた。
-> C-10 はそこからの複製として 2026-08-01 に実施済み（原本は `_planning/` に残してある）。
+> **【v1.5 更新 / v1.7 で表記統一】供給元と配置は完了済み。** v1.4 が供給元としていた `_reviewRSD/` は**リポジトリに存在しない**。
+> 原本は `bot/fixtures/_planning/` にあり、C-10 はそこからの複製として 2026-08-01 に実施済み（原本は `_planning/` に残してある）。
+> 以降で `_reviewRSD/` に言及している箇所（§16.1 の (B)、§16.2 の C-10）は **v1.4 当時の歴史記述**であり、
+> 現在の供給元はいずれも `bot/fixtures/_planning/` と読み替えること。
 
 | ファイル | 内容 |
 |---|---|
-| `page_snapshot.html` | **イベントを含む歴史的スナップショット**（regular + 簿記2026-06-14 + オープンキャンパス2026-06-20 の3リンクを含む、本書 §4.2 の構造）。**あえてこの版を使う**（ライブ再取得ではイベントが消えており分類テストが不能になるため）。`_reviewRSD/page_snapshot.html` をそのまま複製する |
+| `page_snapshot.html` | **イベントを含む歴史的スナップショット**（regular + 簿記2026-06-14 + オープンキャンパス2026-06-20 の3リンクを含む、本書 §4.2 の構造）。**あえてこの版を使う**（ライブ再取得ではイベントが消えており分類テストが不能になるため）。原本 `bot/fixtures/_planning/page_snapshot.html` をそのまま複製したもの |
 | `images/` | 元の時刻表画像3枚（`R8…jpg` / `0614…jpg` / `0620…jpg`）。**provenance（監査・再検証用）として保存推奨**。ライブから消えても fixtures の出所が辿れる。テストは決定性のため JSON fixtures のみを使い、画像は provenance（監査・再検証用）として保存する（Claude Code は画像を閲覧**できる**ため、必要になれば fixtures と画像の照合検証も可能） |
 | `intermediate/regular.json`・`event_20260614.json`・`event_20260620.json` | 3 画像ぶんの中間構造（提供済み）。OCR 正解 |
 | `expected/timetable_weekday.json`・`timetable_holiday.json`・`timetable_event_20260614.json`・`timetable_event_20260620.json` | 正解 JSON（提供済み）。**weekday/holiday は現在もライブにある通常ダイヤ画像由来で、本番データと一致確認済み** → 実走AC（AC-2）の通常ダイヤ照合にも使える。event 2本は歴史的データ（ライブには無い） |
@@ -940,10 +953,15 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 
 ## 16. 実装・導入の役割分担
 
+> **【v1.7 注記】本節は 2026-07〜08 の導入時点の記録である。** C-1〜C-10 はすべて完了済みで、
+> 残っているのは §17.3 の 3 項目（H-2/H-3 と初回実走）だけ。本節に出てくる `_reviewRSD/` は
+> 当時の作業ディレクトリ名で、**リポジトリには存在しない**（原本は `bot/fixtures/_planning/`）。
+> 現在の運用手順を知りたい場合は本節ではなく `HANDOFF.md` を読むこと。
+
 ### 16.1 結論
 本書を Claude Code に渡せば**コードと設定はほぼ全量を自動実装できる**が、**完全自動では完了しない**。理由は次の2系統が Claude Code の外にあるため。
 - **(A) リポジトリ外の認証・権限・観測タスク**（API キー発行、GitHub Secrets、リポジトリ設定、PR レビュー/マージ、デプロイ観測、無料枠確認）。
-- **(B) 供給物の配置順序**。時刻表画像・正解 fixtures は現在リポジトリ内 `_reviewRSD/` に存在し、Claude Code は画像の閲覧も含めて扱える（v1.3 の「Claude Code は画像を読めない」は誤りだったため訂正）。fixtures 配置は Claude Code の機械的コピー作業（C-10）で完結するが、**`_reviewRSD/` の削除前に実施することが必須**という順序制約がある。
+- **(B) 供給物の配置順序**。時刻表画像・正解 fixtures は当時リポジトリ内 `_reviewRSD/`（現在は存在しない。原本は `bot/fixtures/_planning/`）に置かれており、Claude Code は画像の閲覧も含めて扱えた（v1.3 の「Claude Code は画像を読めない」は誤りだったため訂正）。fixtures 配置は Claude Code の機械的コピー作業（C-10）で完結するが、**供給元ディレクトリの削除前に実施することが必須**という順序制約があった。**この制約は C-10 完了（2026-08-01）により解消済み。**
 
 ### 16.2 Claude Code が行う（リポジトリ内で完結）
 | # | 作業 | 補足 |
@@ -957,7 +975,7 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 | C-7 | `mediaResolution` 等 SDK の正確な enum/型を**インストール済み `@google/genai` の型定義で確定**（§8.5.1 の留保解消） | |
 | C-8 | （v1.4 で解消済みのため作業なし）旧命名残存は確認の結果すでに存在しない | — |
 | C-9 | ローカル/CI でのドライラン実行と全テストのグリーン化（§13 Phase 0〜2 の各完了条件） | 実 OCR を伴う検証は H-1 の鍵が前提 |
-| C-10 | `_reviewRSD/` から `bot/fixtures/` への fixtures 複製（§12.1 の対応表どおり。**`_reviewRSD/` 削除前に必ず実施**） | 旧 H-4 を移管 |
+| C-10 | 供給元（当時 `_reviewRSD/`、現在の原本は `bot/fixtures/_planning/`）から `bot/fixtures/` への fixtures 複製（§12.1 の対応表どおり） | 旧 H-4 を移管。**2026-08-01 完了** |
 
 ### 16.3 人間（Nano）が行う（Claude Code 不可）
 | # | 作業 | 手段 | これがないと | 状況（2026-08-01） |
@@ -976,14 +994,14 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 #### 16.3.1 画像由来 fixtures（C-10 の中身・供給元）
 | ファイル（`bot/fixtures/` 配下） | 供給元 | 状態 |
 |---|---|---|
-| `expected/timetable_weekday.json` | `_reviewRSD/timetable_weekday.json`（画像との一致検証済み） | **`_reviewRSD/` に在中**（C-10 で複製） |
-| `expected/timetable_holiday.json` | `_reviewRSD/timetable_holiday.json` | **`_reviewRSD/` に在中**（C-10 で複製） |
-| `expected/timetable_event_20260614.json` | `_reviewRSD/timetable_event_20260614.json` | **`_reviewRSD/` に在中**（C-10 で複製） |
-| `expected/timetable_event_20260620.json` | `_reviewRSD/timetable_event_20260620.json` | **`_reviewRSD/` に在中**（C-10 で複製） |
-| `intermediate/regular.json` | `_reviewRSD/intermediate_regular.json` | **`_reviewRSD/` に在中**（C-10 で複製） |
-| `intermediate/event_20260614.json` | `_reviewRSD/intermediate_event_20260614.json` | **`_reviewRSD/` に在中**（C-10 で複製） |
-| `intermediate/event_20260620.json` | `_reviewRSD/intermediate_event_20260620.json` | **`_reviewRSD/` に在中**（C-10 で複製） |
-| `page_snapshot.html` | **`_reviewRSD/page_snapshot.html` を複製**（ライブ再取得は不可：イベント構成が変わると §12.2 テスト1の前提が崩れるため、この凍結スナップショットを使う） | **`_reviewRSD/` に在中**（C-10 で複製） |
+| `expected/timetable_weekday.json` | `bot/fixtures/_planning/timetable_weekday.json`（画像との一致検証済み） | 複製済み（2026-08-01・C-10）。原本は `_planning/` に残置 |
+| `expected/timetable_holiday.json` | `bot/fixtures/_planning/timetable_holiday.json` | 複製済み（2026-08-01・C-10）。原本は `_planning/` に残置 |
+| `expected/timetable_event_20260614.json` | `bot/fixtures/_planning/timetable_event_20260614.json` | 複製済み（2026-08-01・C-10）。原本は `_planning/` に残置 |
+| `expected/timetable_event_20260620.json` | `bot/fixtures/_planning/timetable_event_20260620.json` | 複製済み（2026-08-01・C-10）。原本は `_planning/` に残置 |
+| `intermediate/regular.json` | `bot/fixtures/_planning/intermediate_regular.json` | 複製済み（2026-08-01・C-10）。原本は `_planning/` に残置 |
+| `intermediate/event_20260614.json` | `bot/fixtures/_planning/intermediate_event_20260614.json` | 複製済み（2026-08-01・C-10）。原本は `_planning/` に残置 |
+| `intermediate/event_20260620.json` | `bot/fixtures/_planning/intermediate_event_20260620.json` | 複製済み（2026-08-01・C-10）。原本は `_planning/` に残置 |
+| `page_snapshot.html` | **原本 `bot/fixtures/_planning/page_snapshot.html` を複製**（ライブ再取得は不可：イベント構成が変わると §12.2 テスト1の前提が崩れるため、この凍結スナップショットを使う） | 複製済み（2026-08-01・C-10）。原本は `_planning/` に残置 |
 
 ### 16.4 役割の境界（誤解防止）
 - Claude Code は **OCR の精度を保証しない**。fixtures による検証は assemble/validate/calendar の**ロジック**を保証するもので、実画像に対する読み取り精度は実行時の 2 回照合＋PR レビュー（H-5）で担保する。
