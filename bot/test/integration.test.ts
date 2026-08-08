@@ -208,6 +208,7 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
       warnings: planned.warnings,
       ocrStats: { matched: 3, total: 3, majority: 0 },
       validationFailures: planned.validationFailures,
+      links: [],
     })
     expect(body).toContain('## 概要')
     expect(body).toContain('モデル: gemini-3.6-flash')
@@ -218,6 +219,37 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
     expect(body).toContain('- 2回読み照合: 一致 3/3')
     expect(body).toContain('- スキーマ検証: すべて合格')
     expect(body).toContain('## レビュー観点')
+    // 年推定が無ければ専用の節は出さない
+    expect(body).not.toContain('## 年を推定した日付')
+  })
+
+  it('年を推定した日付を PR 本文へ出す（FR-3 / F-010）', () => {
+    const guessed: ClassifiedLink = {
+      url: 'https://www.fukuyama-u.ac.jp/oc.jpg',
+      rawHref: 'https://www.fukuyama-u.ac.jp/oc.jpg',
+      anchorText: '時刻表はコチラ',
+      lineText: '9月1日 オープンキャンパス 時刻表はコチラ',
+      normalizedLine: '9月1日 オープンキャンパス 時刻表はコチラ',
+      kind: 'event',
+      dates: ['2026-09-01'],
+      label: 'オープンキャンパス',
+      yearGuessed: true,
+    }
+    const body = buildPrBody({
+      runAt: RUN_AT,
+      modelUsed: 'gemini-3.6-flash',
+      fallbackUsed: false,
+      files: [],
+      overrideChanges: [],
+      deletions: [],
+      warnings: [],
+      ocrStats: { matched: 0, total: 0, majority: 0 },
+      validationFailures: [],
+      links: [guessed],
+    })
+    expect(body).toContain('## 年を推定した日付')
+    expect(body).toContain('| 2026-09-01 | 9月1日 オープンキャンパス 時刻表はコチラ |')
+    expect(body).toContain('- [ ] 年を推定した日付が掲載の意図どおりか')
   })
 })
 
