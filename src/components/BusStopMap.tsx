@@ -106,8 +106,10 @@ export function BusStopMap({ coords, stopName, route }: Props) {
           zoomControl={true}
           attributionControl={true}
         >
+          {/* OSMF のタイル利用ポリシーが指定する単一ホスト。a/b/c サブドメインは非推奨のため使わない
+              （vite.config.ts の osm-tiles ランタイムキャッシュの urlPattern と対で維持する） */}
           <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
           <Marker position={[coords.lat, coords.lng]} icon={busStopIcon}>

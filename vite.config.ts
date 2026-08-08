@@ -35,6 +35,9 @@ export default defineConfig({
             urlPattern: /\/data\/.*\.json(\?.*)?$/,
             handler: 'NetworkFirst',
             options: {
+              // ⚠️ このキャッシュ名は src/hooks/useTimetable.ts の DATA_CACHE と結合している。
+              //    更新ボタン（?t= 付き）で取得した内容を素のURLのエントリへ書き戻すために
+              //    アプリ側から caches.open() している。変更するときは両方を直すこと。
               cacheName: 'timetable-data',
               networkTimeoutSeconds: 3,
               expiration: {
@@ -45,7 +48,9 @@ export default defineConfig({
           },
           {
             // OSMタイル: Cache First（オフライン時もキャッシュ済みタイルを表示するため）
-            urlPattern: /^https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/,
+            // ホストは OSMF のタイル利用ポリシーが指定する tile.openstreetmap.org に統一済み。
+            // 旧 a/b/c サブドメインのエントリが端末に残っていても引き続き拾えるよう任意扱いにする。
+            urlPattern: /^https:\/\/([abc]\.)?tile\.openstreetmap\.org\/.*/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'osm-tiles',
