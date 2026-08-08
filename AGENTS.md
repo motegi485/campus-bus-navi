@@ -12,7 +12,7 @@ npm run preview        # プロダクションビルドをローカルでプレ�
 npx tsc --noEmit       # ビルドせずに型チェックのみ実行
 ```
 
-テスト・リントスクリプトは存在しない。TypeScript は `strict: true` に加え `noUnusedLocals` / `noUnusedParameters` も有効で、`tsc --noEmit` が `build` の一部として実行される。静的データ（時刻表・カレンダー・お知らせ）の ID 参照切れや時刻フォーマット崩れは `validate:data`（`scripts/validate-data.mjs`）が `build` の最初のステップとして検出する。動作要件は Node.js 18 以上（`.nvmrc` 等によるバージョン固定はしていない）。
+テスト・リントスクリプトは存在しない。TypeScript は `strict: true` に加え `noUnusedLocals` / `noUnusedParameters` も有効で、`tsc --noEmit` が `build` の一部として実行される。静的データ（時刻表・カレンダー・お知らせ）の検証は `validate:data`（`scripts/validate-data.mjs`）が `build` の最初のステップとして行う。検出するのは ID 参照切れ・時刻フォーマット崩れ・順序崩れに加え、**ランタイムが前提にしている不変条件**（`overrides` の存在、override キーが実在日であること、`closed`/`special` は schedule が空・それ以外は両方向 1 件以上、metadata と `news.json` 各フィールドの型）である。動作要件は Node.js 20 以上（Node 18 は EOL のため非推奨。CI の Bot ジョブは Node 22 を使う。`.nvmrc` 等によるバージョン固定はしていない）。
 
 ## アーキテクチャ
 
@@ -37,7 +37,7 @@ npx tsc --noEmit       # ビルドせずに型チェックのみ実行
 - `timetables/` — 路線ごとの発車時刻。本番運用する時刻表のみを置く。常設は `timetable_weekday.json`（授業日）・`timetable_holiday.json`（休業日）で、これに Bot が生成する `timetable_vacation_{季節}_{weekday,holiday}` / `timetable_event_{YYYYMMDD}` と、手動運用の期間ダイヤ（例 `timetable_vacation_obon.json`）が加わる。`timetable_closed.json`〔全便運休日〕と `timetable_special.json`〔特別ダイヤ〕は **`schedule` が空配列の待機ファイル**で、必要な日に `overrides` から参照させる（`calendar_rules.json` から参照されていない期間があってよい）
 - `_examples/` — 長期休暇・イベント日ダイヤのテンプレートと構造サンプル。`calendar_rules.json` からは参照されず、`validate:data` の検証対象にも含まれない（`public/` 配下のため `dist/data/_examples/` へは他の静的ファイルと同様にコピーされるが、アプリからは読み込まれないダミーデータである点に注意）。新しいダイヤを作るときはここからコピーして値を実データに置き換え、`timetables/` に配置する
 
-ダイヤ改正時は該当 JSON ファイルを編集する。時刻表 JSON の `id` はファイル名（拡張子なし）と一致させること（`validate:data` が検証する）。リポジトリルートの `_headers` が Cloudflare に `/data/*.json` をキャッシュ無効化ヘッダー（`Cache-Control: no-cache, no-store, must-revalidate` ほか）で配信するよう指示しており、更新は即座に反映される。
+ダイヤ改正時は該当 JSON ファイルを編集する。時刻表 JSON の `id` はファイル名（拡張子なし）と一致させること（`validate:data` が検証する）。`public/_headers` が Cloudflare に `/data/*.json` をキャッシュ無効化ヘッダー（`Cache-Control: no-cache, no-store, must-revalidate` ほか）で配信するよう指示しており、更新は即座に反映される。
 
 ### バックエンド Bot（main 統合済み・実行は停止中）
 
@@ -53,18 +53,26 @@ npx tsx src/index.ts
 npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/intermediate/regular.json
 ```
 
-- **要件定義の正本（SSoT）は `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`（v1.6）**。他の資料と食い違う場合はこちらが優先（同ディレクトリの `HANDOFF.md` の版数表記は古く、正本冒頭の変更履歴表が正）。仕様の詳細は AGENTS.md に転記せず、必要なときにこのファイルを読む。
+- **要件定義の正本（SSoT）は `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`（v1.7）**。他の資料と食い違う場合はこちらが優先し、版数は正本冒頭の変更履歴表で確認する。「今どうなっていて次に何をするか」は同ディレクトリの `HANDOFF.md`、導入時点の役割分担（§16）と導入シーケンス（§17.1・§17.2）は**歴史記録**で、残タスクは §17.3 にある。仕様の詳細は AGENTS.md に転記せず、必要なときにこのファイルを読む。
 - 大原則: main へ直接 push しない（PR + 人間レビュー必須）。Bot はフロントエンド（`src/` 等）には一切触れない。書込は `files.ts` のホワイトリスト（`timetable_weekday/holiday`・`timetable_vacation_{season}_{weekday,holiday}`・`timetable_event_{YYYYMMDD}`）に限定され、削除は event ファイルのみ。`timetable_closed.json`・`timetable_special.json` と `_examples/` には触れない（`timetable_special` は override から**参照する**だけ）。
 - **読めない掲示は特別ダイヤで塗り潰す（フェイルセーフ）:** `needs_review` と判定したリンクのうち**期間の両端が読めているもの**は、その期間に `timetable_special` の override を自動で張る（`plan.ts` の `applySpecials` → `calendar.ts`）。PR を見落としても誤った時刻を表示しないための保険で、override の優先順位は **手動 > special > event > vacation > 祝日 > default_rules**。日付が読めない `needs_review` は従来どおり警告のみ。期間が `CONFIG.specialMaxRangeDays`（92日）を超えるものは日付の誤読を疑って適用しない。
 - **手動 override は不可侵:** Bot が張った override を人が書き換える／削除すると、その日付は `suppressed_overrides` に記録され以後 Bot は触らない。お盆のように「読める日は個別ダイヤ、読めない日は特別ダイヤ」と人が精緻化した結果は上書きされない。
+- **日付は実在検証を通す:** `dayjs.tz(d,'YYYY-MM-DD',TZ)` は strict parse ではなく、`2026-02-30` を `2026-03-02` へ黙って正規化する。`time.ts` の `isRealDate()`（format の往復一致）を `classifyLink` で通し、非実在日・逆転期間（start > end）の掲示は**期間を残さず** `needs_review` にする（誤読の疑いが強いので特別ダイヤの塗り潰しもしない）。`applySpecials` と `calendar.ts` にも state 経由の古い値に備えた同じガードがある。
+- **消えた／延期されたイベントは連続確認で撤去する:** 掲載ページから消えた未来イベントを放置すると、中止・延期された日に存在しない便を表示し続ける。`plan.ts` の `reconcileEvents()` が `state.events[key].missing_count` を数え、`CONFIG.eventMissingRunsBeforeRemoval`（3 回 ＝ 日次実行で 3 日連続）に達したら state・override・`timetable_event_*.json` を撤去する。**ページから時刻表リンクを 1 件も抽出できなかった実行は数えない**（`extractionHealthy`）。撤去は PR に載るので人のレビューを必ず通る。延期（同一 URL・日付だけ変更）は「旧キーが消える → 新しい日付が新規イベントとして入る」で処理される。
+- **同一 URL でもイベント日の増減はファイルへ反映する:** 画像が同じで掲載テキストの日付だけ変わると `meta_only` になるが、追加された日の `timetable_event_YYYYMMDD` が無いと `calendar.ts` の存在ゲートでその日の override が黙って落ちる。`plan.ts` の `syncEventFiles()` が既存 derived を複製して埋め、外れた日のファイルは撤去候補にする（イベント表は元々「1 画像 → 各日付に同内容」なので複製は設計どおり）。
+- **警告だけで差分ゼロの実行は失敗させる:** その組み合わせでは PR が作られず、警告は gitignore 下の `bot/.out` と Step Summary にしか残らない。`index.ts` は書き込み前に差分の有無を判定し、`level: 'warn'` か検証失敗があって差分が無いときは `process.exitCode = 1` にする。ワークフローは `bot/.out/**` を `if: always()` で成果物として上げる。
+- **1 実行の締切:** `CONFIG.runDeadlineMs`（15 分）。ワークフローの `timeout-minutes: 20` から後処理ぶんを引いた値で、`OcrClient` はこれを越えるリトライをせず `needs_review` へ収束させる。ジョブが強制終了されると PR 本文も Step Summary も残らないため。両者は対で維持すること。
+- **取得先は allowlist に限定する:** `url.ts` の `checkUrl()` が https のみ・資格情報付き URL 不可・IP リテラル不可・許可ホストのみを強制し、`fetchPage.ts` はリダイレクトを自前で追って**各ホップで**再検証する。応答サイズは Content-Length の事前判定とストリーム上限で頭打ちにし、画像はマジックバイトで実体も確かめる。**大学が画像の配信先を別ホスト（CDN 等）へ変えたら `CONFIG.allowedImageHostSuffixes` に追加する**（忘れると `image_fetch_failed` で止まる ＝ 安全側）。
 - **JSON 整形は既存ハウススタイルを維持する**（`bus_stop_coords` と schedule 各要素は1行）。素の `JSON.stringify(_, null, 2)` にすると Bot が触った全ファイルが全行差分になり、本システムの中核である PR レビューが機能しなくなる。`bot/test/files.test.ts` が既存ファイルとの byte 一致を固定しているので、ここを壊す変更はテストが落ちる。
 - **`GEMINI_API_KEY` はローカルでは `bot/.env.local`（git 管理外）**、CI では GitHub Secrets。ファイルの中身を読み上げ・出力しない。
 - 無料枠は RPD（1日あたり）が小さい（実測 `gemini-3.5-flash` で 20）。リトライも枠を消費するため 1 実行あたりの呼び出し上限（`geminiMaxCallsPerRun`）がある。枠を使わずに計画だけ見たいときは `SKIP_OCR=1`。
-- **ワークフローは 2026-08-02 から手動 Disable 中。** コードは main にあるので `schedule` の前提（デフォルトブランチにワークフローが在ること）は満たしているが、実行は止めてある。稼働させるには ①Secrets に `GEMINI_API_KEY` 登録 ②Workflow permissions で「Allow GitHub Actions to create and approve pull requests」を有効化 ③ワークフローを Enable — の3つが必要。**現状と手順の詳細は `bot/fixtures/_planning/HANDOFF.md`**（次の作業は 2026-08-23 前後を予定）。それまでの検証はローカル実行（`DRY_RUN=1` / `SKIP_OCR=1`）で行う。
+- **ワークフローは 2026-08-02 から手動 Disable 中。** コードは main にあるので `schedule` の前提（デフォルトブランチにワークフローが在ること）は満たしているが、実行は止めてある。稼働させるには ①Secrets に `GEMINI_API_KEY` 登録 ②Workflow permissions で「Allow GitHub Actions to create and approve pull requests」を有効化 ③ワークフローを Enable — の3つが必要。ワークフロー内の action は **full commit SHA で固定**してある（可変タグは移動・侵害され得る）。更新するときは SHA を引き直し、末尾のバージョンコメントも合わせること。`checkout` は `persist-credentials: false` で write token を後続ステップへ残さない。**現状と手順の詳細は `bot/fixtures/_planning/HANDOFF.md`**（次の作業は 2026-08-23 前後を予定）。それまでの検証はローカル実行（`DRY_RUN=1` / `SKIP_OCR=1`）で行う。
 
 ### 重要な設計判断
 
 **時刻処理:** 全時刻は JST（`Asia/Tokyo`）。バス発車時刻の照合は分単位の文字列比較（`HH:mm > now`）。`useJSTClock` の境界同期パターンはクロックドリフト防止とサブ分単位のちらつき抑制のために意図的に採用している。
+
+**日付跨ぎのガード（重要）:** `useTimetable` は取得したデータに**対象日（`dateKey`）と翌日 prefetch の対象日（`tomorrowDateKey`）を必ず添えて**保持し、リクエスト世代（`seqRef`）で古い応答を破棄する。日付が変わったときは、①保持中の翌日 prefetch が新しい今日と一致すればそれを当日データへ昇格させる、②一致しなければ `stale: true` を返す。`App.tsx` は `stale` の間 **時刻を一切描画しない**（`showTimes`）で「日付が変わりました」のカードだけを出す。これがないと、オフラインでの日付跨ぎや取得失敗時に「見出しは今日・時刻は前日」という最悪の誤表示になる。正典の「推測するより出さない」と同じ判断。
 
 **PWA アップデート:** `registerType: 'prompt'` — 操作中の強制更新は行わない。ただし**コールドスタート時（起動から `COLD_START_GRACE_MS = 5000` 以内）に新 SW を検知した場合のみ自動適用**（`updateServiceWorker(true)`）し、それ以降のセッション中の検知は `UpdateBanner` でユーザーに通知する（`App.tsx`。「あとで」でバナーを閉じてもセッション中は再表示しない）。`useRegisterSW` の `needRefresh` が発火しない iOS PWA（standalone）向けに、`navigator.serviceWorker` で `waiting` 状態の SW を直接検出して `SKIP_WAITING` を送るフォールバックを `App.tsx` と `main.tsx`（React マウント前）に用意している。`main.tsx` 側のこのフローは sessionStorage（`swWaitingReloadAttempted`）によるワンショットガード付きで、待機 SW が activate できない端末でも「起動 → 2秒待ち → リロード」を無限に繰り返さない（1 セッション 1 回まで）。スタック状態の解消には完全リセット（SW 登録解除 + localStorage クリア + Cache Storage 削除 + リロード）が用意されている。
 
@@ -79,7 +87,13 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 
 **SW キャッシュ URL パターンの注意点:** データ JSON の `urlPattern` は `/\/data\/.*\.json(\?.*)?$/`。`useTimetable` の手動更新ボタンのみ `?t=timestamp` のキャッシュバスター付き URL でフェッチするため末尾の `(\?.*)?` が必要（`useNews` は素の URL のみでキャッシュバスターは付けない）。`/\.json$/` に変えるとキャッシュバスター付き URL がマッチせず NetworkFirst が適用されない。
 
-**地図:** Leaflet は動的インポート（lazy）でSSR 問題を回避。iOS/Android 判定は `src/utils/platform.ts` の `isIOS()` / `isAndroid()` に共通化（`buildMapUrl.ts`・`MobilePwaGuide.tsx`・`useNativeBounce.ts` が共通で参照する）。`isIOS()` は UA の `iPad|iPhone|iPod` に加え、iPadOS 13+ がデスクトップ UA（`Macintosh`）を送る問題を `navigator.maxTouchPoints > 1` の補完で吸収する。iOS は Apple Maps のユニバーサルリンク（`https://maps.apple.com/?daddr=...`。非対応環境では Web にフォールバック）、それ以外は Google Maps リンクでナビを開く。
+**手動更新と正規 URL のキャッシュ同期（重要）:** Cache API のマッチングは既定でクエリ文字列を無視しないため、`?t=` 付きで取得したレスポンスは SW のキャッシュでは**素の URL とは別キー**になる。そのままだと「更新ボタンを押した直後にオフラインで起動すると旧ダイヤに戻る」（通常起動は素の URL を要求し、NetworkFirst が前回の素の URL のエントリへフォールバックするため）。対策として `useTimetable` の `fetchJSON` が、キャッシュバスター付き取得の成功時に同じレスポンスを `caches.open('timetable-data')` 経由で**素の URL のキーにも書き込む**（`putCanonical`）。キャッシュ名 `timetable-data` は `vite.config.ts` の `runtimeCaching.options.cacheName` と結合しているので、変更するときは両方を直すこと。
+
+**OSM タイルのホスト:** `BusStopMap` のタイル URL は OSMF のタイル利用ポリシーが指定する `https://tile.openstreetmap.org/{z}/{x}/{y}.png`（単一ホスト）。`{s}` の a/b/c サブドメインは非推奨なので使わない。`vite.config.ts` の `osm-tiles` の `urlPattern` は端末に残った旧サブドメインのエントリも拾えるよう `([abc]\.)?` を任意扱いにしてある。
+
+**地図:** Leaflet は動的インポート（lazy）でSSR 問題を回避。iOS/Android 判定は `src/utils/platform.ts` の `isIOS()` / `isAndroid()` に共通化（`buildMapUrl.ts`・`MobilePwaGuide.tsx`・`useNativeBounce.ts` が共通で参照する）。`isIOS()` は UA の `iPad|iPhone|iPod` に加え、iPadOS 13+ がデスクトップ UA（`Macintosh`）を送る問題を `navigator.maxTouchPoints > 1` の補完で吸収する。iOS は Apple Maps のユニバーサルリンク（`https://maps.apple.com/?daddr=...`。非対応環境では Web にフォールバック）、それ以外は Google Maps リンクでナビを開く。**オフライン時も地図はマウントする**（タイルは `osm-tiles` の CacheFirst から出る。README・ヘルプの「一度読み込んだ地図タイルはオフラインでも閲覧可能」という説明と実装を一致させるため）。未取得の範囲は空白になるので、オフライン時のみ地図の下に注記を出す。
+
+**オーバーレイのフォーカス制御:** ドロワー・お知らせ・設定・ヘルプの 4 画面は開閉アニメーションのため閉時も transform で画面外に置いたまま DOM に残る。`useOverlayA11y` が **`inert` を DOM プロパティ経由で**付け外しし（React 18 は `inert={false}` を `inert="false"` として出してしまうため JSX 属性は使わない）、閉時・被覆時は Tab 順とアクセシビリティツリーから外す。開いた瞬間に内部の最初の操作要素へフォーカスし、閉じたら呼び出し元へ戻す。`App.tsx` は背面（ヘッダー・本文・バナー）を 1 枚の `<div>` で包み、いずれかのオーバーレイが開いている間 `setInert` する。この方式なら JS のフォーカストラップを書かずに WAI-ARIA の modal dialog パターンを満たせる。お知らせの詳細パネルと設定のサブ画面も、開いている間は背後のナビバー・リストを inert にする。
 
 **オーバースクロール（バウンス）表現:** JS による弾性エミュレーション（touchmove 乗っ取り + rAF）はコンポジタ駆動のネイティブ慣性に体感レベルで追従できないことが実機検証で確定しており、再挑戦しない。両 OS とも OS ネイティブ表現を解放する方式が最終形 — `useNativeBounce.ts` が iOS には `bounce-native`（ラバーバンドバウンス + ヘッダークッションのグラデ stop 位置算出）、Android 等のタッチ主体端末には `bounce-stretch`（`overscroll-behavior-y: contain` + ネイティブストレッチ）を適用し、PC はバウンス無し。改修は `overscroll-behavior` とクッションの枠内で行う。詳細は同フック冒頭のコメントを参照。
 
@@ -109,6 +123,7 @@ src/hooks/
   useNews.ts             ← news.json 取得・既読状態管理
   useOnlineStatus.ts     ← オンライン/オフライン検知
   useNativeBounce.ts     ← バウンス/ストレッチ表現のネイティブ委譲（iOS はクッションの stop 位置も算出）
+  useOverlayA11y.ts      ← オーバーレイの inert / 初期フォーカス / フォーカス復帰 / Esc（setInert も export）
 src/utils/
   findNextBus.ts         ← findNextBus / findUpcomingBuses / findFirstBus（翌日始発）/ countRemainingBuses（本日の残り本数）を export
   resolveCalendar.ts     ← 日付 → 時刻表 ID のマッピング
@@ -136,4 +151,4 @@ Tailwind v4 + CSS カスタムプロパティ — `index.css` 内で `:root`（�
 
 ### ビルド出力
 
-`npm run build` は `/dist` に出力する。リポジトリルートの `_headers` と `_redirects` は Cloudflare Pages の設定ファイルで、`_redirects` には SPA ルーティング用の `/* /index.html 200` が含まれる。`index.html` には Cloudflare Web Analytics のビーコンスクリプトが埋め込まれている（このデプロイ固有のもので、フォーク・複製時は削除または差し替えが必要。詳細は README.md）。
+`npm run build` は `/dist` に出力する。Cloudflare Pages の設定ファイル `_headers` / `_redirects` は **`public/` に置く**（Vite がそのまま `dist/` へコピーする）。Pages はこれらを**ビルド出力ディレクトリから読む**ので、リポジトリルートに置くと出力ディレクトリが `dist` の本プロジェクトでは一切適用されない（`/data/*.json` の no-store も効かなくなる）。移動させないこと。`_redirects` には SPA ルーティング用の `/* /index.html 200` が含まれる。`index.html` には Cloudflare Web Analytics のビーコンスクリプトが埋め込まれている（このデプロイ固有のもので、フォーク・複製時は削除または差し替えが必要。詳細は README.md）。

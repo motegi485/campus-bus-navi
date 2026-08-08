@@ -163,7 +163,7 @@ npx tsx src/index.ts
 | 地図 | Leaflet 1.9 + react-leaflet 4（OpenStreetMap タイル） |
 | 日時 | Day.js（`utc`/`timezone` プラグイン、`Asia/Tokyo` 固定） |
 | PWA | vite-plugin-pwa（Workbox）、`registerType: 'prompt'` |
-| ホスティング | Cloudflare Pages（`_headers` / `_redirects` 同梱） |
+| ホスティング | Cloudflare Pages（`public/_headers` / `public/_redirects` をビルド出力へ同梱） |
 
 ### セットアップ
 
@@ -212,10 +212,11 @@ src/
 |------|-----|
 | ビルドコマンド | `npm run build` |
 | 出力ディレクトリ | `dist` |
-| Node.js | 18 以上 |
+| Node.js | 20 以上（18 は EOL のため非推奨。推奨は現行 LTS の 22） |
 
-- `_headers`: ルートは再検証必須、`/assets/*` は 1 年 immutable、`/data/*.json` は no-cache/no-store（ダイヤ更新の即時反映用）。
-- `_redirects`: SPA のため `/* → /index.html 200`。
+- `public/_headers`: ルートは再検証必須、`/assets/*` は 1 年 immutable、`/data/*.json` は no-cache/no-store（ダイヤ更新の即時反映用）。
+- `public/_redirects`: SPA のため `/* → /index.html 200`。
+- **この 2 ファイルは `public/` に置くこと。** Cloudflare Pages はビルド出力ディレクトリ（ここでは `dist`）から読むため、リポジトリルートに置くと一切適用されません。Vite が `public/` の中身をそのまま `dist/` へコピーします。
 - `index.html` に Cloudflare Web Analytics のビーコンを含みます（フォーク時は削除・差し替えてください）。
 
 ---
