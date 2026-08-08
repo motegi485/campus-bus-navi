@@ -12,7 +12,9 @@ export function resolveCalendar(
   const dateStr = jstDate.format('YYYY-MM-DD')
 
   // 1. 特定日付の上書きルールを最優先
-  if (rules.overrides[dateStr]) {
+  // overrides は validate:data で必須にしているが、万一欠落したデータが配信されても
+  // TypeError で白画面にせず曜日ルールへ落ちるようにする
+  if (rules.overrides?.[dateStr]) {
     return rules.overrides[dateStr]
   }
 
