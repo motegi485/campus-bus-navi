@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { setInert, useOverlayA11y } from '../hooks/useOverlayA11y'
+import { usePressable } from '../hooks/usePressable'
 import type { AppSettings, DefaultRoute, Theme, FontSize } from '../types/timetable'
 import {
   IconRouteSwap,
@@ -71,12 +72,23 @@ function IconTile({ icon: Icon, tone }: { icon: AppIcon; tone: IconTone }) {
 }
 
 function SettingRow({ icon, tone, title, sub, value, onClick }: { icon: AppIcon; tone: IconTone; title: string; sub: string; value: string; onClick: () => void }) {
+  const { pressed, pressHandlers } = usePressable()
   return (
     <button
       type="button"
       onClick={onClick}
+      {...pressHandlers}
       aria-label={`${title}（現在: ${value}）`}
-      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '.5px solid var(--border)', cursor: 'pointer', transition: 'background 0.12s', font: 'inherit', color: 'inherit' }}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
+        width: '100%', textAlign: 'left',
+        // 押した瞬間は即時に色が付き、離すと 0.3s で戻す
+        background: pressed ? 'var(--row-active)' : 'transparent',
+        border: 'none', borderBottom: '.5px solid var(--border)',
+        cursor: 'pointer',
+        transition: pressed ? 'none' : 'background 0.3s',
+        font: 'inherit', color: 'inherit',
+      }}
     >
       <IconTile icon={icon} tone={tone} />
       <div style={{ flex: 1, minWidth: 0 }}>

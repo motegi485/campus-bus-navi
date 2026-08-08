@@ -8,6 +8,8 @@ import { useSettings } from './hooks/useSettings'
 import { useNews } from './hooks/useNews'
 import { useNativeBounce } from './hooks/useNativeBounce'
 import { setInert } from './hooks/useOverlayA11y'
+import { usePressable } from './hooks/usePressable'
+import { tapFeedback } from './utils/haptics'
 import { findNextBus, findUpcomingBuses, findFirstBus, countRemainingBuses } from './utils/findNextBus'
 import { RouteToggle } from './components/RouteToggle'
 import { NextBusCard } from './components/NextBusCard'
@@ -52,6 +54,11 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+
+  // ヘッダーのアイコンボタンの押下フィードバック
+  // （index.css の -webkit-tap-highlight-color: transparent の代替）
+  const menuPress = usePressable()
+  const refreshPress = usePressable(refreshing)
 
   // いずれかのオーバーレイが開いている間、背後（ヘッダー・本文・バナー）を
   // Tab 順とアクセシビリティツリーから外す。WAI-ARIA の modal dialog パターン。
@@ -319,9 +326,16 @@ export default function App() {
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <button
                 onClick={() => setDrawerOpen(true)}
+                {...menuPress.pressHandlers}
                 aria-label={hasUnread ? 'メニューを開く（未読のお知らせがあります）' : 'メニューを開く'}
-                className="flex flex-col gap-[4.5px] items-center justify-center bg-white/[0.26] dark:bg-black/25"
-                style={{ width: 43, height: 43, borderRadius: '50%' }}
+                className="flex flex-col gap-[4.5px] items-center justify-center frost-icon-btn"
+                style={{
+                  width: 43, height: 43, borderRadius: '50%',
+                  border: '1px solid rgba(255,255,255,.38)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.45), 0 2px 6px rgba(0,0,0,.14)',
+                  transform: menuPress.pressed ? 'scale(.92)' : 'scale(1)',
+                  transition: 'transform .12s ease-out',
+                }}
               >
                 <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
                 <div style={{ width: 16, height: 1.8, background: '#fff', borderRadius: 2 }} />
@@ -367,19 +381,31 @@ export default function App() {
             </div>
 
             {/* 更新ボタン */}
+            {/* 回転は <svg> 側に持たせる。button 自身は押下の scale を使うため、
+                同じ要素に 2 つの transform を書くと片方が消える */}
             <button
-              onClick={handleRefresh}
+              onClick={() => { if (!refreshing) tapFeedback(10); handleRefresh() }}
+              {...refreshPress.pressHandlers}
               disabled={refreshing}
               aria-label="時刻データを更新"
-              className="bg-white/[0.26] dark:bg-black/25"
+              className="frost-icon-btn"
               style={{
                 width: 43, height: 43, borderRadius: '50%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                transition: 'transform 0.7s linear',
-                transform: refreshing ? 'rotate(720deg)' : 'rotate(0deg)',
+                border: '1px solid rgba(255,255,255,.38)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.45), 0 2px 6px rgba(0,0,0,.14)',
+                transform: refreshPress.pressed ? 'scale(.92)' : 'scale(1)',
+                transition: 'transform .12s ease-out',
               }}
             >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white"
+                strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+                style={{
+                  transition: 'transform 0.7s linear',
+                  transform: refreshing ? 'rotate(720deg)' : 'rotate(0deg)',
+                }}
+              >
                 <polyline points="23 4 23 10 17 10"/>
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
               </svg>
