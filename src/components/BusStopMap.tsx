@@ -93,7 +93,7 @@ export function BusStopMap({ coords, stopName, route }: Props) {
   const btnColor = isCampus ? '#10b981' : '#6c63d5'
 
   return (
-    <div className="bg-[var(--bg-card)] rounded-[20px] overflow-hidden transition-[background] duration-300">
+    <div className="section-card rounded-[20px] overflow-hidden">
       {/* isolation: isolate でLeaflet内部のz-indexをこのコンテナ内に閉じ込める
           これによりドロワー（z-index:30）がLeafletタイル（z-index:400+）の下に潜るバグを防ぐ */}
       <div style={{ position: 'relative', zIndex: 0, isolation: 'isolate' }}>

@@ -9,8 +9,12 @@ interface Props {
 export function EndOfServiceCard({ tomorrowFirstBus, tomorrowTimetableName, message = '本日の運行は終了しました' }: Props) {
   return (
     <div
-      className="rounded-[22px] px-6 py-[22px] text-white"
-      style={{ background: 'linear-gradient(135deg, #374151, #4b5563)' }}
+      className="hero-card rounded-[22px] px-6 py-[22px] text-white"
+      style={{
+        background: 'linear-gradient(135deg, #374151, #4b5563)',
+        // 影の色（.hero-card が var() で読む）。グラデ始点 #374151 の RGB
+        ['--hero-tint' as string]: '55, 65, 81',
+      }}
     >
       <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
         次のバス

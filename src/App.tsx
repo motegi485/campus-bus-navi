@@ -435,7 +435,15 @@ export default function App() {
 
               {/* エラー */}
               {error && !loading && (
-                <div className="rounded-[20px] p-5 text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                <div
+                  className="rounded-[20px] p-5 text-center"
+                  style={{
+                    background: 'rgba(239,68,68,0.1)',
+                    border: '1px solid rgba(239,68,68,0.3)',
+                    // 縁は専用の赤を保ちつつ、浮き方だけ他のカードと揃える
+                    boxShadow: 'var(--card-shadow)',
+                  }}
+                >
                   <p className="text-[14px] text-red-500 font-medium">{error}</p>
                   <p className="text-[12px] mt-2" style={{ color: 'var(--text-muted)' }}>
                     {/* stale（日付が変わったのに当日分が無い）ときは前日の表を出さないので
@@ -449,7 +457,7 @@ export default function App() {
 
               {/* 日付が変わったが当日分をまだ取得できていない（前日のダイヤは表示しない） */}
               {!loading && stale && (
-                <div className="rounded-[20px] p-5 text-center" style={{ background: 'var(--bg-card)' }}>
+                <div className="section-card rounded-[20px] p-5 text-center">
                   <p className="text-[14px] font-bold" style={{ color: 'var(--text-primary)' }}>
                     日付が変わりました
                   </p>
@@ -516,7 +524,7 @@ export default function App() {
                       未取得の範囲は空白になるので、その旨をオフライン時だけ注記する。 */}
                   <Suspense
                     fallback={
-                      <div className="rounded-[20px] flex items-center justify-center" style={{ height: 220, background: 'var(--bg-card)' }}>
+                      <div className="section-card rounded-[20px] flex items-center justify-center" style={{ height: 220 }}>
                         <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>地図を読み込み中...</p>
                       </div>
                     }

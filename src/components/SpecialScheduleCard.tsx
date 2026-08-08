@@ -16,8 +16,12 @@ interface Props {
 export function SpecialScheduleCard({ isOnline }: Props) {
   return (
     <div
-      className="rounded-[22px] px-6 py-[22px] text-white"
-      style={{ background: 'linear-gradient(135deg, #7e22ce, #a855f7)' }}
+      className="hero-card rounded-[22px] px-6 py-[22px] text-white"
+      style={{
+        background: 'linear-gradient(135deg, #7e22ce, #a855f7)',
+        // 影の色（.hero-card が var() で読む）。グラデ始点 #7e22ce の RGB
+        ['--hero-tint' as string]: '126, 34, 206',
+      }}
     >
       <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
         次のバス
