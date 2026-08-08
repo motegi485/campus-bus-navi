@@ -18,7 +18,7 @@ import { fetchHolidays } from './holidays.js'
 import { detectChanges } from './detectChanges.js'
 import { OcrClient } from './ocr.js'
 import { buildPlan } from './plan.js'
-import { buildPrBody, formatWarning } from './prBody.js'
+import { buildPrBody, formatWarning, linkDates } from './prBody.js'
 import {
   readState,
   writeState,
@@ -28,6 +28,8 @@ import {
   deleteTimetableFile,
   writeHolidaysCache,
   writeTextFile,
+  formatCalendarRules,
+  formatState,
 } from './files.js'
 import { nowIsoJst, todayJst } from './time.js'
 import type { Intermediate, State, Warning } from './types.js'
@@ -53,6 +55,7 @@ function summary(lines: string[]): void {
 }
 
 async function main(): Promise<void> {
+  const startedAt = Date.now()
   const runAt = nowIsoJst()
   const warnings: Warning[] = []
   log('start', `campus-bus-navi-bot 開始（today=${today} / DRY_RUN=${isDryRun ? '1' : '0'}）`)
@@ -69,7 +72,13 @@ async function main(): Promise<void> {
   log(
     'extractLinks',
     `時刻表リンク ${classified.length} 件`,
-    classified.map((c) => ({ kind: c.kind, line: c.normalizedLine, url: c.url })),
+    classified.map((c) => ({
+      kind: c.kind,
+      line: c.normalizedLine,
+      url: c.url,
+      dates: linkDates(c),
+      ...(c.yearGuessed ? { yearGuessed: true } : {}),
+    })),
   )
 
   // ---- 4. 祝日 ---------------------------------------------------------
@@ -118,13 +127,22 @@ async function main(): Promise<void> {
         )
       }
     } else {
-      ocrClient = new OcrClient(apiKey)
+      // 締切はプロセス開始基準。ジョブが強制終了される前に needs_review へ収束させる
+      ocrClient = new OcrClient(apiKey, undefined, startedAt + CONFIG.runDeadlineMs)
     }
   }
 
   if (ocrClient) {
     for (const decision of ocrTargets) {
       if (!decision.image) continue
+      if (ocrClient.deadlineExceeded) {
+        ocrFailures.set(
+          decision.key,
+          `実行時間の上限（${Math.round(CONFIG.runDeadlineMs / 60000)}分）に達したため読み取りをスキップしました。翌日の実行で再試行されます（元画像: ${decision.imageUrl}）`,
+        )
+        log('ocr', `${decision.key}: 実行時間の上限に達したためスキップします`)
+        continue
+      }
       if (ocrClient.budgetExhausted) {
         // 無料枠を使い切った残りは「読めなかった」として顕在化させる（古いデータは触らない）
         ocrFailures.set(
@@ -148,6 +166,15 @@ async function main(): Promise<void> {
       log('ocr', `${decision.key}: 成功（${outcome.attempts}回読み${outcome.majority ? '・多数決採用' : '・一致'}）`)
     }
     log('ocr', `Gemini 呼び出し回数: ${ocrClient.calls} / 上限 ${CONFIG.geminiMaxCallsPerRun}`)
+    if (ocrClient.deadlineExceeded) {
+      warnings.push({
+        level: 'warn',
+        code: 'run_deadline_exceeded',
+        message:
+          `実行時間の上限（${Math.round(CONFIG.runDeadlineMs / 60000)}分）に達したため OCR を打ち切りました。` +
+          'Gemini 側の応答が遅い状態が続いている可能性があります。読めなかった分は翌日の実行で再試行されます。',
+      })
+    }
   }
 
   // ---- 8〜13(計算). 組み立て・検証・state・カレンダー -------------------
@@ -162,6 +189,8 @@ async function main(): Promise<void> {
     holidays: holidaysResult.holidays,
     today,
     runAt,
+    // 時刻表リンクを1件も抽出できていない実行では、消えたイベントの連続確認を進めない
+    extractionHealthy: classified.length > 0,
   })
   warnings.push(...planned.warnings)
   if (holidaysResult.source) planned.nextState.holidays_source = holidaysResult.source
@@ -174,7 +203,15 @@ async function main(): Promise<void> {
   const summaryData = {
     today,
     dryRun: isDryRun,
-    links: classified.map((c) => ({ kind: c.kind, line: c.normalizedLine, url: c.url, reason: c.reason })),
+    links: classified.map((c) => ({
+      kind: c.kind,
+      line: c.normalizedLine,
+      url: c.url,
+      reason: c.reason,
+      dates: linkDates(c),
+      // FR-3: 年が書かれておらず Bot が補った日付はレビュー材料として必ず出す
+      yearGuessed: c.yearGuessed === true,
+    })),
     decisions: detected.decisions.map((d) => ({ key: d.key, action: d.action, reason: d.reason })),
     files: planned.filePlans.map((f) => ({ op: f.op, fileName: f.fileName, kind: f.kind, counts: f.counts })),
     overrideChanges: planned.calendar.changes,
@@ -182,6 +219,20 @@ async function main(): Promise<void> {
     warnings,
     validationFailures: planned.validationFailures,
   }
+
+  /**
+   * リポジトリに差分が出るか（＝ PR が作られるか）を書き込み前に判定する。
+   *
+   * 警告だけが出て差分が 0 の実行は PR も作られず、警告は gitignore 下の
+   * bot/.out と Step Summary にしか残らない。定期実行の緑表示や PR 一覧だけを
+   * 見ている運用では「読めないまま古いダイヤが残り続けている」ことに気づけないため、
+   * この組み合わせのときはジョブを失敗させる（下の終了処理）。
+   */
+  const noRepoChange =
+    planned.filePlans.length === 0 &&
+    formatCalendarRules({ ...rules, overrides: planned.calendar.nextOverrides }) === formatCalendarRules(rules) &&
+    formatState(planned.nextState) === formatState(state) &&
+    !holidaysResult.cacheToWrite
 
   // ---- FR-12: ドライランはここで計画を出力して終了 ----------------------
   if (isDryRun) {
@@ -222,15 +273,31 @@ async function main(): Promise<void> {
     warnings,
     ocrStats,
     validationFailures: planned.validationFailures,
+    links: classified,
   })
   writeTextFile(CONFIG.prBodyPath, body)
   log('prBody', `${CONFIG.prBodyPath} を生成しました`)
   summary(buildSummaryLines(summaryData))
+
+  // 警告があるのに差分が無い ＝ PR が作られない。緑で終わらせず失敗として顕在化させる。
+  const hasWarn = warnings.some((w) => w.level === 'warn') || planned.validationFailures.length > 0
+  if (hasWarn && noRepoChange) {
+    console.error(
+      '[fail] 要手動確認の警告がありますが、リポジトリに差分が無いため PR は作成されません。' +
+        '掲載ページを確認してください（内容は Step Summary と成果物 pr-body.md にあります）。',
+    )
+    for (const warning of warnings.filter((w) => w.level === 'warn')) {
+      console.error(`  - ${formatWarning(warning)}`)
+    }
+    for (const failure of planned.validationFailures) console.error(`  - ${failure}`)
+    process.exitCode = 1
+  }
 }
 
 function buildSummaryLines(data: {
   today: string
   dryRun: boolean
+  links: { line: string; dates: string[]; yearGuessed: boolean }[]
   files: { op: string; fileName: string }[]
   overrideChanges: unknown[]
   deletions: string[]
@@ -250,6 +317,12 @@ function buildSummaryLines(data: {
   if (warns.length > 0) {
     lines.push('', '### ⚠ 警告')
     for (const warning of warns) lines.push(`- ${formatWarning(warning)}`)
+  }
+  // FR-3: 年を推定した日付は必ず人の目に触れるところへ出す
+  const guessed = data.links.filter((l) => l.yearGuessed)
+  if (guessed.length > 0) {
+    lines.push('', '### 年を推定した日付')
+    for (const link of guessed) lines.push(`- ${link.dates.join(', ') || '-'} ← 「${link.line}」`)
   }
   return lines
 }

@@ -170,17 +170,53 @@ export class CallBudgetExhaustedError extends Error {
   }
 }
 
+/**
+ * 実行全体の締切に達したことを示す。
+ *
+ * 1リクエスト 180 秒 × 呼び出し上限 18 回だけでもワークフローの timeout-minutes: 20 を
+ * 大きく超えうる。ジョブが強制終了されると PR 本文も Step Summary も残らず、
+ * 「何が起きたか分からないまま古いダイヤが残る」という最も観測しにくい失敗になる。
+ * 締切前に打ち切って needs_review へ収束させ、必ず記録を残す。
+ */
+export class RunDeadlineExceededError extends Error {
+  constructor() {
+    super('実行時間の上限に達したため OCR を打ち切りました。')
+    this.name = 'RunDeadlineExceededError'
+  }
+}
+
 export class OcrClient {
   private ai: GoogleGenAI
   private lastCallAt = 0
   private model: string
   private fallbackUsed = false
   private callCount = 0
+  private deadlineAt: number
+  private deadlineHit = false
 
-  /** modelOverride は検証用（tools/ocr-check.ts の OCR_MODEL）。本番は CONFIG の既定を使う。 */
-  constructor(apiKey: string, modelOverride?: string) {
+  /**
+   * modelOverride は検証用（tools/ocr-check.ts の OCR_MODEL）。本番は CONFIG の既定を使う。
+   * deadlineAt は実行全体の締切（epoch ミリ秒）。既定は生成時から CONFIG.runDeadlineMs。
+   */
+  constructor(apiKey: string, modelOverride?: string, deadlineAt?: number) {
     this.ai = new GoogleGenAI({ apiKey })
     this.model = modelOverride || CONFIG.modelPrimary
+    this.deadlineAt = deadlineAt ?? Date.now() + CONFIG.runDeadlineMs
+  }
+
+  /** 締切に達して OCR を打ち切ったか（PR・Step Summary への警告に使う） */
+  get deadlineExceeded(): boolean {
+    return this.deadlineHit
+  }
+
+  /** 締切までの残り時間（ミリ秒。過ぎていたら 0） */
+  private get remainingMs(): number {
+    return Math.max(0, this.deadlineAt - Date.now())
+  }
+
+  /** 待機してからもう1回リクエストする余裕が締切内に残っているか */
+  private canRetryAfter(waitMs: number): boolean {
+    return this.remainingMs > waitMs + CONFIG.geminiMinIntervalMs
   }
 
   get modelUsed(): string {
@@ -209,8 +245,15 @@ export class OcrClient {
 
   private async callOnce(buffer: Buffer, mimeType: string, model: string): Promise<Intermediate> {
     if (this.budgetExhausted) throw new CallBudgetExhaustedError(CONFIG.geminiMaxCallsPerRun)
+    // 呼び出し間隔（throttle）と1リクエストの下限時間ぶんも残っていなければ始めない
+    if (this.remainingMs <= CONFIG.geminiMinIntervalMs) {
+      this.deadlineHit = true
+      throw new RunDeadlineExceededError()
+    }
     this.callCount += 1
     await this.throttle()
+    // 1リクエストの上限は「既定値」と「締切までの残り」の短い方
+    const requestTimeoutMs = Math.max(1000, Math.min(CONFIG.geminiRequestTimeoutMs, this.remainingMs))
     const res = await this.ai.models.generateContent({
       model,
       contents: [
@@ -224,7 +267,7 @@ export class OcrClient {
         responseSchema: INTERMEDIATE_SCHEMA,
         thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         mediaResolution: MediaResolution.MEDIA_RESOLUTION_HIGH,
-        abortSignal: AbortSignal.timeout(CONFIG.geminiRequestTimeoutMs),
+        abortSignal: AbortSignal.timeout(requestTimeoutMs),
         // temperature / topP / topK は指定しない（Gemini 3 公式推奨: 既定 1.0 のまま）
       },
     })
@@ -242,8 +285,9 @@ export class OcrClient {
       try {
         return await this.callOnce(buffer, mimeType, this.model)
       } catch (e) {
-        // 呼び出し上限はリトライしない（枠を使い切っているので待っても無駄）
+        // 呼び出し上限・実行時間の締切はリトライしない
         if (e instanceof CallBudgetExhaustedError) throw e
+        if (e instanceof RunDeadlineExceededError) throw e
 
         const dailyExhausted = isDailyQuotaExhausted(e)
         if (dailyExhausted) {
@@ -252,6 +296,10 @@ export class OcrClient {
 
         if (isRateLimit(e) && !dailyExhausted && rateLimitRetries < CONFIG.geminiMaxRetries429) {
           const wait = CONFIG.geminiBackoffMs[Math.min(rateLimitRetries, CONFIG.geminiBackoffMs.length - 1)]!
+          if (!this.canRetryAfter(wait)) {
+            this.deadlineHit = true
+            throw new RunDeadlineExceededError()
+          }
           rateLimitRetries += 1
           console.warn(`[ocr] 429 を受信しました。${wait / 1000}秒待って再試行します（${rateLimitRetries}回目）`)
           await sleep(wait)
@@ -263,6 +311,10 @@ export class OcrClient {
             CONFIG.geminiTransientBackoffMs[
               Math.min(transientRetries, CONFIG.geminiTransientBackoffMs.length - 1)
             ]!
+          if (!this.canRetryAfter(wait)) {
+            this.deadlineHit = true
+            throw new RunDeadlineExceededError()
+          }
           transientRetries += 1
           console.warn(
             `[ocr] 一時障害を検出しました（${errorText(e).slice(0, 120)}）。${wait / 1000}秒待って再試行します（${transientRetries}回目）`,

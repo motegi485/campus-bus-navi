@@ -1,6 +1,6 @@
 /** FR-11: PR 本文（bot/.out/pr-body.md）の生成。テンプレートは要件定義 §8 の FR-11 に従う。 */
 
-import type { FilePlan, OverrideChange, Warning } from './types.js'
+import type { ClassifiedLink, FilePlan, OverrideChange, Warning } from './types.js'
 
 export interface PrBodyInput {
   runAt: string
@@ -12,6 +12,8 @@ export interface PrBodyInput {
   warnings: Warning[]
   ocrStats: { matched: number; total: number; majority: number }
   validationFailures: string[]
+  /** 分類済みリンク（FR-3 の「年推定」表示に使う） */
+  links?: ClassifiedLink[]
 }
 
 const OP_LABEL: Record<FilePlan['op'], string> = { create: '新規', update: '更新', delete: '削除' }
@@ -113,9 +115,26 @@ export function buildPrBody(input: PrBodyInput): string {
     lines.push('')
   }
 
+  // FR-3: 掲載に年が書かれておらず Bot が補った日付は、レビューで必ず確認できるようにする
+  const guessed = guessedYearLinks(input.links ?? [])
+  if (guessed.length > 0) {
+    lines.push('## 年を推定した日付')
+    lines.push('掲載に年が書かれていないため Bot が補いました。原文と解決後の日付が合っているか確認してください。')
+    lines.push('')
+    lines.push('| 解決後 | 掲載原文 |')
+    lines.push('|---|---|')
+    for (const link of guessed) {
+      lines.push(`| ${linkDates(link).join(', ') || '-'} | ${link.normalizedLine} |`)
+    }
+    lines.push('')
+  }
+
   lines.push('## レビュー観点')
   lines.push('- [ ] 元画像と便の突き合わせ（特に JR 列の混入がないか）')
   lines.push('- [ ] override の日付・参照先')
+  if (guessed.length > 0) {
+    lines.push('- [ ] 年を推定した日付が掲載の意図どおりか')
+  }
   if (input.warnings.some((w) => w.code === 'special_applied')) {
     lines.push('- [ ] 特別ダイヤにした期間の妥当性（通常どおり読める日は手動で個別 override に置き換えられる）')
   }
@@ -126,4 +145,17 @@ export function buildPrBody(input: PrBodyInput): string {
 
 export function formatWarning(warning: Warning): string {
   return warning.url ? `${warning.message}（${warning.url}）` : warning.message
+}
+
+/** 年を推定して日付を解決したリンク（FR-3） */
+export function guessedYearLinks(links: ClassifiedLink[]): ClassifiedLink[] {
+  return links.filter((l) => l.yearGuessed === true)
+}
+
+/** リンクが指す日付（event は dates、それ以外は start〜end）を表示用に並べる */
+export function linkDates(link: ClassifiedLink): string[] {
+  if (link.dates && link.dates.length > 0) return link.dates
+  if (link.start && link.end) return [`${link.start}〜${link.end}`]
+  if (link.start) return [`${link.start}〜`]
+  return []
 }
