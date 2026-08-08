@@ -44,6 +44,20 @@
   --past-text:     #cccccc;
   --past-bg:       #f9f9f9;
 
+  /* 押下ハイライト・チップの厚み表現（アフォーダンス強化で追加） */
+  --row-active:    #eceef4;
+  --chip-border:   #e2e4ec;
+  --chip-highlight: rgba(255, 255, 255, 0.9);
+  --chip-rim:      rgba(15, 23, 42, 0.10);
+  /* チップ文字。--text-secondary(#6b7280) は 12px に対し 4.26:1 で AA 未達のため
+     専用に一段濃い値を持つ（--bg-input に対し 6.65:1）。 */
+  --chip-text:     #4b5563;
+
+  /* ルート切替トグルの選択中ラベル。ライトは白ノブに載るので濃いルート色
+     （地の色そのままだと 3.64:1 なので emerald-700 / indigo-600 を使う）。 */
+  --toggle-on-campus:  #047857;
+  --toggle-on-station: #4f46e5;
+
   /* ── アプリ共通アイコン配色 ──
      bg = タイル背景 / fg = アイコンの線色（currentColor で参照される）
      AppIcons.tsx の IconTone と 1:1 で対応する。 */
@@ -71,6 +85,20 @@
   --border2:       #2d3748;
   --past-text:     #4b5563;
   --past-bg:       #1a2332;
+
+  /* 押下ハイライト・チップの厚み表現（アフォーダンス強化で追加） */
+  --row-active:    #2b3648;
+  --chip-border:   #4b5563;
+  --chip-highlight: rgba(255, 255, 255, 0.10);
+  --chip-rim:      rgba(0, 0, 0, 0.50);
+  /* チップ文字（ダーク。--bg-input #374151 に対し 7.00:1） */
+  --chip-text:     #d1d5db;
+
+  /* トグルの選択中ラベル（ダーク）。ノブが黒ガラスなので明るいルート色にする。
+     変更前の元デザインの dark:text-emerald-300 / dark:text-indigo-300 と同じ値。
+     ノブ最薄部の上で 7.69 / 6.89。 */
+  --toggle-on-campus:  #6ee7b7;
+  --toggle-on-station: #a5b4fc;
 
   /* ── アプリ共通アイコン配色（ダーク）──
      淡いパステルはダーク背景で浮くため、fg を明度の高い同系色にし、
@@ -245,6 +273,135 @@ html.bounce-native .header-cushion {
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.25) !important;
   font-size: 14px !important;
   white-space: nowrap !important;
+}
+
+/* ============================================================
+   すりガラス面（ヘッダー上のトグル・アイコンボタン）
+
+   backdrop-filter は Firefox の一部設定・古い WebView で無効になる。
+   その場合でもコントラストが落ちないよう、フォールバックは
+   「より不透明な白」にしてある（濃色ラベルとの比は上がる方向）。
+
+   ヘッダーは滑らかなグラデなので blur の視覚効果自体は小さく、
+   実質は色の半透明＋彩度強調。地図（.leaflet-container / isolation:isolate の
+   内側）では使わないこと。
+
+   ── テーマで面の作りが違う ──
+   ライトは「透明な白ガラス」。地のグラデがそのまま透けるのが狙いで、暗い面は
+   使わない。未選択の白ラベルは地に対して 1.4〜4.0:1 と AA を満たさないが、
+   これは見た目を優先した意図的な選択（変更前の元デザインと同水準）。
+
+   ダークは「ルート色のスモークガラス」。ティント色は RouteToggle が
+   --toggle-tint / --toggle-tint-fb で route ごとに渡す。alpha 66% で
+   campus の最明 stop 上でも白ラベルが 4.85:1（station は 6.77:1）。
+   上に重ねる光沢グラデを上端 28% までに閉じてあるのは、文字に掛かると
+   campus が 3.56:1 まで落ちるため。可読性のための境界で、任意値ではない。
+
+   地図（.leaflet-container / isolation:isolate の内側）では使わないこと。
+   ============================================================ */
+.frost-surface {
+  /* ライト。backdrop-filter 無効時は blur が効かないぶんを不透明度で補う */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.04) 42%, rgba(255, 255, 255, 0.12) 100%),
+    rgba(255, 255, 255, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 2px 7px rgba(15, 23, 42, 0.14),
+    0 4px 14px rgba(0, 0, 0, 0.14);
+  transition: background-color 0.55s, border-color 0.35s, box-shadow 0.35s;
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .frost-surface {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.04) 42%, rgba(255, 255, 255, 0.12) 100%),
+      rgba(255, 255, 255, 0.18);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+}
+
+/* ダーク: ルート色のスモークガラス。backdrop-filter は上の指定がそのまま残る */
+.dark .frost-surface {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 28%),
+    var(--toggle-tint-fb, rgba(4, 71, 52, 0.74));
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    inset 0 3px 9px rgba(0, 0, 0, 0.24),
+    0 5px 16px rgba(0, 0, 0, 0.22);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .dark .frost-surface {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 28%),
+      var(--toggle-tint, rgba(4, 71, 52, 0.66));
+  }
+}
+
+/* ============================================================
+   トグルのノブ（位置とアニメーションは RouteToggle が inline で持つ）
+   ライトは白ガラス、ダークは黒ガラス（変更前の bg-black/50 の系譜）。
+   コントラストの評価は鏡面グラデの最も薄い部分（ライト 92% / ダーク 40%）で
+   行っている。
+   ============================================================ */
+.toggle-knob {
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(255, 255, 255, 0.92) 55%,
+    rgba(255, 255, 255, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.22),
+    0 2px 5px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -2px 5px rgba(15, 23, 42, 0.10);
+}
+.dark .toggle-knob {
+  background: linear-gradient(180deg,
+    rgba(0, 0, 0, 0.40) 0%,
+    rgba(0, 0, 0, 0.54) 55%,
+    rgba(0, 0, 0, 0.48) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.40),
+    0 2px 5px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.34);
+}
+
+.frost-icon-btn {
+  background: rgba(255, 255, 255, 0.30);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .frost-icon-btn {
+    background: rgba(255, 255, 255, 0.24);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+    backdrop-filter: blur(10px) saturate(160%);
+  }
+}
+.dark .frost-icon-btn {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* ============================================================
+   ルート切替トグルの初回ナッジ
+   「動く部品である」ことを 1 回だけ知らせる。--nudge-pos には
+   現在のノブ位置（0% または 100%）を RouteToggle が inline で渡す。
+   ============================================================ */
+@keyframes route-toggle-nudge {
+  0%, 100% { transform: translateX(var(--nudge-pos, 0%)); }
+  30%      { transform: translateX(calc(var(--nudge-pos, 0%) + 13%)); }
+  60%      { transform: translateX(calc(var(--nudge-pos, 0%) - 5%)); }
+}
+.route-toggle-nudge {
+  animation: route-toggle-nudge 1.3s ease-in-out 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-toggle-nudge { animation: none; }
 }
 
 /* ============================================================
