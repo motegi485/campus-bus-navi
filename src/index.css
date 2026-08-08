@@ -160,16 +160,22 @@ html.bounce-stretch body {
 .header-cushion {
   --hdr-angle: 160deg;
 }
+/* 大学発の 3 stop は NextBusCard（#0d9966 → #34d399）と同じ色域に収めてある。
+   以前は g2 が #6ee7b7 まで伸びており、160deg のためその明るい端がちょうど
+   ルート切替の側に来て、白文字が地に沈んでいた（相対輝度 0.66 に対し白は 1.0）。
+   カード側の色を変えるときは、ここも合わせて見直すこと。 */
 .header.campus,
 .header-cushion.campus {
-  --hdr-g0: #16a374;
-  --hdr-g1: #34d399;
-  --hdr-g2: #6ee7b7;
+  --hdr-g0: #0d9966;
+  --hdr-g1: #21b680;
+  --hdr-g2: #34d399;
 }
+/* 松永発は上 2 stop だけ 4% 深い。日付とアイコンの線がわずかに基準へ届いて
+   いなかったぶんの調整で、見た目はほぼ変わらない（平均輝度は 93% を維持）。 */
 .header.station,
 .header-cushion.station {
-  --hdr-g0: #818cf8;
-  --hdr-g1: #6c63d5;
+  --hdr-g0: #7c87f0;
+  --hdr-g1: #675ecd;
   --hdr-g2: #4f46e5;
 }
 .header.campus,

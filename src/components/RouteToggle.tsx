@@ -25,7 +25,9 @@ export function RouteToggle({ route, onChange }: Props) {
             className={[
               'flex-1 rounded-full py-[9px] px-[6px] flex items-center justify-center',
               'text-[13px] font-semibold transition-all duration-200 select-none',
-              active ? 'bg-white dark:bg-black/50 shadow-md' : 'text-white/70',
+              // 非選択は白のまま不透明度だけ上げる（70% だとヘッダーのグラデ上で読めない）。
+              // ピルの背景はテーマ別の現行指定を維持する
+              active ? 'bg-white dark:bg-black/50 shadow-md' : 'text-white/90',
             ].join(' ')}
           >
             <span className={[

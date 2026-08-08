@@ -356,7 +356,8 @@ export default function App() {
                 {timetable?.routes[route].origin ?? (route === 'campus_to_station' ? '大学発' : '松永発')}
               </h1>
               <div className="flex items-center justify-center gap-[7px] mt-1">
-                <span className="text-[18px] font-medium" style={{ color: 'rgba(255,255,255,0.88)' }}>
+                {/* 白のまま不透明にする。88% だとヘッダーのグラデ上で地に沈む */}
+                <span className="text-[18px] font-medium" style={{ color: '#fff' }}>
                   {now.month() + 1}/{now.date()}（{DAYS_JA[now.day()]}）
                 </span>
                 {/* stale の間はその日のダイヤ種別が分かっていない。前日の種別を
