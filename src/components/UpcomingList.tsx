@@ -34,7 +34,7 @@ export function UpcomingList({ buses, route, nowMinutes, fontSize }: Props) {
   const fs = FONT_SIZE_MAP[fontSize]
 
   return (
-    <div className="bg-[var(--bg-card)] rounded-[20px] p-[18px] transition-[background] duration-300">
+    <div className="section-card rounded-[20px] p-[18px]">
       <p className="text-[11px] text-[var(--text-muted)] font-bold mb-3 tracking-widest uppercase">
         今後の発車時刻
       </p>

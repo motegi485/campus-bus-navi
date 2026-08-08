@@ -20,6 +20,8 @@ export function NextBusCard({ next, route, fontSize, remaining }: Props) {
   const gradientClass = isCampus
     ? 'bg-gradient-to-br from-[#0d9966] to-[#34d399]'
     : 'bg-gradient-to-br from-[#6c63d5] to-[#a78bfa]'
+  // 影の色（.hero-card が var() で読む）。グラデ始点＝暗い側の RGB に合わせる
+  const heroTint = isCampus ? '13, 153, 102' : '108, 99, 213'
 
   const fs = FONT_SIZE_MAP[fontSize]
 
@@ -27,7 +29,10 @@ export function NextBusCard({ next, route, fontSize, remaining }: Props) {
   const isLastBus = remaining === 1
 
   return (
-    <div className={`${gradientClass} rounded-[22px] px-6 py-[22px] text-white relative overflow-hidden`}>
+    <div
+      className={`${gradientClass} hero-card rounded-[22px] px-6 py-[22px] text-white relative overflow-hidden`}
+      style={{ ['--hero-tint' as string]: heroTint }}
+    >
       <Decoration />
 
       {/* 見出し行: 左「次のバス」／右に本日の残数バッジ */}
