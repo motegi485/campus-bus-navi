@@ -7,6 +7,7 @@ import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useSettings } from './hooks/useSettings'
 import { useNews } from './hooks/useNews'
 import { useNativeBounce } from './hooks/useNativeBounce'
+import { setInert } from './hooks/useOverlayA11y'
 import { findNextBus, findUpcomingBuses, findFirstBus, countRemainingBuses } from './utils/findNextBus'
 import { RouteToggle } from './components/RouteToggle'
 import { NextBusCard } from './components/NextBusCard'
@@ -36,7 +37,7 @@ export default function App() {
 
   const now = useJSTClock()
   const isOnline = useOnlineStatus()
-  const { timetable, tomorrowTimetable, loading, error, refresh } = useTimetable(now)
+  const { timetable, tomorrowTimetable, loading, error, stale, refresh } = useTimetable(now)
   const { toast, showToast } = useToast()
 
   // お知らせ状態はここ（App）で一元管理し、NewsScreen へ受け渡す。
@@ -51,6 +52,14 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+
+  // いずれかのオーバーレイが開いている間、背後（ヘッダー・本文・バナー）を
+  // Tab 順とアクセシビリティツリーから外す。WAI-ARIA の modal dialog パターン。
+  const anyOverlayOpen = drawerOpen || newsOpen || settingsOpen || helpOpen
+  const backgroundRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    setInert(backgroundRef.current, anyOverlayOpen)
+  }, [anyOverlayOpen])
 
   // PWA更新検知（registerType: 'prompt'）
   // コールドスタート時(=起動から COLD_START_GRACE_MS 以内)に新SWを検知した場合は
@@ -145,6 +154,11 @@ export default function App() {
   // 直近4本(nextBus が null)と全時刻表(FullTimetable が null を返す)は
   // 空 schedule のガードで自動的に消えるため、追加の分岐は要らない。
   const isSpecial = diagramType === 'special'
+
+  // 日付が変わったのに当日分をまだ取得できていない間（オフラインでの日付跨ぎなど）は、
+  // 前日のダイヤを当日の日付見出しの下に出さない。正典の「推測するより出さない」に合わせる。
+  // 前日に翌日分を prefetch できていれば useTimetable が昇格させるので、ここへは来ない。
+  const showTimes = !loading && !!currentRoute && !stale
 
   // フォントサイズクラス（CSS変数経由ではなくコンポーネントprops渡し）
   const fontSize = settings.fontSize
@@ -261,6 +275,7 @@ export default function App() {
         {/* ドロワーメニュー */}
         <DrawerMenu
           open={drawerOpen}
+          covered={newsOpen || settingsOpen || helpOpen}
           hasUnread={hasUnread}
           onClose={() => setDrawerOpen(false)}
           onOpenNews={() => setNewsOpen(true)}
@@ -287,6 +302,11 @@ export default function App() {
           open={helpOpen}
           onClose={() => setHelpOpen(false)}
         />
+
+        {/* 背面レイヤー（ヘッダー・本文・バナー）。オーバーレイが開いている間は inert。
+            phone-shell-inner は flex/grid ではなく、バナーと PWA 案内は position:fixed なので
+            この div を挟んでもレイアウトは変わらない。 */}
+        <div ref={backgroundRef}>
 
         {/* ヘッダー */}
         <header
@@ -339,7 +359,9 @@ export default function App() {
                 <span className="text-[18px] font-medium" style={{ color: 'rgba(255,255,255,0.88)' }}>
                   {now.month() + 1}/{now.date()}（{DAYS_JA[now.day()]}）
                 </span>
-                <DayBadge type={diagramType} />
+                {/* stale の間はその日のダイヤ種別が分かっていない。前日の種別を
+                    今日のバッジとして出さない（時刻を出さないのと同じ理由） */}
+                {!stale && <DayBadge type={diagramType} />}
               </div>
             </div>
 
@@ -389,15 +411,30 @@ export default function App() {
                 <div className="rounded-[20px] p-5 text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
                   <p className="text-[14px] text-red-500 font-medium">{error}</p>
                   <p className="text-[12px] mt-2" style={{ color: 'var(--text-muted)' }}>
-                    {timetable
+                    {/* stale（日付が変わったのに当日分が無い）ときは前日の表を出さないので
+                        「前回取得した時刻表を表示しています」とは言わない */}
+                    {timetable && !stale
                       ? '前回取得した時刻表を表示しています'
                       : '通信環境をご確認のうえ、右上の更新ボタンをお試しください'}
                   </p>
                 </div>
               )}
 
+              {/* 日付が変わったが当日分をまだ取得できていない（前日のダイヤは表示しない） */}
+              {!loading && stale && (
+                <div className="rounded-[20px] p-5 text-center" style={{ background: 'var(--bg-card)' }}>
+                  <p className="text-[14px] font-bold" style={{ color: 'var(--text-primary)' }}>
+                    日付が変わりました
+                  </p>
+                  <p className="text-[12px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                    本日のダイヤをまだ取得できていないため、時刻を表示していません。<br />
+                    通信環境をご確認のうえ、右上の更新ボタンをお試しください。
+                  </p>
+                </div>
+              )}
+
               {/* 次のバス / 終バス後 / 運休日 / 特別ダイヤ */}
-              {!loading && currentRoute && (
+              {showTimes && (
                 <>
                   {isSpecial ? (
                     <SpecialScheduleCard isOnline={isOnline} />
@@ -428,7 +465,7 @@ export default function App() {
                 </>
               )}
               {/* モバイルのみ表示: 全時刻表をマップより上に配置 */}
-              {!loading && currentRoute && (
+              {showTimes && (
                 <div className="bp:hidden">
                   <FullTimetable
                     schedule={schedule}
@@ -447,32 +484,26 @@ export default function App() {
                   <p className="text-[11px] font-bold tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
                     乗り場マップ
                   </p>
-                  {isOnline ? (
-                    <Suspense
-                      fallback={
-                        <div className="rounded-[20px] flex items-center justify-center" style={{ height: 220, background: 'var(--bg-card)' }}>
-                          <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>地図を読み込み中...</p>
-                        </div>
-                      }
-                    >
-                      <BusStopMap
-                        coords={currentRoute.bus_stop_coords}
-                        stopName={currentRoute.bus_stop_name}
-                        route={route}
-                      />
-                    </Suspense>
-                  ) : (
-                    <div
-                      className="rounded-[20px] flex flex-col items-center justify-center gap-2 p-5 text-center"
-                      style={{ height: 220, background: 'var(--bg-card)' }}
-                    >
-                      <p className="text-[13px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
-                        オフラインのため地図を表示できません
-                      </p>
-                      <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                        乗り場：{currentRoute.bus_stop_name}
-                      </p>
-                    </div>
+                  {/* オフラインでも地図はマウントする。タイルは osm-tiles キャッシュ（CacheFirst）
+                      から出るため、一度表示した範囲はそのまま閲覧できる（README・ヘルプの説明どおり）。
+                      未取得の範囲は空白になるので、その旨をオフライン時だけ注記する。 */}
+                  <Suspense
+                    fallback={
+                      <div className="rounded-[20px] flex items-center justify-center" style={{ height: 220, background: 'var(--bg-card)' }}>
+                        <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>地図を読み込み中...</p>
+                      </div>
+                    }
+                  >
+                    <BusStopMap
+                      coords={currentRoute.bus_stop_coords}
+                      stopName={currentRoute.bus_stop_name}
+                      route={route}
+                    />
+                  </Suspense>
+                  {!isOnline && (
+                    <p className="text-[11px] mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
+                      オフラインのため、以前表示した範囲のみ表示されます（乗り場：{currentRoute.bus_stop_name}）
+                    </p>
                   )}
                 </section>
               </div>
@@ -481,7 +512,7 @@ export default function App() {
           </div>{/* / 2カラムエリア */}
 
           {/* PC版のみ表示: 全幅展開（2カラムの下） */}
-          {!loading && currentRoute && (
+          {showTimes && (
             <div className="hidden bp:block">
               <FullTimetable
                 schedule={schedule}
@@ -511,6 +542,8 @@ export default function App() {
 
         {/* モバイル端末向け：ホーム画面追加 / アプリインストール案内 */}
         <MobilePwaGuide />
+
+        </div>{/* 背面レイヤー */}
           </div>{/* phone-shell-inner */}
 
           {/* ホーム上端バウンスのグラデ継続クッション（iOS ネイティブバウンス専用、

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { setInert, useOverlayA11y } from '../hooks/useOverlayA11y'
 import type { NewsItem } from '../types/timetable'
 
 // news.json は Git 管理の信頼できる静的ソース前提。CMS 等の動的ソースに切り替える場合は body のサニタイズ（DOMPurify 等）を必須にすること。
@@ -45,11 +46,17 @@ function NewsTag({ tag, tagLabel }: { tag: string; tagLabel: string }) {
 }
 
 function NewsDetail({ item, onBack }: { item: NewsItem; onBack: () => void }) {
+  const backRef = useRef<HTMLDivElement>(null)
+  // 詳細を開いた直後は「お知らせ」（戻る）へフォーカスを移す
+  useEffect(() => {
+    backRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+  }, [])
+
   return (
     /* overflow:hidden の本パネル自体がスクロールコンテナ扱いになり親の touchAction が
        効かないため、ここにも touchAction を付けて NavBar 起点の貫通スクロールを防ぐ */
     <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 10, transition: 'background 0.35s', touchAction: 'pinch-zoom' }}>
-      <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
+      <div ref={backRef} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
         <BackButton label="お知らせ" onClick={onBack} />
       </div>
       {/* 本文スクローラ（contain + 常時スクロール可能化。露出色 = --bg-page） */}
@@ -76,16 +83,45 @@ function NewsDetail({ item, onBack }: { item: NewsItem; onBack: () => void }) {
 export function NewsScreen({ open, onClose, news, loading, error, readIds, markAsRead }: Props) {
   const [selected, setSelected] = useState<NewsItem | null>(null)
 
+  // 閉時の inert 化、開いた直後の初期フォーカス、閉時のフォーカス復帰。
+  // Escape は詳細を開いていれば詳細を、そうでなければ画面を閉じる。
+  const rootRef = useOverlayA11y(open, {
+    onEscape: () => { if (selected) setSelected(null); else onClose() },
+  })
+
+  // 詳細パネルを開いている間は、その背後のナビバーとリストを操作対象から外す
+  const navRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    setInert(navRef.current, selected !== null)
+    setInert(listRef.current, selected !== null)
+  }, [selected])
+
+  // 画面を閉じたら詳細も畳む（次に開いたときリストから始まるように）
+  useEffect(() => { if (!open) setSelected(null) }, [open])
+
   const openDetail = (item: NewsItem) => {
+    returnFocusRef.current = document.activeElement as HTMLElement | null
     markAsRead(item.id)
     setSelected(item)
+  }
+
+  const closeDetail = () => {
+    setSelected(null)
+    const prev = returnFocusRef.current
+    returnFocusRef.current = null
+    // リストの inert 解除（再描画後の effect）を待ってから戻す
+    setTimeout(() => {
+      if (prev && document.contains(prev)) prev.focus()
+    }, 0)
   }
 
   return (
     /* fixed: ビューポート基準の全画面パネル（absolute だとドキュメント全高になり
        内部スクローラが機能しない）。touchAction: NavBar 等の非スクロール部起点の
        タッチによる背後 body への貫通スクロールを防ぐ（ピンチズームは許可）。 */
-    <div style={{
+    <div ref={rootRef} aria-hidden={!open} style={{
       position: 'fixed', inset: 0, background: 'var(--bg-page)',
       transform: open ? 'translateX(0)' : 'translateX(100%)',
       transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s',
@@ -93,7 +129,7 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
       touchAction: 'pinch-zoom',
     }}>
       {/* ナビバー */}
-      <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
+      <div ref={navRef} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
         <BackButton label="戻る" onClick={onClose} />
         <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>お知らせ</span>
       </div>
@@ -101,7 +137,7 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
       {/* リスト。contain で外への連鎖を遮断し、バウンス/ストレッチは領域自身が担う
           （露出色 = パネル背景 --bg-page）。内側ラッパーの minHeight 100%+1px で
           内容が短くても常にスクロール可能にする（iOS の連鎖遮断の成立条件）。 */}
-      <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+      <div ref={listRef} style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
         <div style={{ minHeight: 'calc(100% + 1px)', padding: '16px 14px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {loading && <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '32px 0' }}>読み込み中...</p>}
         {error && <p style={{ textAlign: 'center', color: '#ef4444', fontSize: 13, padding: '32px 0' }}>{error}</p>}
@@ -143,7 +179,7 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
       </div>
 
       {/* 詳細スクリーン */}
-      {selected && <NewsDetail item={selected} onBack={() => setSelected(null)} />}
+      {selected && <NewsDetail item={selected} onBack={closeDetail} />}
     </div>
   )
 }
