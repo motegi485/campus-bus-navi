@@ -23,7 +23,7 @@ export function FullTimetable({ schedule, route, currentDeparture, nowMinutes }:
   const activeText = isCampus ? '#065f46' : '#4f46e5'
 
   return (
-    <div className="bg-[var(--bg-card)] rounded-[20px] p-[18px] transition-[background] duration-300">
+    <div className="section-card rounded-[20px] p-[18px]">
       <button
         onClick={() => { tapFeedback(8); setOpen(v => !v) }}
         {...pressHandlers}
