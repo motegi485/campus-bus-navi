@@ -1,15 +1,17 @@
 # スクールバス時刻表の自動取り込み（要件定義 §10 の確定 YAML）
 #
-# 注意: GitHub Actions の schedule / workflow_dispatch は「デフォルトブランチにワークフローが
-# 存在する場合のみ」有効になる。このファイルが main にマージされるまで、このワークフローは
-# 起動しない（それまでの検証はローカル実行で行う）。
-#
-# main へマージする前に必ず実施すること（要件定義 §10.1 / §16.3）:
+# 現状: このワークフローは main に統合済みだが、GitHub UI から【手動で Disable 中】。
+# 稼働させるには次の3つが必要（詳細は bot/fixtures/_planning/HANDOFF.md）:
 #   1. Settings → Secrets and variables → Actions に GEMINI_API_KEY を登録（H-2）
 #   2. Settings → Actions → General → Workflow permissions を
 #      「Read and write permissions」にし、
 #      「Allow GitHub Actions to create and approve pull requests」にチェック（H-3）
 #      ※未設定だと create-pull-request が必ず失敗する
+#   3. Actions タブでこのワークフローを Enable
+#
+# action は full commit SHA で固定する（可変タグは移動・侵害され得る。GitHub の
+# Secure use reference が full-length SHA のみを immutable としている）。
+# 更新するときは同じ手順で SHA を引き直し、末尾コメントのバージョンも合わせること。
 
 name: timetable-sync
 
@@ -27,6 +29,9 @@ concurrency:
   group: timetable-sync
   cancel-in-progress: false # 多重起動防止（前の実行を待つ）
 
+# 解析ステップ自体は書き込み不要だが、同一 job 内の create-pull-request が必要とする。
+# job を分けるには成果物の受け渡しが要るため、ここでは checkout の資格情報を
+# 後続ステップへ残さない（persist-credentials: false）ことで到達範囲を狭める。
 permissions:
   contents: write
   pull-requests: write
@@ -34,13 +39,18 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 20 # bot/src/config.ts の runDeadlineMs（15分）と対。OCR は締切前に打ち切る
     env:
       TZ: Asia/Tokyo
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # 既定の true は git の資格情報を .git/config に残し、後続ステップ（npm ci や
+          # Bot 本体）から repository write token に到達できてしまう。
+          # create-pull-request は自身の token 入力で動くのでこれで問題ない。
+          persist-credentials: false
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
@@ -57,9 +67,20 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
 
+      # 警告だけで差分ゼロの実行は PR が作られず、bot/.out は gitignore 下にあるため
+      # 何も残らない。実行が失敗したときこそ中身が要るので if: always() で必ず上げる。
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: timetable-sync-out
+          path: bot/.out/**
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Create Pull Request
         if: ${{ inputs.dry_run != true }}
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           branch: bot/timetable-sync
           base: main
