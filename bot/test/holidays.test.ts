@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import iconv from 'iconv-lite'
-import { parseHolidayCsv } from '../src/holidays.js'
+import { fetchHolidays, parseHolidayCsv } from '../src/holidays.js'
+import { CONFIG } from '../src/config.js'
 
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures')
 
@@ -52,5 +53,55 @@ describe('テスト8: 祝日CSV（FR-10）', () => {
     expect(cache.holidays.length).toBeGreaterThan(1000)
     expect(cache.holidays).toContainEqual({ date: '2026-08-11', name: '山の日' })
     expect(cache.source_sha256).toMatch(/^[0-9a-f]{64}$/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 鮮度・将来カバレッジの停止条件（Codex レビュー F-020）
+// ---------------------------------------------------------------------------
+
+describe('祝日キャッシュの鮮度と将来カバレッジ（F-020）', () => {
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  /** CSV 取得を必ず失敗させ、同梱キャッシュへのフォールバック経路を通す */
+  function stubFetchFailure() {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down') }))
+  }
+
+  it('取得失敗時はキャッシュにフォールバックしつつ必ず警告を出す', async () => {
+    stubFetchFailure()
+    const result = await fetchHolidays('2026-08-01')
+    expect(result.holidays.length).toBeGreaterThan(0)
+    expect(result.cacheToWrite).toBeNull()
+    expect(result.warnings.map((w) => w.code)).toContain('holiday_csv_cache_fallback')
+  })
+
+  it('キャッシュ取得日から離れすぎていたら stale として警告する', async () => {
+    stubFetchFailure()
+    // 同梱キャッシュの fetched_at は 2026-08-01。上限を大きく超えた日付で実行する
+    const far = '2027-06-01'
+    const result = await fetchHolidays(far)
+    expect(result.warnings.map((w) => w.code)).toContain('holiday_cache_stale')
+  })
+
+  it('取得日から日が浅ければ stale 警告は出さない', async () => {
+    stubFetchFailure()
+    const result = await fetchHolidays('2026-08-10')
+    expect(result.warnings.map((w) => w.code)).not.toContain('holiday_cache_stale')
+  })
+
+  it('収録の最終日が近づいたら coverage 警告を出す', async () => {
+    stubFetchFailure()
+    // 同梱キャッシュの最終収録日は 2027-11-23。その直前まで進めれば horizon に届かない
+    const result = await fetchHolidays('2027-11-01')
+    expect(result.warnings.map((w) => w.code)).toContain('holiday_coverage_short')
+  })
+
+  it('十分な将来カバレッジがあれば coverage 警告は出さない', async () => {
+    stubFetchFailure()
+    const result = await fetchHolidays('2026-08-01')
+    expect(result.warnings.map((w) => w.code)).not.toContain('holiday_coverage_short')
+    // 前提: 上限・閾値がこの検証の意味を保つ範囲にあること
+    expect(CONFIG.holidayCoverageMinDays).toBeGreaterThan(0)
   })
 })

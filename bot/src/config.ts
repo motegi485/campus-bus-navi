@@ -1,6 +1,6 @@
 /**
  * Bot 全体の定数。要件定義 §7.2 が正本。
- * リポジトリルートからの相対パスは resolveRepoPath()（files.ts）で絶対化する。
+ * リポジトリルートからの相対パスは repoPath()（files.ts）で絶対化する。
  */
 
 export type Season = 'spring' | 'summer' | 'winter'
@@ -16,6 +16,24 @@ export const CONFIG = {
   imageExtPattern: /\.(jpe?g|png)$/i,
   resizedSuffixPattern: /-\d+x\d+(?=\.(jpe?g|png)$)/i,
   maxImageBytes: 10 * 1024 * 1024,
+  /** 掲載ページ本体（HTML）のサイズ上限 */
+  maxPageBytes: 5 * 1024 * 1024,
+  /** 祝日 CSV のサイズ上限 */
+  maxCsvBytes: 5 * 1024 * 1024,
+  /** リダイレクトの追従上限。各ホップで許可ホストを再検証する */
+  maxRedirects: 5,
+
+  /**
+   * 取得を許可するホスト（完全一致 or そのサブドメイン）。
+   *
+   * 掲載ページの href をそのまま取得しにいく作りなので、ページの改ざん・誤リンク・
+   * リダイレクト先の乗っ取りがあると CI から任意のホストへ接続できてしまう。
+   * 【大学が画像の配信先を別ホスト（CDN 等）に変えたら、ここへ追加すること。】
+   * 追加を忘れると image_fetch_failed の警告になり、古いダイヤのまま止まる（安全側）。
+   */
+  allowedPageHostSuffixes: ['fukuyama-u.ac.jp'] as string[],
+  allowedImageHostSuffixes: ['fukuyama-u.ac.jp'] as string[],
+  allowedHolidayHostSuffixes: ['cao.go.jp'] as string[],
 
   /**
    * OCR モデル。
@@ -108,6 +126,29 @@ export const CONFIG = {
   specialTimetableId: 'timetable_special',
   /** 特別ダイヤを張る期間の上限日数。日付の誤読で長大な期間を塗り潰すのを防ぐ */
   specialMaxRangeDays: 92,
+
+  /**
+   * 掲載ページから消えた未来イベントを撤去するまでの連続確認回数。
+   *
+   * イベントが中止・延期されると掲載行ごと消えるが、1回消えただけで撤去すると
+   * ページ側の一時的な編集ミスで有効なイベントを落としてしまう。日次実行なので
+   * 3 回 ＝ 3 日連続で消えていることを確認してから override とファイルを撤去する。
+   * ページ全体からリンクを1件も抽出できなかった実行は「消えた」と数えない。
+   */
+  eventMissingRunsBeforeRemoval: 3,
+
+  /**
+   * 1実行の締切（ミリ秒）。ワークフローの timeout-minutes: 20 から、PR 本文生成などの
+   * 後処理ぶんの余裕を引いた値。OCR のリトライはこの締切を越えないところで打ち切り、
+   * ジョブが強制終了される前に needs_review へ収束させる（強制終了されると PR 本文も
+   * Step Summary も残らず、失敗が最も観測しにくい形になる）。
+   */
+  runDeadlineMs: 15 * 60 * 1000,
+
+  /** 祝日キャッシュの許容経過日数。これを超えたら取得経路の異常を疑う */
+  holidayCacheMaxAgeDays: 90,
+  /** 祝日データに求める将来カバレッジ日数。今日からこの日数先まで収録が無ければ警告 */
+  holidayCoverageMinDays: 120,
 
   protectedFiles: [
     // §7.4。書込/削除はホワイトリスト方式（files.ts）が正であり、これは追加の明示ガード。

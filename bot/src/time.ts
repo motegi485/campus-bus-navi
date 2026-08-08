@@ -37,6 +37,19 @@ export function parseDate(date: string): dayjs.Dayjs {
   return dayjs.tz(date, 'YYYY-MM-DD', TZ)
 }
 
+/**
+ * その文字列が実在する日付を指しているか。
+ *
+ * `dayjs.tz(date, 'YYYY-MM-DD', TZ)` は strict parse ではないため、`2026-02-30` は
+ * `2026-03-02` へ、`2026-13-01` は `2027-01-01` へ黙って正規化されて valid になる。
+ * OCR や掲載文の誤読がそのまま「別の実在日の override」に化けるのを防ぐため、
+ * 整形し直した文字列と一致するかで判定する。
+ */
+export function isRealDate(date: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false
+  return parseDate(date).format('YYYY-MM-DD') === date
+}
+
 export function formatDate(y: number, m: number, d: number): string {
   return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }

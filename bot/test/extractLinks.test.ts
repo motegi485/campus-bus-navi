@@ -11,6 +11,7 @@ import {
   resolveDates,
   extractEventLabel,
 } from '../src/extractLinks.js'
+import { isRealDate } from '../src/time.js'
 import type { LinkInfo } from '../src/types.js'
 
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures')
@@ -134,8 +135,8 @@ describe('テスト2: トリップワイヤー', () => {
 
   it('画像リンクだが『時刻表』文言が無く行に日付がある場合は警告を出す（処理は継続）', () => {
     const html = `<html><body><div class="md-box">
-      <p>2026年9月1日（火）　特別ダイヤ　<a href="https://x/2026.jpg">こちら</a></p>
-      <p>2026年4月4日（土）～　通常授業日／休業日　<a href="https://x/r8.jpg">時刻表はコチラ</a></p>
+      <p>2026年9月1日（火）　特別ダイヤ　<a href="https://www.fukuyama-u.ac.jp/2026.jpg">こちら</a></p>
+      <p>2026年4月4日（土）～　通常授業日／休業日　<a href="https://www.fukuyama-u.ac.jp/r8.jpg">時刻表はコチラ</a></p>
     </div></body></html>`
     const { links, warnings } = extractLinks(html)
     expect(links).toHaveLength(1)
@@ -145,8 +146,8 @@ describe('テスト2: トリップワイヤー', () => {
 
   it('同一ブロック内に複数リンクがある場合は <br> で行を分割する', () => {
     const html = `<html><body><div class="md-box"><p>
-      2026年6月14日（日）　簿記検定　<a href="https://x/a.jpg">時刻表はコチラ</a><br>
-      2026年6月20日（土）　オープンキャンパス　<a href="https://x/b.jpg">時刻表はコチラ</a>
+      2026年6月14日（日）　簿記検定　<a href="https://www.fukuyama-u.ac.jp/a.jpg">時刻表はコチラ</a><br>
+      2026年6月20日（土）　オープンキャンパス　<a href="https://www.fukuyama-u.ac.jp/b.jpg">時刻表はコチラ</a>
     </p></div></body></html>`
     const c = classifyLinks(extractLinks(html).links, TODAY)
     expect(c).toHaveLength(2)
@@ -243,5 +244,67 @@ describe('テスト3: 正規化と日付パース', () => {
     expect(extractEventLabel('● 2026年 6月14日（日） 日商簿記検定試験日 時刻表はコチラ', '時刻表はコチラ')).toBe(
       '日商簿記検定試験日',
     )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// テスト4: 日付の実在検証と取得先の許可（Codex レビュー F-018 / F-009）
+// ---------------------------------------------------------------------------
+
+describe('テスト4: 日付の実在検証（F-018）', () => {
+  it('isRealDate は非実在日を弾く（dayjs の正規化を通さない）', () => {
+    expect(isRealDate('2026-02-28')).toBe(true)
+    expect(isRealDate('2024-02-29')).toBe(true) // 閏年
+    expect(isRealDate('2026-02-29')).toBe(false)
+    expect(isRealDate('2026-02-30')).toBe(false)
+    expect(isRealDate('2026-13-01')).toBe(false)
+    expect(isRealDate('2026-99-99')).toBe(false)
+    expect(isRealDate('2026-8-1')).toBe(false) // ゼロ埋めなし
+  })
+
+  it('非実在日を含む掲示は needs_review になり、期間も持たない', () => {
+    const c = classifyLink(link('2026年2月30日（月）　オープンキャンパス'), TODAY)
+    expect(c.kind).toBe('needs_review')
+    expect(c.reason).toMatch(/実在しない日付/)
+    // 誤読の可能性が高いので特別ダイヤの塗り潰しもしない
+    expect(c.start).toBeUndefined()
+    expect(c.end).toBeUndefined()
+  })
+
+  it('期間が逆転している掲示は needs_review になり、期間も持たない', () => {
+    const c = classifyLink(link('2026年8月16日～2026年8月8日 夏季休業'), TODAY)
+    expect(c.kind).toBe('needs_review')
+    expect(c.reason).toMatch(/開始日が終了日より後/)
+    expect(c.start).toBeUndefined()
+    expect(c.end).toBeUndefined()
+  })
+
+  it('正しい期間はこれまでどおり vacation として取り込む', () => {
+    const c = classifyLink(link('2026年8月17日～9月23日 夏季休業'), TODAY)
+    expect(c.kind).toBe('vacation')
+    expect(c.start).toBe('2026-08-17')
+    expect(c.end).toBe('2026-09-23')
+  })
+})
+
+describe('テスト4: 取得先ホストの制限（F-009）', () => {
+  it('許可外ホストの絶対 URL は候補にせず警告を出す', () => {
+    const html = `<html><body><div class="md-box">
+      <p>2026年6月14日（日）　簿記検定　<a href="https://evil.example.com/a.jpg">時刻表はコチラ</a></p>
+      <p>2026年6月20日（土）　オープンキャンパス　<a href="https://www.fukuyama-u.ac.jp/b.jpg">時刻表はコチラ</a></p>
+    </div></body></html>`
+    const { links, warnings } = extractLinks(html)
+    expect(links.map((l) => l.url)).toEqual(['https://www.fukuyama-u.ac.jp/b.jpg'])
+    expect(warnings.map((w) => w.code)).toContain('link_host_not_allowed')
+  })
+
+  it('平文 http のリンクも取り込まない', () => {
+    const html = `<html><body><div class="md-box">
+      <p>2026年6月14日（日）　簿記検定　<a href="http://www.fukuyama-u.ac.jp/a.jpg">時刻表はコチラ</a></p>
+      <p>2026年6月20日（土）　オープンキャンパス　<a href="https://www.fukuyama-u.ac.jp/b.jpg">時刻表はコチラ</a></p>
+    </div></body></html>`
+    const { links, warnings } = extractLinks(html)
+    expect(links).toHaveLength(1)
+    expect(warnings.some((w) => w.code === 'link_host_not_allowed')).toBe(true)
   })
 })

@@ -2,11 +2,13 @@
  * FR-5: 画像取得。
  * リサイズ版サフィックス（例 `-724x1024`）が付いた URL は原寸を先に試し、非200ならリンク記載 URL に戻す。
  * Content-Type が image 以外・10MB 超は needs_review（黙って進めない）。
+ * 取得先は CONFIG.allowedImageHostSuffixes に限定する（リダイレクト先も fetchPage 側で検査）。
  */
 
 import { createHash } from 'node:crypto'
 import { CONFIG } from './config.js'
 import { fetchWithTimeout } from './fetchPage.js'
+import { checkUrl } from './url.js'
 
 export type ImageResult =
   | { ok: true; buffer: Buffer; sha256: string; url: string; mimeType: string; triedOriginal: boolean }
@@ -24,6 +26,21 @@ export function originalSizeUrl(url: string): string | null {
   return url.replace(CONFIG.resizedSuffixPattern, '')
 }
 
+/**
+ * 実体が JPEG / PNG かをマジックバイトで確かめる。
+ * Content-Type は送信側の申告にすぎず、HTML やスクリプトが image/jpeg として
+ * 返ってくることがあるため、Gemini へ渡す前にバイト列そのものを確認する。
+ */
+export function looksLikeImage(buffer: Buffer): boolean {
+  if (buffer.byteLength >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return true // JPEG
+  if (
+    buffer.byteLength >= 8 &&
+    buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47 &&
+    buffer[4] === 0x0d && buffer[5] === 0x0a && buffer[6] === 0x1a && buffer[7] === 0x0a
+  ) return true // PNG
+  return false
+}
+
 export async function fetchImage(rawUrl: string): Promise<ImageResult> {
   const candidates: string[] = []
   const original = originalSizeUrl(rawUrl)
@@ -32,11 +49,21 @@ export async function fetchImage(rawUrl: string): Promise<ImageResult> {
 
   let lastReason = ''
   for (const [i, url] of candidates.entries()) {
+    // 取得の前に宛先を検査する（掲載ページが改ざんされても許可ホスト以外へは出さない）
+    const allowed = checkUrl(url, CONFIG.allowedImageHostSuffixes)
+    if (!allowed.ok) {
+      lastReason = `画像を取得しませんでした（${allowed.reason}）`
+      continue
+    }
+
     let res: Awaited<ReturnType<typeof fetchWithTimeout>>
     try {
-      res = await fetchWithTimeout(url)
+      res = await fetchWithTimeout(url, {
+        allowedHostSuffixes: CONFIG.allowedImageHostSuffixes,
+        maxBytes: CONFIG.maxImageBytes,
+      })
     } catch (e) {
-      lastReason = `画像取得に失敗しました（ネットワークエラー: ${(e as Error).message}）`
+      lastReason = `画像取得に失敗しました（${(e as Error).message}）`
       continue
     }
     if (!res.ok) {
@@ -51,12 +78,10 @@ export async function fetchImage(rawUrl: string): Promise<ImageResult> {
       continue
     }
 
-    if (res.buffer.byteLength > CONFIG.maxImageBytes) {
-      return {
-        ok: false,
-        url,
-        reason: `画像サイズが上限（${Math.round(CONFIG.maxImageBytes / 1024 / 1024)}MB）を超えています: ${res.buffer.byteLength} bytes`,
-      }
+    // Content-Type の申告だけを信じない（HTML が image/jpeg で返ることがある）
+    if (!looksLikeImage(res.buffer)) {
+      lastReason = 'JPEG / PNG のいずれでもないデータが返りました（Content-Type は画像を名乗っています）'
+      continue
     }
 
     return {

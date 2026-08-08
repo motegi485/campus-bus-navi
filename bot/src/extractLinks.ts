@@ -7,7 +7,8 @@ import * as cheerio from 'cheerio'
 import type { AnyNode, Element } from 'domhandler'
 import { CONFIG } from './config.js'
 import type { ClassifiedLink, LinkInfo, LinkKind, Season, Warning } from './types.js'
-import { formatDate, isBefore, parseDate, todayJst } from './time.js'
+import { formatDate, isAfter, isBefore, isRealDate, parseDate, todayJst } from './time.js'
+import { checkUrl } from './url.js'
 
 const BLOCK_TAGS = new Set(['p', 'li', 'td', 'th', 'div', 'section', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
 
@@ -128,6 +129,17 @@ export function extractLinks(html: string, baseUrl: string = CONFIG.pageUrl): Ex
       const url = decodeHref(absolute)
       if (seen.has(url)) continue
       seen.add(url)
+      // 掲載ページの改ざん・誤リンクで許可外のホストへ取得に行かないよう、候補の時点で弾く
+      const allowed = checkUrl(absolute, CONFIG.allowedImageHostSuffixes)
+      if (!allowed.ok) {
+        warnings.push({
+          level: 'warn',
+          code: 'link_host_not_allowed',
+          message: `時刻表リンクの取得先が許可されていないため取り込みません（${allowed.reason}）。`,
+          url,
+        })
+        continue
+      }
       links.push({
         url,
         rawHref: absolute,
@@ -277,6 +289,28 @@ export function classifyLink(link: LinkInfo, today: string = todayJst()): Classi
     ...(range?.start ? { start: range.start } : {}),
     ...(range?.end ? { end: range.end } : {}),
   })
+
+  /**
+   * 日付そのものが破綻している掲示は、期間を残さず needs_review にする。
+   *
+   * `parseDate` は strict ではないので `2月30日` は `3月2日` へ黙って正規化される。
+   * そのまま通すと「読めたつもりで別の日に override を張る」ことになるため、ここで止める。
+   * 期間（start/end）も残さない ＝ 特別ダイヤの塗り潰しもしない。日付が読めていない以上、
+   * どの期間に適用すべきかを決められないためである。
+   */
+  if (raws.length > 0) {
+    const resolvedAll = resolveDates(raws, today)
+    const invalid = resolvedAll.dates.filter((d) => !isRealDate(d))
+    if (invalid.length > 0) {
+      return reviewed(`実在しない日付が含まれるため取り込みません（${invalid.join(', ')}）: 「${normalizedLine}」`)
+    }
+    if (hasTilde && resolvedAll.dates.length >= 2 && isAfter(resolvedAll.dates[0]!, resolvedAll.dates[1]!)) {
+      return reviewed(
+        `期間の開始日が終了日より後になっています（${resolvedAll.dates[0]}〜${resolvedAll.dates[1]}）。` +
+          `日付の誤読の可能性があるため取り込みません: 「${normalizedLine}」`,
+      )
+    }
+  }
 
   // 優先1: 長期休暇
   if (vac) {
