@@ -165,6 +165,19 @@ input, textarea {
   user-select: auto;
 }
 
+/* ブラウザ標準のフォーカスリング（青い囲い）を無効化。
+   オーバーレイを開くと useOverlayA11y が内部の最初の操作要素へフォーカスを
+   移すため、タップで開いただけでドロワーの「大学ホームページ」や設定の
+   「戻る」に青い枠が出て、押した覚えのないものが選択されて見えていた。
+   * { -webkit-tap-highlight-color: transparent } で OS 標準のタップ反応を消し
+   usePressable に寄せているのと同じ方針。押下の表現はそちらが担う。
+   入力欄を持たないアプリなので、これで失われるのはキーボード Tab 移動時の
+   現在位置表示だけ（戻すなら :focus-visible に自前のリングを定義する）。 */
+:focus,
+:focus-visible {
+  outline: none;
+}
+
 html {
   height: 100%;
   font-family: var(--font-sans);
