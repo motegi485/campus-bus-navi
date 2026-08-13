@@ -135,7 +135,7 @@ function validateTimetables() {
       continue
     }
 
-    // 時刻を表示しない2つの状態（AGENTS.md「時刻を表示しない2つの状態」）。
+    // 時刻を表示しない2つの状態（docs/design-decisions.md「特別ダイヤ」「全便運休」）。
     // どちらも schedule 空配列で表現するので、それ以外の表が空になっていたら
     // 「本日の運行はありません」と誤表示される事故なのでビルドを止める。
     const isEmptyByDesign = idFromFilename.includes('special') || idFromFilename.includes('closed')
