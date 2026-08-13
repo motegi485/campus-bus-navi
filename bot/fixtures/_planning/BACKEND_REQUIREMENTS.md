@@ -2,7 +2,8 @@
 
 | 項目 | 内容 |
 |---|---|
-| 文書バージョン | 1.7（公開前レビュー指摘の反映） |
+| 文書バージョン | 1.8（実装・運用文書との整合化） |
+| v1.8 変更点 | 2026-08-13、実行可能な `.github/workflows/timetable-sync.yml` と §10 の記載を照合し、action の full commit SHA、`checkout` の `persist-credentials: false`、失敗時の `bot/.out/**` 成果物保存を実装と一致させた。PR タイトルは日付付きではなく固定文字列であることを明記。実行済みテスト・GitHub Actions の有効状態・Secrets・権限を「文書上の過去記録」と「GitHub UI で再確認が必要な外部状態」に分離し、AC-4 と AC-7 が未検証であることを明確化。詳細な全体設計は `docs/` から参照する。 |
 | v1.7 変更点 | 2026-08-08、Codex による公開前システムレビュー（`_codexReview/CODEX_REVIEW_2026-08-08.md`）で妥当と判定した指摘を実装に反映。**FR-3**: 日付は `time.ts` の `isRealDate()` で実在検証し、非実在日・逆転期間（start > end）の掲示は**期間を残さず** `needs_review`（特別ダイヤの塗り潰しもしない）／年を推定した日付（`yearGuessed`）を PR 本文の専用節と Step Summary に出す。**FR-4**: 掲載から消えた未来イベントを `state.events[].missing_count` で数え、`CONFIG.eventMissingRunsBeforeRemoval`（3 回連続）で state・override・event ファイルを撤去する（`plan.ts` の `reconcileEvents`）。ページから時刻表リンクを 1 件も抽出できなかった実行は数えない／同一 URL で event の日付が増減したときに、追加日の `timetable_event_YYYYMMDD` を既存 derived から複製し、外れた日のファイルを撤去する（`syncEventFiles`）。**FR-5 / NFR-8**: 取得先を `url.ts` の allowlist（https のみ・資格情報付き不可・IP リテラル不可・許可ホストのみ）で制限し、リダイレクトは自前で追って各ホップで再検証。応答サイズは Content-Length 事前判定とストリーム上限で頭打ちにし、画像はマジックバイトで実体を確認（§7.2 に `allowed*HostSuffixes`・`maxPageBytes`・`maxCsvBytes`・`maxRedirects` 追加）。**FR-10**: 祝日キャッシュに鮮度（`holidayCacheMaxAgeDays`）と将来カバレッジ（`holidayCoverageMinDays`）の警告を追加。**FR-11/§10**: `level: 'warn'` があるのにリポジトリ差分が 0 の実行は `process.exitCode = 1` で失敗させ、`bot/.out/**` を `if: always()` で成果物に残す（PR も通知も残らないサイレント失敗の解消）／1 実行の締切 `runDeadlineMs`（15 分）を追加し、OCR のリトライがワークフローの `timeout-minutes: 20` を越えないようにする／workflow の action を full commit SHA で固定し、checkout を `persist-credentials: false` にした。**§9**: `state.events[].missing_count` を追加 |
 | v1.6 変更点 | 2026-08-02、既定のフォーマットで表現できないダイヤ（お盆期間のように運休日と通常日が混在し、「大学発のみ最終便が変わる」等の但し書きを含むもの）への対処として **特別ダイヤ `timetable_special`** を新設：**§3.4** に `special` と無印 `vacation` を追加（判定順序 `closed → special → event → vacation → holiday → weekday`）／**FR-3** の needs_review に「期間の両端が読めていれば `start`/`end` を残す」を追加／**FR-9 の優先順位を 手動 > special > event > 長期休暇 > 祝日 > default_rules に変更**し、needs_review の期間を `timetable_special` で塗り潰す手順 3a を追加（PR を見落としても誤った時刻を表示しないフェイルセーフ）／FR-9 の改ざん検査で「値が**変更**された」場合も `suppressed_overrides` に記録するよう変更（同じ衝突警告が毎実行 PR に出続けるのを防ぐ）／**§9 に `specials`** 追加／§7.2 に `specialTimetableId`・`specialMaxRangeDays` 追加 |
 | v1.5 変更点 | 2026-08-01 に Phase 0〜1 を実装し、実 API で通し検証した結果を反映：**§5/§7.2 モデル変更**（primary `gemini-3.6-flash` / fallback `gemini-3.5-flash`）／**§7.2 vacation 判定を季節接頭辞つき正規表現へ**（「夏季休業」に対応）／**§8.5.3 OCR プロンプトをレイアウト非依存に全面改稿**＋注記除外・label 規則追加／**§8.5.5 に 503 等の一時障害リトライ・RPD 枯渇の扱い・1実行あたり呼び出し上限**を追加（無料枠 RPD=20 の実測値）／**§3.5 JSON 整形をハウススタイル維持に**／**§9 に `suppressed_overrides`** 追加／FR-10 を「CSV の SHA-256 が変わったときだけ書き換え」に（冪等性）／FR-7 に「label が日付だけのときのフォールバック」追加／§7.1 に `time.ts`・`plan.ts`・`env.ts`・`tools/ocr-check.ts` 追加／§7.3 に `SKIP_OCR`・`.env.local`／§12 の fixtures 供給元と AC を実態へ更新／§4.3 の画像レイアウト記述を実測で訂正 |
@@ -11,9 +12,10 @@
 | v1.3 変更点 | ライブからイベント画像が削除された事実を反映：§12.1（page_snapshot は歴史的スナップショット・images/ 追加）・§12.3（実環境AC を「通常ダイヤのみ」に再構成、イベント経路はユニットテストへ、AC-7 追加） |
 | v1.4 変更点 | 2026-07-07 の実地検証を反映：§3.1 プレキャッシュ記述の訂正（データJSONは globIgnores で除外済・NetworkFirst 3秒）／§3.4 に closed 追加／§4 命名非依存原則・画像レイアウト2種・除外根拠訂正・robots.txt／FR-2〜FR-5・FR-7・FR-9 の規則追加（空白許容日付パース・未来 start の regular 保留・過去 event スキップ・「日付ちょうど1つ」規則・event name 生成元確定・警告2種）／§7 保護ファイルの実態反映（テンプレは _examples/ へ移動済み・timetable_closed.json 明記）／§9 state スキーマ統一／§12 AC 再構成（AC-7 は 2026-07-18 で実走可）／§15-6・C-8 削除／§16-17 役割分担更新（fixtures 配置は C-10 化、_reviewRSD 削除前に複製必須） |
 | 作成日 | 2026-06-13 |
-| 位置づけ | **実装の正本（SSoT）**。他の資料（`HANDOFF.md`、ルートの `CLAUDE.md` / `AGENTS.md`、`README.md`）と矛盾する場合は本書が優先する。※ v1.4 まで併記していた `BACKEND_DESIGN.md`（v2ドラフト）は本書へ統合済みで、リポジトリには存在しない |
+| 位置づけ | **Bot の要件・安全境界の正本（SSoT）**。他の資料（`HANDOFF.md`、`docs/backend-bot.md`、ルートの `CLAUDE.md` / `AGENTS.md`、`README.md`）と矛盾する場合は本書が優先する。実行可能なワークフローの行単位の設定は `.github/workflows/timetable-sync.yml` を確認する。※ v1.4 まで併記していた `BACKEND_DESIGN.md`（v2ドラフト）は本書へ統合済みで、リポジトリには存在しない |
 | 実装者 | Claude Code（本書を実装指示書として渡す） |
-| 実装状況 | **main 統合済み・ワークフローは Disable 中（2026-08-02）**。`bot/` 一式・`.github/workflows/timetable-sync.yml` が main にあり、ユニット/統合テスト 153 件が緑（v1.7 の回帰テストを含む）。実 API での通し実行（ローカル）で AC-1〜AC-3 相当を確認済み。**未了は Actions 実走系（AC-4/AC-7）と H-2/H-3 のみ。2026-08-23 前後に実施予定**（§17.3・手順は `HANDOFF.md`） |
+| 確認境界（v1.8） | テスト 153 件・ローカル AC-1?AC-3 相当の合格、workflow Disable、Secrets 未登録、Workflow permissions 未設定は 2026-08-08 までの文書記録であり、現在値を保証しない。**未検証の受け入れ基準は AC-4 と AC-7。** GitHub Actions の有効状態、Secrets、権限、PR・本番反映は外部状態なので稼働前に GitHub UI で再確認する。 |
+| 実装状況（2026-08-08 までの記録） | **main 統合済み・ワークフローは Disable 中（2026-08-02）**。`bot/` 一式・`.github/workflows/timetable-sync.yml` が main にあり、ユニット/統合テスト 153 件が緑（v1.7 の回帰テストを含む）。実 API での通し実行（ローカル）で AC-1〜AC-3 相当を確認済み。**未了は Actions 実走系（AC-4/AC-7）と H-2/H-3 のみ。2026-08-23 前後に実施予定**（§17.3・手順は `HANDOFF.md`）。現在値は直上の確認境界に従い GitHub UI で再確認する。 |
 | 主要な訂正（v2ドラフトから） | ① SDKは `@google/genai`（旧 `@google/generative-ai` は使用禁止） ② Gemini 3系は **temperature を指定しない**（公式推奨。temp 0 指定は誤り） ③ `thinking_level` / `media_resolution` を使用 ④ create-pull-request は **v8** ⑤ 出力先は `public/data/timetables/` |
 
 ---
@@ -69,7 +71,7 @@ Bot はフロントを変更しない。以下はリポジトリの現状から�
 - カレンダー: `public/data/calendar_rules.json`
 - `_headers` により `/data/*.json` は `no-cache` 配信。SW は NetworkFirst（タイムアウト **3秒**、失敗時は `timetable-data` キャッシュの前回取得分にフォールバック。maxEntries 20 / 7日）。
 - **データのみの変更では `package.json` の `version` を上げない**（ユーザー決定。precache のリビジョンはファイル内容ハッシュ由来であり、伝播に version は関与しない）。
-- **【確認済みの付随挙動・2026-07-07 HEAD】** `vite.config.ts` の `globPatterns` は `json` を含むが、`globIgnores: ['data/**/*.json']` により **`/data/**` の JSON は SW プレキャッシュから除外されている**。したがって**データのみのマージでは precache manifest は変化せず、UpdateBanner（更新通知）は表示されない**。既存クライアントは次回起動時の NetworkFirst（通常起動・手動更新 `?t=` 付き・お知らせ取得のすべてがこの経路を通る）で新鮮なデータを取得し、取得済み分がオフライン用フォールバックになる。この挙動は `globIgnores` の除外設定に依存しており、フロント側でこれを外すと壊れる（CLAUDE.md にも明記あり）。Bot 側の対応は不要（マージ後に観測される正常挙動としてここに明記する）。
+- **【確認済みの付随挙動・2026-07-07 HEAD】** `vite.config.ts` の `globPatterns` は `json` を含むが、`globIgnores: ['data/**/*.json']` により **`/data/**` の JSON は SW プレキャッシュから除外されている**。したがって**データのみのマージでは precache manifest は変化せず、UpdateBanner（更新通知）は表示されない**。既存クライアントは次回起動時の NetworkFirst（通常起動・手動更新 `?t=` 付き・お知らせ取得のすべてがこの経路を通る）で新鮮なデータを取得し、取得済み分がオフライン用フォールバックになる。この挙動は `globIgnores` の除外設定に依存しており、フロント側でこれを外すと壊れる（`docs/pwa-and-deployment.md` にも明記あり）。Bot 側の対応は不要（マージ後に観測される正常挙動としてここに明記する）。
 
 ### 3.2 timetable JSON スキーマ（`src/types/timetable.d.ts` と一致させる）
 ```jsonc
@@ -188,7 +190,7 @@ Bot はフロントを変更しない。以下はリポジトリの現状から�
 | HTTP | Node 組み込み `fetch` | UA: `campus-bus-navi-bot/1.0 (+https://github.com/motegi485/campus-bus-navi)` |
 | ハッシュ | `node:crypto` SHA-256 | |
 | テスト | `vitest` | フィクスチャ駆動（§12） |
-| PR 作成 | **`peter-evans/create-pull-request@v8`** | checkout は `actions/checkout@v6`、Node は `actions/setup-node` 現行版（v5系） |
+| PR 作成 | **`peter-evans/create-pull-request` を full commit SHA で固定** | checkout と setup-node も full commit SHA 固定。実際の SHA は `.github/workflows/timetable-sync.yml` を確認する |
 | 祝日データ | 内閣府 CSV `https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv` | CC-BY。Shift_JIS・CRLF。1行目ヘッダ `国民の祝日・休日月日,国民の祝日・休日名称`、データ行 `YYYY/M/D,名称`（月日ゼロ埋めなし）。振替休日込み。1955年〜翌年分（2026-08-01 取得時点で 1067 件・2027-11-23 まで）。**URL は過去に一時変更歴ありのため config 化＋キャッシュフォールバック必須** |
 
 #### 5.1 OCR モデル選定の根拠（v1.5・2026-08-01 実測）
@@ -225,7 +227,7 @@ GitHub Actions cron（毎日 07:00 JST = UTC 22:00）/ workflow_dispatch
     12. cleanup        : 過去日付の管理 override・event ファイル削除（計画を PR に明記）
     13. writeState     : bot/state.json 更新（PR に同梱 → マージ時に確定）
     14. prBody         : bot/.out/pr-body.md 生成（git 管理外）
-  └─ peter-evans/create-pull-request@v8
+  └─ peter-evans/create-pull-request（full commit SHA 固定）
      : 差分があれば単一ローリングブランチ bot/timetable-sync を更新し PR 作成/更新
 人がレビュー＆マージ → Cloudflare Pages（GitHub App 連携）が main push を検知して再デプロイ
 ```
@@ -632,6 +634,8 @@ const json = JSON.parse(res.text);
 3. 失敗（非200/パース不能）→ **既存キャッシュを使用**して処理続行、PR に「祝日CSV取得失敗・キャッシュ使用」警告。キャッシュも無い初回失敗時のみ祝日 baseline をスキップして警告。
 
 ### FR-11: PR 作成
+> **v1.8 訂正:** この節の直後に残る `@v8` と日付付き title の記述は、v1.7 以前の履歴であり実行定義ではない。action は full commit SHA 固定、title は固定文字列、失敗時の成果物保存を含む現在の実行設定は `.github/workflows/timetable-sync.yml` を正とする。
+
 - `peter-evans/create-pull-request@v8`。`branch: bot/timetable-sync`（単一ローリング）、`base: main`、`delete-branch: true`、`title: "🤖 時刻表データの自動更新 (YYYY-MM-DD)"`、`body-path: bot/.out/pr-body.md`、`add-paths: public/data/** , bot/state.json , bot/holidays.json`。
 - 差分ゼロならアクションが何もしない（PR は作られない）。
 - **pr-body.md テンプレート**（生成内容）:
@@ -727,7 +731,9 @@ const json = JSON.parse(res.text);
 
 ---
 
-## 10. GitHub Actions ワークフロー（確定 YAML）
+## 10. GitHub Actions ワークフロー（実行定義はリポジトリ上の YAML）
+
+> **実行可能な設定の最終確認先は `.github/workflows/timetable-sync.yml`**。以下は 2026-08-13 時点の実装と照合した記載であり、変更時は必ず実ファイルと合わせて更新する。
 
 `.github/workflows/timetable-sync.yml`
 ```yaml
@@ -758,9 +764,11 @@ jobs:
     env:
       TZ: Asia/Tokyo
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 22
           cache: npm
@@ -777,9 +785,18 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
 
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: timetable-sync-out
+          path: bot/.out/**
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Create Pull Request
         if: ${{ inputs.dry_run != true }}
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1
         with:
           branch: bot/timetable-sync
           base: main
