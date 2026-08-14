@@ -93,10 +93,12 @@ export function BusStopMap({ coords, stopName, route }: Props) {
   const btnColor = isCampus ? '#10b981' : '#6c63d5'
 
   return (
-    <div className="section-card rounded-[20px] overflow-hidden">
+    // bp 時は縦フレックス。余った高さを地図エリアへ配分し、左カラムと下端を揃える
+    <div className="section-card rounded-[20px] overflow-hidden bp:flex-1 bp:flex bp:flex-col bp:min-h-0">
       {/* isolation: isolate でLeaflet内部のz-indexをこのコンテナ内に閉じ込める
-          これによりドロワー（z-index:30）がLeafletタイル（z-index:400+）の下に潜るバグを防ぐ */}
-      <div style={{ position: 'relative', zIndex: 0, isolation: 'isolate' }}>
+          これによりドロワー（z-index:30）がLeafletタイル（z-index:400+）の下に潜るバグを防ぐ。
+          bp:min-h-[300px] は地図の下限高（運行終了・運休日など左カラムが短い日に効く） */}
+      <div className="bp:flex-1 bp:min-h-[300px]" style={{ position: 'relative', zIndex: 0, isolation: 'isolate' }}>
         <MapContainer
           center={[coords.lat, coords.lng]}
           zoom={17}
@@ -129,7 +131,7 @@ export function BusStopMap({ coords, stopName, route }: Props) {
         href={mapUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 w-full py-4 font-bold text-[14px] border-t border-[var(--border)] select-none"
+        className="flex items-center justify-center gap-2 w-full py-4 font-bold text-[14px] border-t border-[var(--border)] select-none bp:shrink-0"
         style={{ color: btnColor }}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
