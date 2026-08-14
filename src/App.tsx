@@ -420,7 +420,9 @@ export default function App() {
         <main className="flex flex-col gap-[10px] p-[14px] bp:p-6" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 28px)' }}>
 
           {/* bp: 左右2カラムエリア */}
-          <div className="flex flex-col gap-[10px] bp:flex-row bp:gap-6 bp:items-start">
+          {/* bp 時は align-items: stretch（既定）。右カラムの地図を左カラムの高さに
+              追従させて下端を揃えるため、items-start は付けない */}
+          <div className="flex flex-col gap-[10px] bp:flex-row bp:gap-6">
 
             {/* 左カラム: ローディング / エラー / 時刻カード群 */}
             <div className="flex flex-col gap-[10px] bp:flex-1 bp:min-w-0">
@@ -514,9 +516,9 @@ export default function App() {
 
             {/* 右カラム: 地図 */}
             {!loading && currentRoute && (
-              <div className="bp:flex-1 bp:min-w-0">
-                <section>
-                  <p className="text-[11px] font-bold tracking-widest uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
+              <div className="bp:flex-1 bp:min-w-0 bp:flex bp:flex-col">
+                <section className="bp:flex-1 bp:flex bp:flex-col bp:min-h-0">
+                  <p className="text-[11px] font-bold tracking-widest uppercase mb-3 bp:shrink-0" style={{ color: 'var(--text-muted)' }}>
                     乗り場マップ
                   </p>
                   {/* オフラインでも地図はマウントする。タイルは osm-tiles キャッシュ（CacheFirst）
@@ -524,7 +526,7 @@ export default function App() {
                       未取得の範囲は空白になるので、その旨をオフライン時だけ注記する。 */}
                   <Suspense
                     fallback={
-                      <div className="section-card rounded-[20px] flex items-center justify-center" style={{ height: 220 }}>
+                      <div className="section-card rounded-[20px] flex items-center justify-center h-[220px] bp:h-auto bp:flex-1 bp:min-h-[300px]">
                         <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>地図を読み込み中...</p>
                       </div>
                     }
@@ -536,7 +538,7 @@ export default function App() {
                     />
                   </Suspense>
                   {!isOnline && (
-                    <p className="text-[11px] mt-2 text-center" style={{ color: 'var(--text-muted)' }}>
+                    <p className="text-[11px] mt-2 text-center bp:shrink-0" style={{ color: 'var(--text-muted)' }}>
                       オフラインのため、以前表示した範囲のみ表示されます（乗り場：{currentRoute.bus_stop_name}）
                     </p>
                   )}

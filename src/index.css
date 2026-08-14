@@ -539,9 +539,12 @@ html.bp-active .phone-shell-inner {
   box-shadow: none !important;
 }
 
-/* PC/横向き表示時: Leaflet地図の高さを拡大 */
+/* PC/横向き表示時: Leaflet地図は右カラムの残り高さいっぱいに広がる。
+   左カラム（次のバス＋今後の発車時刻）と下端を揃えるため、固定高ではなく
+   親（BusStopMap の地図ラッパ）に追従させる。下限は同ラッパの bp:min-h-[300px]。
+   MapContainer のインライン height:220px（モバイル縦用）をここで上書きする。 */
 html.bp-active .leaflet-container {
-  height: 400px !important;
+  height: 100% !important;
 }
 
 /* ============================================================
