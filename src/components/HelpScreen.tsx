@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useOverlayA11y } from '../hooks/useOverlayA11y'
-
-// GoogleフォームのURLを設定すると接続
-const FEEDBACK_URL = 'https://forms.gle/CD5qh8MpFZZVubTw5'
+import { FEEDBACK_URL } from '../constants/links'
 
 interface Props {
   open: boolean
