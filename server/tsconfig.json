@@ -1,0 +1,28 @@
+{
+  // Worker として動くコード（Cloudflare のランタイム型）。
+  // tools/ と test/ は Node で動くため tsconfig.node.json 側で検査する。
+  // src/ のコードは両方のランタイムで動くよう、標準の Web API だけで書く。
+  "compilerOptions": {
+    // esbuild（wrangler のバンドラ）が認識する最大の名前付きターゲットが ES2022。
+    // ES2023 にすると毎回のデプロイで警告が出て、本当に見るべき警告が埋もれる
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["@cloudflare/workers-types"],
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  // Pages Functions（リポジトリ直下の functions/）も Cloudflare の型で動くのでここで検査する
+  "include": ["src/**/*.ts", "../functions/**/*.ts"]
+}
