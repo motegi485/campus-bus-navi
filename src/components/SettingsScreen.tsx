@@ -6,11 +6,11 @@ import {
   IconRouteSwap,
   IconContrast,
   IconFontSize,
-  IconBell,
   IconInfo,
   type AppIcon,
   type IconTone,
 } from './AppIcons'
+import { PushDebugPanel } from './PushDebugPanel'
 
 interface Props {
   open: boolean
@@ -187,16 +187,11 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
           <SettingRow icon={IconFontSize} tone="amber" title="フォントサイズ" sub="時刻の文字の大きさ" value={SELECTS.font.current} onClick={() => openSelect('font')} />
         </Section>
 
-        {/* 通知セクション（将来拡張用） */}
+        {/* 通知セクション
+            ⚠️ 現在は検証用パネル（PushDebugPanel）。段階 6 で正式な通知設定 UI に置き換える。
+               「近日公開」のプレースホルダはこの実装で置き換え済み。 */}
         <Section label="通知">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
-            <IconTile icon={IconBell} tone="pink" />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>発車リマインダー</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>発車X分前に通知</div>
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: 'var(--bg-input)', color: 'var(--text-muted)' }}>近日公開</span>
-          </div>
+          <PushDebugPanel route={settings.defaultRoute} />
         </Section>
 
         {/* アプリ情報 */}
