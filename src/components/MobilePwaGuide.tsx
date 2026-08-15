@@ -1,14 +1,7 @@
 import { useEffect, useState } from 'react'
-import { isIOS, isAndroid } from '../utils/platform'
+import { isIOS, isAndroid, isStandalone } from '../utils/platform'
 
 const STORAGE_KEY = 'campusBusNaviMobilePwaDismissed'
-
-function isStandalone(): boolean {
-  if (typeof window === 'undefined') return false
-  if (window.matchMedia('(display-mode: standalone)').matches) return true
-  const nav = navigator as Navigator & { standalone?: boolean }
-  return nav.standalone === true
-}
 
 function shouldShow(): boolean {
   if (typeof window === 'undefined') return false
