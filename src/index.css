@@ -58,6 +58,18 @@
   --toggle-on-campus:  #047857;
   --toggle-on-station: #4f46e5;
 
+  /* 週間ダイヤの土日の曜日文字。カレンダーの慣習（土=青・日=赤）で走査を助ける。
+     日付と曜日の文字自体は色を落としても残るので、情報は色だけに依存しない。
+
+     行の面は 2 種類ある（通常 --bg-card #ffffff / 運休・特別 --bg-card2 #f6f6fa）ので、
+     淡い方でも AA を満たす値を選んである。実測（実装後に再計算）:
+       #2563eb → 5.17 / 4.79
+       #c81e1e → 5.74 / 5.32
+     赤に tailwind の red-600 (#dc2626) を使うと --bg-card2 上で 4.48 と AA を割るため、
+     一段濃い値にしてある。--icon-red-fg (#ef4444) は 3.76 でさらに足りない。 */
+  --dow-sat: #2563eb;
+  --dow-sun: #c81e1e;
+
   /* セクションカードの縁と影（.section-card が読む）。ライトは地（--bg-page）との
      明度差が小さいので、接地影 + 中距離 + 拡散の 3 層を重ねて輪郭を作る。
      光源は左上に置き、影は下から右へ回す（x:y ≒ 1:2。x を y と同じだけ振ると
@@ -115,6 +127,12 @@
      ノブ最薄部の上で 7.69 / 6.89。 */
   --toggle-on-campus:  #6ee7b7;
   --toggle-on-station: #a5b4fc;
+
+  /* 土日の曜日文字（ダーク）。実測 --bg-card / --bg-card2 の順で
+     #60a5fa → 5.77 / 6.21、#f87171 → 5.31 / 5.71。ダークは面が地より明るいので
+     ライトのような濃色化は要らない。 */
+  --dow-sat: #60a5fa;
+  --dow-sun: #f87171;
 
   /* セクションカードの縁と影（ダーク）。暗い地の上では落ち影だけだと沈むため、
      ライトより強い黒影に加えて上端の内側リムで縁を立てる。 */
@@ -510,6 +528,47 @@ html.bounce-native .header-cushion {
 }
 .dark .frost-icon-btn {
   background: rgba(0, 0, 0, 0.25);
+}
+
+/* ============================================================
+   ページ面に置くルート切替スイッチ（RouteSwitch）
+
+   ヘッダーの .frost-surface は「グラデが透ける半透明の面」なので、
+   --bg-page の上では地の色が抜けて成立しない。こちらはページ面用。
+
+   「動かせる部品」に見せる手掛かりは 2 つに絞っている。
+   (1) トラックが溝として沈んでいること（inset の影）
+   (2) ノブが物理的に浮いていて、押すと滑ること（落ち影 ＋ ばねの transition）
+   --bg-input (#f0f0f5) は --bg-page (#f2f3f7) とほぼ同じ明度で、
+   1px の境界だけでは面として立たない。溝の影がここでは必須。
+
+   ライトは白いノブ（地より明るい）。ダークは .toggle-knob と同じ考え方で、
+   地より暗いノブの上端に光のリムを置いて縁を立てる（ダークで明るいノブにすると、
+   選択中ラベル #a5b4fc が 3.77:1 まで落ちて AA を割るため、面の側は暗いままにする）。
+   ============================================================ */
+.route-switch-track {
+  background: var(--bg-input);
+  border: 1px solid var(--chip-border);
+  box-shadow: inset 0 1.5px 3px var(--chip-rim);
+  transition: background .35s, border-color .35s, box-shadow .35s;
+}
+.route-switch-knob {
+  background: var(--bg-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 0 rgba(15, 23, 42, 0.07),
+    0 2px 6px rgba(15, 23, 42, 0.20);
+  transition: transform .34s cubic-bezier(.34, 1.4, .64, 1), background .35s, box-shadow .35s;
+}
+.dark .route-switch-knob {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1px 0 rgba(0, 0, 0, 0.55),
+    0 3px 9px rgba(0, 0, 0, 0.50);
+}
+/* ばねの動きだけ止める。面と影の切替（テーマ変更）は残す */
+@media (prefers-reduced-motion: reduce) {
+  .route-switch-knob { transition: background .35s, box-shadow .35s; }
 }
 
 /* ============================================================
