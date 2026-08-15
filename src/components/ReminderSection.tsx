@@ -1,29 +1,28 @@
-import { useEffect, useRef } from 'react'
 import { usePressable } from '../hooks/usePressable'
-import { usePushSubscription, type PushStatus } from '../hooks/usePushSubscription'
-import type { ReminderSettings } from '../hooks/useReminderSettings'
+import type { PushStatus } from '../hooks/usePushSubscription'
 import { tapFeedback } from '../utils/haptics'
 
 /**
  * 設定画面の「通知」セクション。
  *
- * 通知の到達条件を誤解させないことが最優先（提案書 M-3）。立てる約束は 1 つだけ:
- *   「登録した端末に、最終便の N 分前に通知が届く。アプリを閉じていてもよい」
+ * ここは**通知の根幹の許可**だけを扱う。オンにすると通知許可を取り、この端末を
+ * 登録する。どの便に何分前かは、ホーム画面の「本日の全時刻表」で指定する。
  *
- * iOS ではホーム画面に追加した PWA でしか届かないため、そうでない環境には
- * トグルを出さずに理由を説明する（届かないものを操作させない）。
+ * オフにすると、設定済みの便のリマインドもすべて消える（一括解除）。
+ *
+ * 到達条件を誤解させないことが最優先（提案書 M-3）。iOS ではホーム画面に追加した
+ * PWA でしか届かないため、そうでない環境にはトグルを出さずに理由を説明する
+ * （届かないものを操作させない）。
  */
 
 interface Props {
-  reminder: ReminderSettings
-  /** 選択サブスクリーンを開く。行の見た目・作法は他の設定行と揃える */
-  onOpenSelect: (key: 'reminderRoute' | 'reminderLead' | 'reminderDays') => void
-  routeLabel: string
-  leadLabel: string
-  daysLabel: string
+  status: PushStatus
+  busy: boolean
+  error: string | null
+  onEnable: () => void
+  onDisable: () => void
 }
 
-/** 状態ごとの見出しと説明。tone は文字色に対応する */
 const STATUS_TEXT: Record<PushStatus, { label: string; detail: string; tone: 'ok' | 'warn' | 'ng' }> = {
   unsupported: {
     label: 'この環境では利用できません',
@@ -43,12 +42,13 @@ const STATUS_TEXT: Record<PushStatus, { label: string; detail: string; tone: 'ok
   },
   idle: {
     label: 'オフ',
-    detail: 'オンにすると、最終便の発車前にこの端末へ通知が届きます。アプリを閉じていても届きます。',
+    detail: 'オンにすると、「本日の全時刻表」から便を選んで発車前の通知を設定できるようになります。',
     tone: 'warn',
   },
   subscribed: {
     label: 'オン',
-    detail: '最終便の発車前に、この端末へ通知が届きます。',
+    detail:
+      '「本日の全時刻表」を開いて便を選ぶと、発車前に通知が届きます。アプリを閉じていても届きます。オフにすると設定済みの通知もすべて解除されます。',
     tone: 'ok',
   },
 }
@@ -65,10 +65,7 @@ function Switch({ on, disabled }: { on: boolean; disabled: boolean }) {
     <span
       aria-hidden="true"
       style={{
-        width: 46,
-        height: 27,
-        borderRadius: 20,
-        flexShrink: 0,
+        width: 46, height: 27, borderRadius: 20, flexShrink: 0,
         background: on ? '#10b981' : 'var(--bg-input)',
         border: on ? 'none' : '1px solid var(--chip-border)',
         position: 'relative',
@@ -78,14 +75,9 @@ function Switch({ on, disabled }: { on: boolean; disabled: boolean }) {
     >
       <span
         style={{
-          position: 'absolute',
-          top: 3,
-          left: on ? 22 : 3,
-          width: 21,
-          height: 21,
-          borderRadius: '50%',
-          background: '#fff',
-          boxShadow: '0 1px 3px rgba(15,23,42,.3)',
+          position: 'absolute', top: 3, left: on ? 22 : 3,
+          width: 21, height: 21, borderRadius: '50%',
+          background: '#fff', boxShadow: '0 1px 3px rgba(15,23,42,.3)',
           transition: 'left 0.22s cubic-bezier(.4,0,.2,1)',
         }}
       />
@@ -93,47 +85,11 @@ function Switch({ on, disabled }: { on: boolean; disabled: boolean }) {
   )
 }
 
-function DetailRow({ title, value, onClick }: { title: string; value: string; onClick: () => void }) {
-  const { pressed, pressHandlers } = usePressable()
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      {...pressHandlers}
-      aria-label={`${title}（現在: ${value}）`}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px',
-        width: '100%', textAlign: 'left',
-        background: pressed ? 'var(--row-active)' : 'transparent',
-        border: 'none', borderTop: '.5px solid var(--border)',
-        cursor: 'pointer',
-        transition: pressed ? 'none' : 'background 0.3s',
-        font: 'inherit', color: 'inherit',
-      }}
-    >
-      <span style={{ flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</span>
-      <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 500 }}>{value}</span>
-      <span aria-hidden="true" style={{ fontSize: 13, color: 'var(--text-muted)' }}>›</span>
-    </button>
-  )
-}
-
-export function ReminderSection({ reminder, onOpenSelect, routeLabel, leadLabel, daysLabel }: Props) {
-  const { status, error, busy, enable, disable, syncSettings } = usePushSubscription(reminder)
+export function ReminderSection({ status, busy, error, onEnable, onDisable }: Props) {
   const info = STATUS_TEXT[status]
   const isOn = status === 'subscribed'
   const canToggle = status === 'idle' || status === 'subscribed'
   const { pressed, pressHandlers } = usePressable(!canToggle || busy)
-
-  // 設定を変えたらサーバへ反映する。初回マウントでは送らない（購読していない場合もあるため）
-  const mountedRef = useRef(false)
-  useEffect(() => {
-    if (!mountedRef.current) {
-      mountedRef.current = true
-      return
-    }
-    void syncSettings()
-  }, [reminder, syncSettings])
 
   return (
     <>
@@ -142,7 +98,7 @@ export function ReminderSection({ reminder, onOpenSelect, routeLabel, leadLabel,
         onClick={() => {
           if (!canToggle || busy) return
           tapFeedback(10)
-          void (isOn ? disable() : enable())
+          isOn ? onDisable() : onEnable()
         }}
         {...pressHandlers}
         disabled={!canToggle || busy}
@@ -169,23 +125,8 @@ export function ReminderSection({ reminder, onOpenSelect, routeLabel, leadLabel,
         {canToggle && <Switch on={isOn} disabled={busy} />}
       </button>
 
-      {/* 通知の内容に関わる設定。オンのときだけ意味を持つので、オフのときは畳む */}
-      {isOn && (
-        <>
-          <DetailRow title="ルート" value={routeLabel} onClick={() => onOpenSelect('reminderRoute')} />
-          <DetailRow title="通知するタイミング" value={leadLabel} onClick={() => onOpenSelect('reminderLead')} />
-          <DetailRow title="通知する曜日" value={daysLabel} onClick={() => onOpenSelect('reminderDays')} />
-        </>
-      )}
-
       {error && (
-        <p
-          role="alert"
-          style={{
-            fontSize: 12, color: 'var(--icon-red-fg)', lineHeight: 1.6,
-            margin: 0, padding: '0 16px 14px',
-          }}
-        >
+        <p role="alert" style={{ fontSize: 12, color: 'var(--icon-red-fg)', lineHeight: 1.6, margin: 0, padding: '0 16px 14px' }}>
           {error}
         </p>
       )}
