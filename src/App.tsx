@@ -6,6 +6,7 @@ import { useTimetable } from './hooks/useTimetable'
 import { useWeekTimetables } from './hooks/useWeekTimetables'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useSettings } from './hooks/useSettings'
+import { useReminderSettings } from './hooks/useReminderSettings'
 import { useNews } from './hooks/useNews'
 import { useNativeBounce } from './hooks/useNativeBounce'
 import { setInert } from './hooks/useOverlayA11y'
@@ -41,6 +42,8 @@ const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
 export default function App() {
   const { settings, setDefaultRoute, setTheme, setFontSize } = useSettings()
+  // 発車リマインダーの設定はアプリ全体の設定とは別キーで持つ（端末ごとの通知の選択なので）
+  const { reminder, setReminderRoute, setReminderLead, setReminderDays } = useReminderSettings()
   const [route, setRoute] = useState<RouteKey>(settings.defaultRoute)
 
   const now = useJSTClock()
@@ -337,10 +340,14 @@ export default function App() {
         <SettingsScreen
           open={settingsOpen}
           settings={settings}
+          reminder={reminder}
           onClose={() => setSettingsOpen(false)}
           onSetDefaultRoute={setDefaultRoute}
           onSetTheme={setTheme}
           onSetFontSize={setFontSize}
+          onSetReminderRoute={setReminderRoute}
+          onSetReminderLead={setReminderLead}
+          onSetReminderDays={setReminderDays}
         />
 
         {/* ヘルプ */}
