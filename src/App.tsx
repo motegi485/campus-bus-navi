@@ -11,6 +11,9 @@ import { setInert } from './hooks/useOverlayA11y'
 import { usePressable } from './hooks/usePressable'
 import { tapFeedback } from './utils/haptics'
 import { findNextBus, findUpcomingBuses, findFirstBus, countRemainingBuses } from './utils/findNextBus'
+import { deriveDataStatus, hidesTimes } from './utils/deriveDataStatus'
+import { StatusCard } from './components/StatusCard'
+import { StatusBand } from './components/StatusBand'
 import { RouteToggle } from './components/RouteToggle'
 import { NextBusCard } from './components/NextBusCard'
 import { UpcomingList } from './components/UpcomingList'
@@ -39,7 +42,7 @@ export default function App() {
 
   const now = useJSTClock()
   const isOnline = useOnlineStatus()
-  const { timetable, tomorrowTimetable, loading, error, stale, refresh } = useTimetable(now)
+  const { timetable, tomorrowTimetable, loading, refetching, error, stale, fetchedAt, refresh } = useTimetable(now)
   const { toast, showToast } = useToast()
 
   // お知らせ状態はここ（App）で一元管理し、NewsScreen へ受け渡す。
@@ -166,6 +169,19 @@ export default function App() {
   // 前日のダイヤを当日の日付見出しの下に出さない。正典の「推測するより出さない」に合わせる。
   // 前日に翌日分を prefetch できていれば useTimetable が昇格させるので、ここへは来ない。
   const showTimes = !loading && !!currentRoute && !stale
+
+  // データの状態を 1 つに畳む。上から順に判定し、最初に該当したものだけを描く。
+  // 以前は error と stale の分岐が独立しており、日付跨ぎ＋取得失敗でカードが 2 枚出ていた。
+  // 時刻を出せない状態はカードが主役なので StatusCard、時刻を出せる状態は時刻が主役なので
+  // ヘッダー直下の StatusBand と、状態の重さで表現を分ける。
+  const dataStatus = deriveDataStatus({
+    loading,
+    refetching,
+    error,
+    stale,
+    hasTimetable: !!timetable,
+    isOnline,
+  })
 
   // フォントサイズクラス（CSS変数経由ではなくコンポーネントprops渡し）
   const fontSize = settings.fontSize
@@ -375,8 +391,10 @@ export default function App() {
                   {now.month() + 1}/{now.date()}（{DAYS_JA[now.day()]}）
                 </span>
                 {/* stale の間はその日のダイヤ種別が分かっていない。前日の種別を
-                    今日のバッジとして出さない（時刻を出さないのと同じ理由） */}
-                {!stale && <DayBadge type={diagramType} />}
+                    今日のバッジとして出さない（時刻を出さないのと同じ理由）。
+                    timetable が無いときも同様で、diagramType は既定値 'weekday' を
+                    返すため、実データを見ずに「授業日ダイヤ」と名乗ってしまう */}
+                {!stale && !!timetable && <DayBadge type={diagramType} />}
               </div>
             </div>
 
@@ -416,6 +434,20 @@ export default function App() {
           <RouteToggle route={route} onChange={setRoute} />
         </header>
 
+        {/* 時刻は出せるが状態を伝えたいとき（オフライン・取得失敗）は、カードではなく
+            ヘッダー直下の帯で伝える。main の外に置くので全幅になり、bp-active の
+            2 カラムでもその上に載る。通常フローなので safe-area・header-cushion・
+            iOS のネイティブバウンスとは干渉しない。 */}
+        {(dataStatus === 'offline' || dataStatus === 'fetch-failed') && (
+          <StatusBand
+            status={dataStatus}
+            fetchedAt={fetchedAt}
+            now={now}
+            refreshing={refreshing}
+            onRetry={handleRefresh}
+          />
+        )}
+
         {/* メインコンテンツ */}
         <main className="flex flex-col gap-[10px] p-[14px] bp:p-6" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 28px)' }}>
 
@@ -435,39 +467,17 @@ export default function App() {
                 </div>
               )}
 
-              {/* エラー */}
-              {error && !loading && (
-                <div
-                  className="rounded-[20px] p-5 text-center"
-                  style={{
-                    background: 'rgba(239,68,68,0.1)',
-                    border: '1px solid rgba(239,68,68,0.3)',
-                    // 縁は専用の赤を保ちつつ、浮き方だけ他のカードと揃える
-                    boxShadow: 'var(--card-shadow)',
-                  }}
-                >
-                  <p className="text-[14px] text-red-500 font-medium">{error}</p>
-                  <p className="text-[12px] mt-2" style={{ color: 'var(--text-muted)' }}>
-                    {/* stale（日付が変わったのに当日分が無い）ときは前日の表を出さないので
-                        「前回取得した時刻表を表示しています」とは言わない */}
-                    {timetable && !stale
-                      ? '前回取得した時刻表を表示しています'
-                      : '通信環境をご確認のうえ、右上の更新ボタンをお試しください'}
-                  </p>
-                </div>
-              )}
-
-              {/* 日付が変わったが当日分をまだ取得できていない（前日のダイヤは表示しない） */}
-              {!loading && stale && (
-                <div className="section-card rounded-[20px] p-5 text-center">
-                  <p className="text-[14px] font-bold" style={{ color: 'var(--text-primary)' }}>
-                    日付が変わりました
-                  </p>
-                  <p className="text-[12px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                    本日のダイヤをまだ取得できていないため、時刻を表示していません。<br />
-                    通信環境をご確認のうえ、右上の更新ボタンをお試しください。
-                  </p>
-                </div>
+              {/* 時刻を出せない状態（未取得・日付跨ぎ）。この間はカードが画面の主役になる */}
+              {hidesTimes(dataStatus) && (
+                <StatusCard
+                  status={dataStatus}
+                  isOnline={isOnline}
+                  fetchedAt={fetchedAt}
+                  now={now}
+                  refreshing={refreshing}
+                  onRetry={handleRefresh}
+                  errorMessage={error}
+                />
               )}
 
               {/* 次のバス / 終バス後 / 運休日 / 特別ダイヤ */}
