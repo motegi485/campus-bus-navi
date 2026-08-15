@@ -14,14 +14,14 @@ SITE_ORIGIN = "https://campus-bus-navi.pages.dev"
 VAPID_SUBJECT = "https://campus-bus-navi.pages.dev/"
 # 公開鍵は公開してよい値なので vars に置く。
 # ⚠️ VAPID_PRIVATE_KEY はここに書かない。`npx wrangler secret put VAPID_PRIVATE_KEY` で登録する
-VAPID_PUBLIC_KEY = ""
+VAPID_PUBLIC_KEY = "BLRMuFokCo7G7eGZDlcNt_juDny8UYxxASkVOspnYxcEy0FUGrKnKWpGIBxL32OLtSRvp7b0QtlRXwky0e0lHkY"
 
 # 購読の保存先。Pages Functions（functions/api/）と同じデータベースを指すこと。
 # database_id は `npx wrangler d1 create campus-bus-navi` の出力で置き換える
 [[d1_databases]]
 binding = "DB"
 database_name = "campus-bus-navi"
-database_id = ""
+database_id = "51b085a4-cc14-4a84-a346-69cfc27909d4"
 
 # 送信の分配先。1 実行あたり外部サブリクエスト 50 件という制限を、
 # DO の数だけ分割するために使う
