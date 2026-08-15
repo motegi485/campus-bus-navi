@@ -3,6 +3,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 import type { RouteKey } from './types/timetable'
 import { useJSTClock } from './hooks/useJSTClock'
 import { useTimetable } from './hooks/useTimetable'
+import { useWeekTimetables } from './hooks/useWeekTimetables'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useSettings } from './hooks/useSettings'
 import { useNews } from './hooks/useNews'
@@ -18,10 +19,12 @@ import { RouteToggle } from './components/RouteToggle'
 import { NextBusCard } from './components/NextBusCard'
 import { UpcomingList } from './components/UpcomingList'
 import { FullTimetable } from './components/FullTimetable'
+import { WeekStrip } from './components/WeekStrip'
 import { EndOfServiceCard } from './components/EndOfServiceCard'
 import { SpecialScheduleCard } from './components/SpecialScheduleCard'
 import { DrawerMenu } from './components/DrawerMenu'
 import { NewsScreen } from './components/NewsScreen'
+import { WeeklyScreen } from './components/WeeklyScreen'
 import { SettingsScreen } from './components/SettingsScreen'
 import { HelpScreen } from './components/HelpScreen'
 import { Toast, useToast } from './components/Toast'
@@ -45,6 +48,10 @@ export default function App() {
   const { timetable, tomorrowTimetable, loading, refetching, error, stale, fetchedAt, refresh } = useTimetable(now)
   const { toast, showToast } = useToast()
 
+  // 週間ダイヤ（当日起点 7 日）。ホームの帯と全画面の両方がこの 1 つの結果を使う。
+  // 画面ごとにフックを呼ぶと、同じ 7 日分を二重に取りに行くことになる。
+  const week = useWeekTimetables(now, true)
+
   // お知らせ状態はここ（App）で一元管理し、NewsScreen へ受け渡す。
   // 本体UI（ハンバーガー・ドロワー）の未読インジケーターと NewsScreen の
   // 既読状態を同一ソースで同期させるため。hasUnread = 未読が1件以上あるか。
@@ -54,6 +61,7 @@ export default function App() {
   // 画面表示状態
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [newsOpen, setNewsOpen] = useState(false)
+  const [weeklyOpen, setWeeklyOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -65,7 +73,7 @@ export default function App() {
 
   // いずれかのオーバーレイが開いている間、背後（ヘッダー・本文・バナー）を
   // Tab 順とアクセシビリティツリーから外す。WAI-ARIA の modal dialog パターン。
-  const anyOverlayOpen = drawerOpen || newsOpen || settingsOpen || helpOpen
+  const anyOverlayOpen = drawerOpen || newsOpen || weeklyOpen || settingsOpen || helpOpen
   const backgroundRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     setInert(backgroundRef.current, anyOverlayOpen)
@@ -298,10 +306,11 @@ export default function App() {
         {/* ドロワーメニュー */}
         <DrawerMenu
           open={drawerOpen}
-          covered={newsOpen || settingsOpen || helpOpen}
+          covered={newsOpen || weeklyOpen || settingsOpen || helpOpen}
           hasUnread={hasUnread}
           onClose={() => setDrawerOpen(false)}
           onOpenNews={() => setNewsOpen(true)}
+          onOpenWeekly={() => setWeeklyOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenHelp={() => setHelpOpen(true)}
           onInitApp={handleInitApp}
@@ -309,6 +318,20 @@ export default function App() {
 
         {/* お知らせ（状態は App で一元管理して受け渡す） */}
         <NewsScreen open={newsOpen} onClose={() => setNewsOpen(false)} {...newsState} />
+
+        {/* 週間ダイヤ（ホームの帯と同じ week の結果を使う） */}
+        <WeeklyScreen
+          open={weeklyOpen}
+          onClose={() => setWeeklyOpen(false)}
+          days={week.days}
+          loading={week.loading}
+          error={week.error}
+          onReload={week.reload}
+          route={route}
+          onChangeRoute={setRoute}
+          now={now}
+          isOnline={isOnline}
+        />
 
         {/* 設定 */}
         <SettingsScreen
@@ -521,6 +544,18 @@ export default function App() {
                     nowMinutes={nowMinutes}
                   />
                 </div>
+              )}
+
+              {/* 週間ダイヤの帯。モバイルでは「本日の全時刻表」の下・「乗り場マップ」の直前、
+                  bp-active では左カラムの末尾に入る。表示条件を showTimes に合わせるのは、
+                  日付跨ぎで当日分が未取得の間に前日起点の週を出さないため
+                  （時刻を出さないのと同じ理由）。 */}
+              {showTimes && (
+                <WeekStrip
+                  days={week.days}
+                  todayKey={now.format('YYYY-MM-DD')}
+                  onOpen={() => setWeeklyOpen(true)}
+                />
               )}
             </div>{/* / 左カラム */}
 
