@@ -12,6 +12,7 @@
 | 実装を始める、品質確認をする | [development-guide.md](development-guide.md)、[verification.md](verification.md) |
 | 意図を持つ安全設計や UI の前提を変える | [design-decisions.md](design-decisions.md) |
 | 時刻表自動取り込み Bot を扱う | [backend-bot.md](backend-bot.md) と Bot 正本 |
+| 発車前の通知（Web Push）を扱う | [backend-push.md](backend-push.md) |
 
 ## 文書一覧
 
@@ -21,6 +22,7 @@
 - [development-guide.md](development-guide.md) — 開発環境、コマンド、変更別チェックリスト
 - [design-decisions.md](design-decisions.md) — 誤表示を防ぐ設計判断、モバイル・アクセシビリティ上の注意点
 - [backend-bot.md](backend-bot.md) — Bot の構成、安全境界、運用への入口
+- [backend-push.md](backend-push.md) — 発車リマインダーの配信基盤、無料枠の制約、鍵の扱い、監視
 - [verification.md](verification.md) — 検証範囲、品質ゲート、未検証状態の扱い
 
 ## 正本と確認の原則
@@ -30,7 +32,8 @@
 1. 現在の実行時挙動は、ソースコード、`public/data/`、設定ファイル、検証器で確認する。
 2. Bot の要件・安全境界は [BACKEND_REQUIREMENTS.md](../bot/fixtures/_planning/BACKEND_REQUIREMENTS.md) が正本である。実装と要件が食い違う場合は、意図を推測して片方に合わせず、根拠を示して修正方針を確認する。
 3. 日々の Bot の状態と次の人間作業は [HANDOFF.md](../bot/fixtures/_planning/HANDOFF.md) を読む。ただし GitHub の有効化状態、Secrets、権限、実行結果は外部状態なので GitHub UI で再確認する。
-4. この `docs/` は、上記の実装・正本に到達するための設計・運用ガイドである。README は利用者向けの表面情報であり、実装仕様の正本ではない。
+4. 発車リマインダーの配信基盤は [backend-push.md](backend-push.md) が入口で、D1 のスキーマは `server/src/schema.sql` が正本である。Cloudflare 側の設定（D1 の作成、シークレット、デプロイ状態）は外部状態なので、ダッシュボードや `wrangler` で再確認する。
+5. この `docs/` は、上記の実装・正本に到達するための設計・運用ガイドである。README は利用者向けの表面情報であり、実装仕様の正本ではない。
 
 ## 文書を更新するタイミング
 

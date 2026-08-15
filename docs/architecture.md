@@ -2,7 +2,16 @@
 
 ## システムの範囲
 
-`campus-bus-navi` は、福山大学スクールバスの時刻表と乗り場を表示する React の単一ページ PWA です。利用者向けアプリは静的ファイルだけで動作し、実行時に専用 API やデータベースは使いません。時刻表・カレンダー・お知らせは `public/data/` の JSON として配信されます。
+`campus-bus-navi` は、福山大学スクールバスの時刻表と乗り場を表示する React の単一ページ PWA です。時刻表・カレンダー・お知らせは `public/data/` の JSON として配信され、**時刻表の閲覧に関わる機能は静的ファイルだけで完結します**。
+
+ただし発車前の通知（Web Push）だけは例外で、配信サーバと D1 を使います。Web Push は「アプリのサーバが VAPID 署名付きで push サービスへ送る」構造で、時刻になったら送る何かが常時必要だからです。通知を使わない利用者に対しては、実行時のサーバ通信は発生しません。この層の構成・制約・運用は [backend-push.md](backend-push.md) が入口です。
+
+| 層 | 場所 | 実行時の依存 |
+|---|---|---|
+| 表示（時刻表・地図・お知らせ） | `src/` | 静的 JSON のみ |
+| 通知の購読と便の指定 | `functions/api/` | D1 |
+| 通知の配信 | `server/` | Cron Trigger、D1、Durable Objects、APNs / FCM |
+| 通知の受信 | `public/push-sw.js` | Service Worker（`workbox.importScripts` で生成 SW へ読み込む） |
 
 同じリポジトリには、大学サイト上の時刻表画像を取得して JSON 更新案を作る Bot もあります。Bot は利用者向けアプリの実行経路には含まれません。詳細は [backend-bot.md](backend-bot.md) を参照してください。
 

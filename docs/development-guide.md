@@ -67,6 +67,29 @@ npx tsx src/index.ts
 
 Bot の本番稼働や GitHub Actions 操作は、[backend-bot.md](backend-bot.md) と `HANDOFF.md` の人間向け手順に従ってください。
 
+## 通知配信のローカル確認
+
+配信サーバもフロントエンドと依存を分離しています。詳細は [backend-push.md](backend-push.md) を参照してください。
+
+```powershell
+Set-Location server
+npm ci
+npm run typecheck
+npm test
+npx wrangler deploy --dry-run --outdir .wrangler/dry
+```
+
+実機へ 1 通だけ送って確かめる場合は次を使います。鍵は `server/.dev.vars`（`.gitignore` 済み）から自動で読まれます。
+
+```powershell
+npm run keygen                      # 初回のみ。公開鍵だけ画面に出る
+npm run send-test                   # 購読情報を貼り付けると 1 通送る
+```
+
+`wrangler` のコマンドは必ず `server/` で実行してください。リポジトリ直下の `wrangler.toml` は Pages の設定であり、直下で `wrangler deploy` を実行してはいけません。
+
+**通知の購読 API は Pages Functions なので、`npm run preview` では動きません。** ローカルで API まで通すには `npx wrangler pages dev`、または Cloudflare のプレビューデプロイを使います。
+
 ## 変更別チェックリスト
 
 | 変更 | 必要な確認 |
@@ -77,6 +100,7 @@ Bot の本番稼働や GitHub Actions 操作は、[backend-bot.md](backend-bot.m
 | 地図、端末判定 | iOS / iPadOS / Android の URL とタイル表示を確認 |
 | オーバーレイ、設定、操作感 | キーボードフォーカス、Escape、背面操作不可、縮小モーションを確認 |
 | Bot | 要件正本、Bot テスト・型検査、書込ホワイトリスト、ドライランを確認 |
+| 通知、Web Push、配信 Worker、D1 | `server` の型検査・テスト、`--dry-run`、送信しない条件（運休日・特別ダイヤ・実在しない便）、鍵がコミットされていないことを確認 |
 | 文書 | 影響する `docs/`、README、AGENTS.md、CLAUDE.md の更新要否を確認 |
 
 ## 文書の保守

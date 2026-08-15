@@ -158,3 +158,16 @@ Bot が管理した override を人が変更または削除すると、その日
 - データを読むアプリ側: [architecture.md](architecture.md)
 - 更新時の品質確認: [verification.md](verification.md)
 - キャッシュと配信: [pwa-and-deployment.md](pwa-and-deployment.md)
+
+## 通知の購読データ（D1）
+
+静的 JSON とは別に、発車前の通知だけが D1 を使います。スキーマの正本は `server/src/schema.sql` で、設計の背景は [backend-push.md](backend-push.md) にあります。
+
+| テーブル | 内容 | 作られる契機 | 消える契機 |
+|---|---|---|---|
+| `subscriptions` | 端末の push 購読（endpoint と鍵） | 設定画面のトグルをオン | トグルをオフ、または push サービスが 404 / 410 を返したとき |
+| `reminders` | 「どの便に何分前」。当日限り | 本日の全時刻表で便を指定 | 日付が変わる、トグルをオフ、端末が失効 |
+
+- 氏名・メールアドレス・学籍番号などの個人情報は扱わず、アカウントもユーザー識別子も持ちません。
+- `subscriptions.id` は endpoint の SHA-256 で、再購読時に同じ行を上書きします。`reminders.id` は `subscription_id + date_key + route + departure` から決定的に作り、同じ便を二度指定しても行が増えません。
+- 端末の失効（404 / 410）を検知したら、その端末の `reminders` も一緒に削除します。残すと配信のたびに無駄なサブリクエストを使います。
