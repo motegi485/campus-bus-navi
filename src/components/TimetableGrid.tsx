@@ -12,6 +12,18 @@ interface Props {
    * 週間ダイヤの日別ビューが当日以外を描くときに使う。
    */
   nowMinutes: number | null
+  /**
+   * 通知を設定済みの便（"HH:mm"）。ベル印を付ける。
+   * 以下 3 つの prop は未指定なら従来どおりの描画になる。週間ダイヤの日別ビューは
+   * 渡さないので、この機能の追加による影響を受けない。
+   */
+  marked?: ReadonlySet<string>
+  /** 選択モード。マスがタップ可能になり、選択中の便が塗られる */
+  selectMode?: boolean
+  /** 選択モードで選ばれている便 */
+  selected?: ReadonlySet<string>
+  /** マスのタップ。選択モードのときだけ呼ばれる */
+  onToggle?: (departure: string) => void
 }
 
 /**
@@ -20,7 +32,16 @@ interface Props {
  * ホームの「本日の全時刻表」（FullTimetable）と、週間ダイヤの日別ビューが共用する。
  * 見出しや開閉トグルは持たず、時刻の並びだけを担当する。
  */
-export function TimetableGrid({ schedule, route, currentDeparture, nowMinutes }: Props) {
+export function TimetableGrid({
+  schedule,
+  route,
+  currentDeparture,
+  nowMinutes,
+  marked,
+  selectMode = false,
+  selected,
+  onToggle,
+}: Props) {
   const isCampus = route === 'campus_to_station'
   const activeBg = isCampus ? '#d1fae5' : '#ede9fe'
   const activeText = isCampus ? '#065f46' : '#4f46e5'
@@ -32,38 +53,80 @@ export function TimetableGrid({ schedule, route, currentDeparture, nowMinutes }:
         // 不正な departure はパース失敗 → 過去扱いせずグレー（中立）で表示
         const isPast = nowMinutes !== null && depMin !== null && depMin <= nowMinutes
         const isCurrent = bus.departure === currentDeparture
-        return (
-          <div
-            key={bus.departure + i}
-            className="py-2 px-1 rounded-[10px] text-center"
-            style={{
-              background: isCurrent
-                ? activeBg
-                : isPast
-                ? 'var(--past-bg)'
-                : 'var(--bg-card2)',
-            }}
-          >
-            <p
-              className="text-[14px] font-bold"
-              style={{
-                color: isCurrent
-                  ? activeText
-                  : isPast
-                  ? 'var(--past-text)'
-                  : 'var(--text-primary)',
-              }}
-            >
+        const isMarked = marked?.has(bus.departure) ?? false
+        const isSelected = selectMode && (selected?.has(bus.departure) ?? false)
+        // 過ぎた便には通知を設定できない
+        const selectable = selectMode && !isPast && depMin !== null
+
+        const background = isSelected
+          ? '#0d9966'
+          : isCurrent
+          ? activeBg
+          : isPast
+          ? 'var(--past-bg)'
+          : 'var(--bg-card2)'
+        const color = isSelected
+          ? '#ffffff'
+          : isCurrent
+          ? activeText
+          : isPast
+          ? 'var(--past-text)'
+          : 'var(--text-primary)'
+
+        const content = (
+          <>
+            <p className="text-[14px] font-bold" style={{ color }}>
               {bus.departure}
             </p>
             {bus.note && (
-              <p
-                className="text-[10px] mt-0.5"
-                style={{ color: isCurrent ? activeText : 'var(--text-muted)' }}
-              >
+              <p className="text-[10px] mt-0.5" style={{ color: isSelected || isCurrent ? color : 'var(--text-muted)' }}>
                 {bus.note}
               </p>
             )}
+            {/* 通知を設定済みの印。選択モード中は選択状態のほうが情報として新しいので出さない */}
+            {isMarked && !selectMode && (
+              <span
+                aria-hidden="true"
+                className="absolute text-[10px]"
+                style={{ top: -4, right: -2 }}
+              >
+                🔔
+              </span>
+            )}
+          </>
+        )
+
+        const boxClass = 'relative py-2 px-1 rounded-[10px] text-center'
+
+        // 選択モードのときだけボタンにする。通常時は従来どおり div のままで、
+        // 時刻表を読むだけの指が誤って予定を作らないようにする
+        if (selectMode) {
+          return (
+            <button
+              key={bus.departure + i}
+              type="button"
+              disabled={!selectable}
+              onClick={() => selectable && onToggle?.(bus.departure)}
+              aria-pressed={isSelected}
+              aria-label={`${bus.departure} 発${isSelected ? '（通知を設定）' : ''}`}
+              className={boxClass}
+              style={{
+                background,
+                border: 'none',
+                font: 'inherit',
+                cursor: selectable ? 'pointer' : 'default',
+                opacity: selectable ? 1 : 0.45,
+                boxShadow: isSelected ? '0 0 0 2px rgba(13,153,102,.35)' : 'none',
+              }}
+            >
+              {content}
+            </button>
+          )
+        }
+
+        return (
+          <div key={bus.departure + i} className={boxClass} style={{ background }}>
+            {content}
           </div>
         )
       })}

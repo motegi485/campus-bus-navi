@@ -6,7 +6,8 @@ import { useTimetable } from './hooks/useTimetable'
 import { useWeekTimetables } from './hooks/useWeekTimetables'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useSettings } from './hooks/useSettings'
-import { useReminderSettings } from './hooks/useReminderSettings'
+import { usePushSubscription } from './hooks/usePushSubscription'
+import { useDepartureReminders } from './hooks/useDepartureReminders'
 import { useNews } from './hooks/useNews'
 import { useNativeBounce } from './hooks/useNativeBounce'
 import { setInert } from './hooks/useOverlayA11y'
@@ -42,14 +43,23 @@ const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
 export default function App() {
   const { settings, setDefaultRoute, setTheme, setFontSize } = useSettings()
-  // 発車リマインダーの設定はアプリ全体の設定とは別キーで持つ（端末ごとの通知の選択なので）
-  const { reminder, setReminderRoute, setReminderLead, setReminderDays } = useReminderSettings()
+  // 発車リマインダーは二層。設定画面のトグルが端末の購読（通知の根幹の許可）を持ち、
+  // どの便に何分前かは「本日の全時刻表」で当日ぶんだけ指定する。
+  const push = usePushSubscription()
   const [route, setRoute] = useState<RouteKey>(settings.defaultRoute)
 
   const now = useJSTClock()
   const isOnline = useOnlineStatus()
   const { timetable, tomorrowTimetable, loading, refetching, error, stale, fetchedAt, refresh } = useTimetable(now)
   const { toast, showToast } = useToast()
+
+  // 当日の便ごとのリマインド指定。正はサーバ（D1）にあり、ここは表示用の写し。
+  // 日付が変わると dateKey が変わり、自動的に取り直される（当日限りの担保）
+  const reminders = useDepartureReminders({
+    endpoint: push.endpoint,
+    dateKey: now.format('YYYY-MM-DD'),
+    route,
+  })
 
   // 週間ダイヤ（当日起点 7 日）。ホームの帯と全画面の両方がこの 1 つの結果を使う。
   // 画面ごとにフックを呼ぶと、同じ 7 日分を二重に取りに行くことになる。
@@ -340,14 +350,17 @@ export default function App() {
         <SettingsScreen
           open={settingsOpen}
           settings={settings}
-          reminder={reminder}
           onClose={() => setSettingsOpen(false)}
           onSetDefaultRoute={setDefaultRoute}
           onSetTheme={setTheme}
           onSetFontSize={setFontSize}
-          onSetReminderRoute={setReminderRoute}
-          onSetReminderLead={setReminderLead}
-          onSetReminderDays={setReminderDays}
+          push={{
+            status: push.status,
+            busy: push.busy,
+            error: push.error,
+            enable: () => void push.enable(),
+            disable: () => void push.disable(),
+          }}
         />
 
         {/* ヘルプ */}
@@ -549,6 +562,13 @@ export default function App() {
                     route={route}
                     currentDeparture={nextBus?.entry.departure}
                     nowMinutes={nowMinutes}
+                    marked={reminders.marked}
+                    reminderReady={push.status === 'subscribed'}
+                    lead={reminders.lead}
+                    onChangeLead={reminders.changeLead}
+                    onSave={reminders.save}
+                    saving={reminders.saving}
+                    reminderError={reminders.error}
                   />
                 </div>
               )}
@@ -608,6 +628,13 @@ export default function App() {
                 route={route}
                 currentDeparture={nextBus?.entry.departure}
                 nowMinutes={nowMinutes}
+                marked={reminders.marked}
+                reminderReady={push.status === 'subscribed'}
+                lead={reminders.lead}
+                onChangeLead={reminders.changeLead}
+                onSave={reminders.save}
+                saving={reminders.saving}
+                reminderError={reminders.error}
               />
             </div>
           )}
