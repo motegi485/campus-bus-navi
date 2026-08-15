@@ -11,28 +11,27 @@
 import type { CalendarRules, RouteKey, ScheduleEntry, Timetable } from '../../src/types/timetable'
 import { hasDepartures, resolveDiagramType } from '../../src/utils/diagramType'
 
-/** 通知の対象。最終便は日によって時刻が変わるのでサーバ側で解決する */
-export type ReminderMode = 'last_bus' | 'fixed_time'
-
-/** D1 の subscriptions テーブル 1 行 */
-export interface SubscriptionRow {
+/**
+ * 送信対象 1 件（reminders と subscriptions を結合した形）。
+ *
+ * リマインドは**当日限り**なので、曜日の繰り返しも「最終便」のような
+ * 日ごとに解決が要る指定も持たない。指定された便がその日に実在するかだけを見る。
+ */
+export interface ReminderRow {
+  /** reminders.id */
   id: string
+  /** 送信先の push エンドポイント */
   endpoint: string
+  /** 対象日（"YYYY-MM-DD" / JST） */
+  dateKey: string
   route: RouteKey
-  mode: ReminderMode
-  /** mode === 'fixed_time' のときの "HH:mm"。それ以外は null */
-  departure: string | null
+  /** "HH:mm" */
+  departure: string
   leadMinutes: number
-  /** 曜日ビットマスク。日=1, 月=2, 火=4, 水=8, 木=16, 金=32, 土=64 */
-  daysMask: number
-  /** 最後に送信した日（"YYYY-MM-DD"）。同じ日に二度送らないための番人 */
-  lastSentOn: string | null
 }
 
-/** 平日（月〜金）のマスク。UI の既定値 */
-export const WEEKDAYS_MASK = 0b0111110
-/** 毎日 */
-export const EVERYDAY_MASK = 0b1111111
+/** 選べるリード時間。UI とサーバ側の検証で共有する */
+export const VALID_LEAD_MINUTES = [5, 10, 15, 20]
 
 // ── JST ─────────────────────────────────────────────────────────────────────
 // Worker は UTC で動く。日付・曜日・分はすべて JST で判断する必要がある。
@@ -94,28 +93,28 @@ function departureMinutes(schedule: ScheduleEntry[] | undefined): number[] {
 // ── 送信対象の抽出 ───────────────────────────────────────────────────────────
 
 export interface DueSelection {
-  /** いま送るべき購読 */
-  due: SubscriptionRow[]
+  /** いま送るべきリマインド */
+  due: ReminderRow[]
   /** 送らなかった理由（ログ・監視用。運休日などで 0 件になったときの判別に使う） */
   reason: 'ok' | 'no-timetable' | 'no-departures'
 }
 
 /**
- * いま通知を送るべき購読を選ぶ。
+ * いま通知を送るべきリマインドを選ぶ。
  *
- * 送信の窓は `[目標時刻 - リード分, 目標時刻)` とし、ちょうどの分だけを見ない。
+ * 送信の窓は `[発車時刻 - リード分, 発車時刻)` とし、ちょうどの分だけを見ない。
  * Cron は 1 分間隔だが実行が遅れることがあり、等号一致にすると遅延した回で
  * 取りこぼす。窓にしておけば遅れても送れる（通知の文面は受信側の SW が
  * 実時刻から組み立てるので、遅れても「あと N 分」は正しいまま）。
- * 二重送信は lastSentOn が防ぐ。
+ * 二重送信は reminders.sent_at が防ぐ（呼び出し側が未送信だけを渡す）。
  */
 export function selectDue(params: {
-  subscriptions: SubscriptionRow[]
+  reminders: ReminderRow[]
   timetable: Timetable | null
   timetableId: string
   now: JstMoment
 }): DueSelection {
-  const { subscriptions, timetable, timetableId, now } = params
+  const { reminders, timetable, timetableId, now } = params
 
   // 時刻表が取れていない日は何も送らない（推測して送らない）
   if (!timetable) return { due: [], reason: 'no-timetable' }
@@ -135,26 +134,17 @@ export function selectDue(params: {
     return cached
   }
 
-  const due = subscriptions.filter(sub => {
-    // 同じ日に二度送らない
-    if (sub.lastSentOn === now.dateKey) return false
-    // 曜日の絞り込み
-    if ((sub.daysMask & (1 << now.weekday)) === 0) return false
+  const due = reminders.filter(reminder => {
+    // 当日ぶんだけを送る。前日以前の指定は掃除対象であって送信対象ではない
+    if (reminder.dateKey !== now.dateKey) return false
 
-    const minutes = minutesFor(sub.route)
-    if (minutes.length === 0) return false
+    const target = parseHHmmToMinutes(reminder.departure)
+    if (target === null) return false
 
-    let target: number | undefined
-    if (sub.mode === 'last_bus') {
-      target = minutes[minutes.length - 1]
-    } else {
-      const wanted = parseHHmmToMinutes(sub.departure)
-      // 当日のダイヤにその便が実在するときだけ送る（ダイヤ差し替えで消えた便は無視）
-      target = wanted !== null && minutes.includes(wanted) ? wanted : undefined
-    }
-    if (target === undefined) return false
+    // 当日のダイヤにその便が実在するときだけ送る（ダイヤが差し替わって消えた便は無視）
+    if (!minutesFor(reminder.route).includes(target)) return false
 
-    return now.minutes >= target - sub.leadMinutes && now.minutes < target
+    return now.minutes >= target - reminder.leadMinutes && now.minutes < target
   })
 
   return { due, reason: 'ok' }

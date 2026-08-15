@@ -14,7 +14,7 @@
  */
 
 import { selectDue, splitIntoBatches, toJst, resolveTimetableId } from './schedule.js'
-import { toSubscriptionRow } from './subscription.js'
+import { toReminderRow } from './subscription.js'
 import type { CalendarRules, Timetable } from '../../src/types/timetable'
 
 export { ReminderSender } from './sender.js'
@@ -29,8 +29,8 @@ export interface Env {
   VAPID_SUBJECT: string
 }
 
-/** 1 実行で扱う購読の上限。想定規模（数百人）を大きく超えたときの暴走止め */
-const MAX_SUBSCRIPTIONS_PER_RUN = 2000
+/** 1 実行で扱うリマインドの上限。想定規模（数百人）を大きく超えたときの暴走止め */
+const MAX_REMINDERS_PER_RUN = 2000
 
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {
@@ -58,16 +58,25 @@ export default {
 async function run(env: Env): Promise<void> {
   const now = toJst(Date.now())
 
-  // 今日まだ送っていない購読だけを引く。索引 idx_subscriptions_pending が効く
+  // 今日ぶんで未送信のリマインドだけを引く。索引 idx_reminders_pending が効く。
+  // 端末の鍵は要らない（ペイロードなし push なので endpoint だけで送れる）
   const query = await env.DB.prepare(
-    'SELECT * FROM subscriptions WHERE last_sent_on IS NULL OR last_sent_on != ? LIMIT ?'
+    `SELECT r.id, r.date_key, r.route, r.departure, r.lead_minutes, s.endpoint
+       FROM reminders r
+       JOIN subscriptions s ON s.id = r.subscription_id
+      WHERE r.date_key = ? AND r.sent_at IS NULL
+      LIMIT ?`
   )
-    .bind(now.dateKey, MAX_SUBSCRIPTIONS_PER_RUN)
+    .bind(now.dateKey, MAX_REMINDERS_PER_RUN)
     .all()
 
-  const subscriptions = (query.results ?? []).map(r => toSubscriptionRow(r as Record<string, unknown>))
-  // 購読が 0 件の分は、ダイヤの取得すらせずに終える（無駄なサブリクエストを出さない）
-  if (subscriptions.length === 0) return
+  const reminders = (query.results ?? []).map(r => toReminderRow(r as Record<string, unknown>))
+  // 対象が 0 件の分は、ダイヤの取得すらせずに終える（無駄なサブリクエストを出さない）
+  if (reminders.length === 0) {
+    // 日付が変わったタイミングで、前日以前の指定を掃除する（当日限りなので残さない）
+    if (now.minutes === 0) await cleanupOldReminders(env, now.dateKey)
+    return
+  }
 
   const rules = await fetchJson<CalendarRules>(`${env.SITE_ORIGIN}/data/calendar_rules.json`)
   if (!rules) {
@@ -78,7 +87,7 @@ async function run(env: Env): Promise<void> {
   const timetableId = resolveTimetableId(rules, now.dateKey, now.weekday)
   const timetable = await fetchJson<Timetable>(`${env.SITE_ORIGIN}/data/timetables/${timetableId}.json`)
 
-  const { due, reason } = selectDue({ subscriptions, timetable, timetableId, now })
+  const { due, reason } = selectDue({ reminders, timetable, timetableId, now })
   if (due.length === 0) {
     // 運休日・特別ダイヤ・取得失敗は「送らないのが正しい」状態。件数 0 の理由を残す
     if (reason !== 'ok') console.log(`送信対象なし (${reason} / ${timetableId})`)
@@ -96,7 +105,7 @@ async function run(env: Env): Promise<void> {
       return stub
         .fetch('https://sender/send', {
           method: 'POST',
-          body: JSON.stringify({ dateKey: now.dateKey, endpoints: batch.map(s => ({ id: s.id, endpoint: s.endpoint })) }),
+          body: JSON.stringify({ targets: batch.map(r => ({ id: r.id, endpoint: r.endpoint })) }),
         })
         .catch(e => {
           // 1 バッチの失敗で他のバッチを巻き込まない
@@ -104,4 +113,15 @@ async function run(env: Env): Promise<void> {
         })
     })
   )
+}
+
+/** 前日以前のリマインドを消す。当日限りなので溜めない */
+async function cleanupOldReminders(env: Env, todayKey: string): Promise<void> {
+  try {
+    const result = await env.DB.prepare('DELETE FROM reminders WHERE date_key < ?').bind(todayKey).run()
+    const removed = result.meta?.changes ?? 0
+    if (removed > 0) console.log(`過去のリマインドを ${removed} 件削除しました`)
+  } catch (e) {
+    console.error('過去のリマインドの削除に失敗しました', e)
+  }
 }

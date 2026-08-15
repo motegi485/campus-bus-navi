@@ -14,8 +14,8 @@ import { sendPush } from './send.js'
 import { VapidSigner } from './vapid.js'
 
 interface SendRequest {
-  dateKey: string
-  endpoints: { id: string; endpoint: string }[]
+  /** id は reminders.id、endpoint は送信先 */
+  targets: { id: string; endpoint: string }[]
 }
 
 export class ReminderSender {
@@ -33,7 +33,7 @@ export class ReminderSender {
     } catch {
       return new Response('bad request', { status: 400 })
     }
-    if (!Array.isArray(payload.endpoints) || payload.endpoints.length === 0) {
+    if (!Array.isArray(payload.targets) || payload.targets.length === 0) {
       return new Response('empty', { status: 400 })
     }
 
@@ -49,28 +49,31 @@ export class ReminderSender {
 
     const nowSeconds = Math.floor(Date.now() / 1000)
     const results = await Promise.all(
-      payload.endpoints.map(async target => ({
+      payload.targets.map(async target => ({
         id: target.id,
+        endpoint: target.endpoint,
         outcome: await sendPush({ endpoint: target.endpoint, signer: this.signer!, nowSeconds }),
       }))
     )
 
+    /** 送信済みにするリマインド */
     const sent: string[] = []
-    const expired: string[] = []
+    /** 失効した端末の endpoint。購読ごと消す */
+    const expiredEndpoints: string[] = []
     let failed = 0
-    for (const { id, outcome } of results) {
+    for (const { id, endpoint, outcome } of results) {
       if (outcome.status === 'sent') sent.push(id)
-      else if (outcome.status === 'expired') expired.push(id)
+      else if (outcome.status === 'expired') expiredEndpoints.push(endpoint)
       else {
         failed++
         if (outcome.status === 'failed') console.error(`送信失敗 (HTTP ${outcome.code}): ${outcome.detail}`)
       }
     }
 
-    await this.recordOutcome(payload.dateKey, sent, expired)
+    await this.recordOutcome(sent, expiredEndpoints)
 
     if (failed > 0) console.warn(`${failed} 件の送信に失敗しました（購読は残します）`)
-    return Response.json({ sent: sent.length, expired: expired.length, failed })
+    return Response.json({ sent: sent.length, expired: expiredEndpoints.length, failed })
   }
 
   /**
@@ -79,22 +82,25 @@ export class ReminderSender {
    * まとめて 2 文に収める（1 件ずつ実行すると D1 の行書き込み枠を無駄に消費し、
    * サブリクエスト相当の往復も増える）。
    */
-  private async recordOutcome(dateKey: string, sent: string[], expired: string[]): Promise<void> {
+  private async recordOutcome(sent: string[], expiredEndpoints: string[]): Promise<void> {
     const statements: D1PreparedStatement[] = []
 
     if (sent.length > 0) {
       const placeholders = sent.map(() => '?').join(',')
       statements.push(
-        this.env.DB.prepare(`UPDATE subscriptions SET last_sent_on = ? WHERE id IN (${placeholders})`).bind(
-          dateKey,
+        this.env.DB.prepare(`UPDATE reminders SET sent_at = ? WHERE id IN (${placeholders})`).bind(
+          Date.now(),
           ...sent
         )
       )
     }
-    if (expired.length > 0) {
-      const placeholders = expired.map(() => '?').join(',')
+    // 失効は端末そのものが消えた状態。その端末のリマインドも一緒に消す
+    for (const endpoint of expiredEndpoints) {
       statements.push(
-        this.env.DB.prepare(`DELETE FROM subscriptions WHERE id IN (${placeholders})`).bind(...expired)
+        this.env.DB.prepare(
+          'DELETE FROM reminders WHERE subscription_id IN (SELECT id FROM subscriptions WHERE endpoint = ?)'
+        ).bind(endpoint),
+        this.env.DB.prepare('DELETE FROM subscriptions WHERE endpoint = ?').bind(endpoint)
       )
     }
 
