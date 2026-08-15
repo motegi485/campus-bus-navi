@@ -24,9 +24,8 @@
  * subscription.json は端末を特定しうる値なので、リポジトリに入れないこと。
  */
 
-import { readFile, access } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { createInterface } from 'node:readline/promises'
 import { VapidSigner, type VapidKeys } from '../src/vapid.js'
 import { sendPush } from '../src/send.js'
 import { DEV_VARS_PATH, readDevVars } from './devVars.js'
@@ -45,36 +44,33 @@ function requireKey(name: string): string {
 }
 
 /**
- * 購読情報の場所を決める。
+ * 購読情報の入手方法。
  *
- * 引数が無ければ、ダウンロードフォルダ → server/ の順に探す。パネルの
- * 「subscription.json を保存」がダウンロードフォルダへ落とすので、
- * ふつうは引数もパス入力も要らない。
+ * 既定は「ターミナルへ直接貼り付け」。ファイルを経由すると、
+ *   - 古い端末の購読ファイルが残っていて取り違える
+ *   - クリップボードが途中で別のものに上書きされる
+ * という取り違えが起きやすく、実際に何度も起きた。貼り付けなら
+ * その瞬間の中身がそのまま使われる。
+ *
+ * ファイルを使いたいときは引数でパスを渡す。
  */
-async function resolveSubscriptionPath(): Promise<string> {
+async function readSubscriptionText(): Promise<{ text: string; source: string }> {
   const explicit = process.argv[2]
-  if (explicit) return explicit
-
-  const candidates = [
-    join(homedir(), 'Downloads', 'subscription.json'),
-    join(process.cwd(), 'subscription.json'),
-  ]
-  for (const candidate of candidates) {
-    try {
-      await access(candidate)
-      return candidate
-    } catch {
-      // 次の候補へ
-    }
+  if (explicit) {
+    return { text: await readFile(explicit, 'utf8'), source: explicit }
   }
-  console.error('subscription.json が見つかりません。探した場所:')
-  for (const candidate of candidates) console.error(`  ${candidate}`)
-  console.error('')
-  console.error('アプリの「表示・通知オプション」→ 通知 →「subscription.json を保存」を先に実行してください。')
-  process.exit(1)
-}
 
-const path = await resolveSubscriptionPath()
+  console.log('購読情報（{"endpoint":... で始まる JSON）を貼り付けて Enter を押してください。')
+  console.log('中止する場合は Ctrl+C。\n')
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    const line = await rl.question('> ')
+    return { text: line, source: '貼り付け' }
+  } finally {
+    rl.close()
+  }
+}
 
 const keys: VapidKeys = {
   publicKey: requireKey('VAPID_PUBLIC_KEY'),
@@ -82,21 +78,42 @@ const keys: VapidKeys = {
   subject: requireKey('VAPID_SUBJECT'),
 }
 
+const { text: rawText, source } = await readSubscriptionText()
+
 let endpoint: string
 try {
-  // PowerShell の Out-File は UTF-8 BOM を付ける。BOM が残っていると JSON.parse が落ちるので剥がす
-  const text = (await readFile(path, 'utf8')).replace(/^﻿/, '')
+  // BOM（PowerShell の Out-File が付ける）と前後の空白・引用符を落としてから解釈する
+  const text = rawText.replace(/^﻿/, '').trim().replace(/^['"]|['"]$/g, '')
+  if (!text.startsWith('{')) {
+    // 何を渡されたのかを見せる。「コマンド文字列を貼ってしまった」等がすぐ分かる
+    throw new Error(`JSON ではありません。受け取った先頭: ${JSON.stringify(text.slice(0, 40))}`)
+  }
   const parsed = JSON.parse(text) as { endpoint?: string }
-  if (!parsed.endpoint) throw new Error('endpoint がありません')
+  if (!parsed.endpoint) throw new Error('endpoint フィールドがありません')
   endpoint = parsed.endpoint
 } catch (e) {
-  console.error(`購読情報を読めませんでした: ${e instanceof Error ? e.message : String(e)}`)
+  console.error(`\n購読情報を読めませんでした（${source}）: ${e instanceof Error ? e.message : String(e)}`)
+  console.error('')
+  console.error('アプリの「表示・通知オプション」→ 通知 →「コピー（予備）」で得られる、')
+  console.error('{"endpoint":"https://... で始まる 1 行を貼り付けてください。')
   process.exit(1)
+}
+
+/**
+ * push サービスのホストから、どの種類の端末へ送るのかを言い当てる。
+ * PC の購読と iPhone の購読を取り違えたまま「届いた」と判断する事故を防ぐ。
+ */
+function describeTarget(host: string): string {
+  if (host.includes('apple.com')) return 'Safari（iPhone / iPad / Mac）'
+  if (host.includes('googleapis.com')) return 'Chrome / Edge（PC / Android）'
+  if (host.includes('mozilla.com')) return 'Firefox'
+  return '不明な push サービス'
 }
 
 // エンドポイントは端末を特定しうるので、ホストだけを出す
 const host = new URL(endpoint).host
-console.log(`送信先: ${host}（ペイロードなし push）`)
+console.log(`\n送信先: ${describeTarget(host)}  [${host}]`)
+console.log('（ペイロードなし push）')
 
 const signer = new VapidSigner(keys)
 const result = await sendPush({
