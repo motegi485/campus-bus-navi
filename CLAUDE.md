@@ -23,6 +23,7 @@
 | 開発環境、実装手順、変更別チェック | [docs/development-guide.md](docs/development-guide.md) |
 | 検証範囲、未検証状態の扱い | [docs/verification.md](docs/verification.md) |
 | 時刻表自動取り込み Bot | [docs/backend-bot.md](docs/backend-bot.md)、`bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`、必要に応じて `bot/fixtures/_planning/HANDOFF.md` |
+| 発車前の通知、Web Push、配信 Worker、D1 | [docs/backend-push.md](docs/backend-push.md)、`server/src/schema.sql` |
 
 ## 正本と確認の原則
 
