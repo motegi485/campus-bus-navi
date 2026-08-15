@@ -44,6 +44,29 @@ npm run preview
 
 Cloudflare Pages の実デプロイ、HTTP ヘッダー、キャッシュ、Analytics は本番環境で別途確認します。確認できていない場合は、文書・リリース判断で未検証と明記します。
 
+### 取得時刻とデータ状態の確認
+
+`preview` は SW が有効なので、次を実ブラウザで確認します。`npm run dev` は SW が無効なため確認になりません。
+
+| 状態 | 再現方法 |
+|---|---|
+| `offline` | 一度読み込む → DevTools の Network を Offline → リロード |
+| `fetch-failed` | DevTools で `/data/*.json` を Block request URL に登録 → 更新ボタン |
+| `no-data` | Application → Clear storage の後、上記をブロックした状態で初回アクセス |
+| `stale` / `refetching-stale` | `/data/timetables/*.json` をブロックした状態で端末の日付を翌日へ進める。翌日分の先読みが成功していると昇格するので `stale` にならない |
+
+取得時刻の根拠が `Date` レスポンスヘッダのままかは、コンソールで次を実行して確認できます。キャッシュに残る古いエントリが、取得当時の `Date` を保っていれば正常です。
+
+```js
+const c = await caches.open('timetable-data')
+for (const req of await c.keys()) {
+  const res = await c.match(req)
+  console.log(new URL(req.url).pathname, res.headers.get('date'))
+}
+```
+
+2026-08-15 に `npm run preview` と Chrome で確認した時点では、`Date` ヘッダが付き、SW キャッシュ経由でも取得当時の値が保持されていました。Cloudflare Pages 本番での同確認は未実施です。
+
 ## Bot の品質ゲート
 
 ```powershell

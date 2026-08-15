@@ -57,6 +57,7 @@ flowchart TD
 - 選択路線、ドロワー、お知らせ、設定、ヘルプ、更新中、Toast の状態を管理する
 - 次発、残り本数、次発後の最大 4 本、終バス、翌日始発を毎分再計算する
 - 特別ダイヤ、全便運休日、日付跨ぎでデータが古い状態を安全に分岐する
+- `deriveDataStatus()` でデータ状態を 1 つに畳み、状態表示を排他的に描く
 - PWA 更新検知とアプリ初期化を担当する
 - オーバーレイが開いている間、背面を `inert` にする
 
@@ -84,6 +85,27 @@ flowchart TD
 
 これは「日付は今日なのに時刻は昨日」という誤案内を防ぐ必須の安全設計です。
 
+## データ状態の表示
+
+`deriveDataStatus()`（`src/utils/deriveDataStatus.ts`）が、読み込み状態・再取得中・エラー・`stale`・データ有無・オンライン状態から `DataStatus` を 1 つ決めます。上から順に判定し、最初に該当したものだけを描きます。
+
+| 優先 | `DataStatus` | 条件 | 表現 | 時刻 |
+|---|---|---|---|---|
+| 1 | `no-data` | エラーかつ時刻表が未取得 | `StatusCard`（赤地） | 出さない |
+| 2 | `refetching-stale` | `stale` かつ再取得中 | `StatusCard`（白地） | 出さない |
+| 3 | `stale` | `stale` かつ再取得中でない | `StatusCard`（白地） | 出さない |
+| 4 | `offline` | オフラインかつデータあり | `StatusBand`（白地） | 出す |
+| 5 | `fetch-failed` | エラー・データあり・オンライン | `StatusBand`（赤地） | 出す |
+| — | `ok` | 上記以外（初回読み込み中を含む） | 描かない | 出す |
+
+`offline` を `fetch-failed` より先に判定します。端末がオフラインを認識できている場合はそちらの方が行動につながるためで、この順により `fetch-failed` は「オンラインなのに取得できなかった」だけを意味します。初回読み込み中は既存のスピナーが担当します。
+
+表現を 2 種類に分けているのは、状態の重さが違うためです。時刻を出せない状態ではカードが画面の主役なので全幅のカードで伝えます。時刻を出せる状態では発車時刻が主役で状態は脇役なので、ヘッダー直下の帯にしてカードの積み重ねへ参加させません。
+
+### 取得時刻
+
+`useTimetable` は当日分の本文が「サーバから返ってきた時刻」を `fetchedAt` として保持し、上表の異常系で表示します。正常時は表示しません。判定根拠は `Date` レスポンスヘッダで、詳細と理由は [design-decisions.md](design-decisions.md) を参照してください。
+
 ## 表示コンポーネント
 
 | コンポーネント | 主な責務 |
@@ -93,7 +115,10 @@ flowchart TD
 | `FullTimetable` | 開閉式の全時刻表。空 `schedule` は描画しない |
 | `EndOfServiceCard` | 終バス後または全便運休日と翌日始発 |
 | `SpecialScheduleCard` | 時刻を出さず大学公式ページの確認先を示す |
-| `DayBadge` | 時刻表 ID の命名規約からダイヤ種別を示す |
+| `DayBadge` | 時刻表 ID の命名規約からダイヤ種別を示す。`stale` 中と時刻表未取得時は描かない |
+| `StatusCard` | 時刻を出せない状態のカード。取得時刻と再試行を持つ |
+| `StatusBand` | 時刻を出せる状態の帯。ヘッダー直下に全幅で敷く |
+| `StatusParts` | 上記 2 つが共有する状態アイコンと再試行ボタン |
 | `BusStopMap` | 乗り場、OSM タイル、徒歩ナビリンク |
 | `DrawerMenu` / `NewsScreen` / `SettingsScreen` / `HelpScreen` | 全画面・ドロワー型のオーバーレイ |
 | `UpdateBanner` / `Toast` / `MobilePwaGuide` | 更新通知、短い通知、PWA 導入案内 |
@@ -105,6 +130,7 @@ flowchart TD
 | `campusBusNaviSettings` | 初期路線、テーマ（light / dark / system）、文字サイズ |
 | `campusBusNaviNewsReadIds` | 既読にしたお知らせ ID |
 | `campusBusNaviRouteToggleHinted` | 路線切替ナッジを一度表示済みか |
+| `campusBusNaviFetchedAt` | 当日分の時刻表がサーバから返ってきた時刻（epoch ミリ秒） |
 | `swWaitingReloadAttempted` | 待機中サービスワーカー起動救済の 1 セッション用ガード |
 
 アプリ初期化はサービスワーカー登録、localStorage、Cache Storage を削除してから再読み込みします。

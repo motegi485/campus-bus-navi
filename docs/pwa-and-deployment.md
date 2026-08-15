@@ -72,6 +72,8 @@ Cache API はクエリ文字列を既定では無視しません。したがっ�
 
 サーバーの `no-store` と、Service Worker が保持するオフライン用キャッシュは別の層です。オンラインでは NetworkFirst で最新取得を優先し、通信失敗または低速時は端末内にある前回取得分を使います。
 
+`_headers` は `Date` レスポンスヘッダを落としていません。アプリはこのヘッダを「本文が実際にサーバから返ってきた時刻」として読み、鮮度表示の根拠にします。Cache API はレスポンスをヘッダごと保存するため、キャッシュから返った場合も取得当時の値が残ります。`Date` を落とす設定を足すと、鮮度表示は `navigator.onLine` と localStorage によるフォールバック経路へ落ち、精度が下がります。理由は [design-decisions.md](design-decisions.md) を参照してください。
+
 ## 外部リソース
 
 - Google Fonts は `index.html` の `<link>` から読み込みます。
@@ -83,5 +85,6 @@ Cache API はクエリ文字列を既定では無視しません。したがっ�
 - Service Worker や `vite.config.ts` を変えたら、[verification.md](verification.md) の PWA / オフライン確認を実施する。
 - `/data/` の URL、キャッシュ名、クエリ付き更新を変えたら、通常起動・更新後オフライン起動の両方を確認する。
 - `_headers`、`_redirects`、マニフェストを変えたら、`npm run build` の `dist/` にコピーされることを確認する。
+- 配信ヘッダーを変えたら、`/data/*.json` に `Date` が残っているかを確認する。
 - Cloudflare Pages の設定や本番デプロイを変更した場合は、実際のレスポンスヘッダーと公開 URL を別途確認し、その確認日を運用記録に残す。
 
