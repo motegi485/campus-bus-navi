@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+# wrangler のローカル秘密情報。VAPID 秘密鍵はここか `wrangler secret put` にだけ置く
+.dev.vars
+.dev.vars.*
+
+# テスト送信で使う購読情報。端末を特定しうるのでコミットしない
+subscription*.json

@@ -1,0 +1,30 @@
+{
+  // Node で動かすもの（vitest のテストと tools/ の CLI）。
+  // src/ も一緒に読み込まれるので、src/ が Node でも成立することの検査を兼ねる。
+  // DOM lib は fetch / Response / CryptoKey / JsonWebKey のために入れている
+  // （Node 24 はこれらを実装しているが、@types/node だけでは宣言が揃わない）。
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  // src/ を直接は含めない。Worker 専用のファイル（index.ts / sender.ts）は
+  // Cloudflare の型に依存するため、tsconfig.json 側で検査する。
+  // 両方のランタイムで動くモジュール（vapid / send / schedule / subscription）は
+  // test・tools から import される経路で自動的に取り込まれ、Node でも成立することの検査になる。
+  "include": ["test/**/*.ts", "tools/**/*.ts"]
+}
