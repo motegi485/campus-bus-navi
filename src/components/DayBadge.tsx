@@ -16,6 +16,16 @@ const BADGE_MAP: Record<DiagramType, { label: string; bg: string; color: string 
 }
 
 /**
+ * ダイヤ種別の代表色を返す。
+ *
+ * バッジ以外の表現（週間ダイヤの帯の色分けなど）から参照する用。BADGE_MAP を
+ * 唯一の定義元にしておくことで、色を写し取った第二の定義が生まれないようにする。
+ */
+export function badgeColor(type: DiagramType): string {
+  return BADGE_MAP[type].bg
+}
+
+/**
  * 時刻表IDからダイヤ種別を推定するユーティリティ
  *
  * 時刻表ファイルの命名規約に対応:
