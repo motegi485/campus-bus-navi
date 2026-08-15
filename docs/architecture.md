@@ -74,6 +74,17 @@ flowchart TD
 
 ビルド前の完全なデータ検証と、配信後の最低限の防御は別です。前者は [data-model-and-operations.md](data-model-and-operations.md) を参照してください。
 
+## 週間ダイヤのデータフロー
+
+`useWeekTimetables`（`src/hooks/useWeekTimetables.ts`）は当日起点 7 日分を解決します。`useTimetable` とは独立していて、あちらの `stale` 判定・翌日昇格・世代管理には触れません。
+
+1. `/data/calendar_rules.json` を取得します。キャッシュバスターは付けません。
+2. 各日に `resolveCalendar()` を適用し、日付・時刻表 ID・`resolveDiagramType()` の結果を先に返します。ダイヤ種別はカレンダーだけで決まるため、時刻表の取得を待たずに一覧が成立します。
+3. 時刻表 ID を一意化してから並列取得し、`normalizeTimetable()` を通します。7 日で参照されるユニークな ID は実測で 3 件程度に収束するため、日数分のリクエストにはなりません。
+4. 取得できなかった ID の日は `status: 'error'` になります。前後の日のダイヤで代用しません。
+
+`App` がこのフックを 1 回だけ呼び、結果を `WeekStrip` と `WeeklyScreen` の両方へ渡します。画面ごとに呼ぶと同じ 7 日分を二重に取得します。`useTimetable` と同じくリクエスト世代で古い応答を破棄します。
+
 ## 日付跨ぎの安全境界
 
 時刻表には必ず対象日を紐付けます。`useTimetable` は `dateKey`、翌日先読み用の `tomorrowDateKey`、リクエスト世代を保持します。
@@ -113,6 +124,10 @@ flowchart TD
 | `NextBusCard` | 次発、残り本数、分単位の案内 |
 | `UpcomingList` | 次発の後に続く最大 4 本 |
 | `FullTimetable` | 開閉式の全時刻表。空 `schedule` は描画しない |
+| `TimetableGrid` | 発車時刻のグリッド本体。`FullTimetable` と日別ビューが共用する。`nowMinutes` が `null` の日は過去便を灰色にしない |
+| `WeekStrip` | ホームの週間ダイヤ帯。曜日・日付・ダイヤ種別の色だけを出し、遷移は「すべて見る」チップのみが担う |
+| `WeeklyScreen` | 週間ダイヤ（当日起点 7 日）と、その入れ子の日別ビュー |
+| `RouteSwitch` | ページ面に置くルート切替。ヘッダー用の `RouteToggle` とは面の作りが違う |
 | `EndOfServiceCard` | 終バス後または全便運休日と翌日始発 |
 | `SpecialScheduleCard` | 時刻を出さず大学公式ページの確認先を示す |
 | `DayBadge` | 時刻表 ID の命名規約からダイヤ種別を示す。`stale` 中と時刻表未取得時は描かない |
