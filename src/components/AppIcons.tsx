@@ -115,6 +115,27 @@ export function IconMegaphone(props: SVGProps<SVGSVGElement>) {
 }
 
 /**
+ * 週間ダイヤ: カレンダーと 1 週間分の帯
+ *
+ * 日付を升目で埋めると月表示のアイコンになってしまうため、本体の中央に
+ * 横一列の刻みだけを置いて「1 週間」を表す。3 つなのは 20px 表示で
+ * 4 つ以上にすると刻みの間隔が線幅に埋もれるため。
+ */
+export function IconCalendarWeek(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Base {...props}>
+      <rect x="3.2" y="4.4" width="17.6" height="16" rx="2.6" />
+      <path d="M3.2 9.6h17.6" />
+      <path d="M8 2.6v3.6" />
+      <path d="M16 2.6v3.6" />
+      <path d="M6.8 15h2.2" />
+      <path d="M10.9 15h2.2" />
+      <path d="M15 15h2.2" />
+    </Base>
+  )
+}
+
+/**
  * 設定: 歯車（6歯）
  *
  * 歯先 R=9.9 / 歯元 r=6.7 / 歯先半角 9° / 歯元半角 13° を 30° 回転させ、

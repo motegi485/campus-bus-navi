@@ -6,6 +6,7 @@ import {
   IconTrain,
   IconLaptopCode,
   IconMegaphone,
+  IconCalendarWeek,
   IconGear,
   IconHelp,
   IconReset,
@@ -20,6 +21,7 @@ interface Props {
   hasUnread: boolean
   onClose: () => void
   onOpenNews: () => void
+  onOpenWeekly: () => void
   onOpenSettings: () => void
   onOpenHelp: () => void
   onInitApp: () => void
@@ -32,7 +34,7 @@ const LINKS: { icon: ReactNode; tone: IconTone; title: string; sub: string; url:
   { icon: <IconLaptopCode />, tone: 'yellow', title: 'サークルホームページ', sub: 'fukupro.club', url: 'https://www.fukupro.club/' },
 ]
 
-export function DrawerMenu({ open, covered, hasUnread, onClose, onOpenNews, onOpenSettings, onOpenHelp, onInitApp }: Props) {
+export function DrawerMenu({ open, covered, hasUnread, onClose, onOpenNews, onOpenWeekly, onOpenSettings, onOpenHelp, onInitApp }: Props) {
   // 閉時／被覆時の inert 化、開いた直後の初期フォーカス、閉時のフォーカス復帰、Esc で閉じる
   const rootRef = useOverlayA11y(open, { covered, onEscape: onClose })
 
@@ -106,6 +108,8 @@ export function DrawerMenu({ open, covered, hasUnread, onClose, onOpenNews, onOp
           <DrawerItem icon={<IconMegaphone />} tone="amber" title="お知らせ" sub="バス運行情報・重要連絡" chevron="›"
             showDot={hasUnread}
             onClick={onOpenNews} />
+          <DrawerItem icon={<IconCalendarWeek />} tone="blue" title="週間ダイヤ" sub="7日先までの運行予定" chevron="›"
+            onClick={onOpenWeekly} />
 
           <Divider />
 
