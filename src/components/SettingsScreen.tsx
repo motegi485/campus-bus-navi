@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { setInert, useOverlayA11y } from '../hooks/useOverlayA11y'
 import { usePressable } from '../hooks/usePressable'
-import type { AppSettings, DefaultRoute, Theme, FontSize } from '../types/timetable'
+import type { AppSettings, DefaultRoute, Theme, FontSize, RouteKey } from '../types/timetable'
+import {
+  EVERYDAY_MASK,
+  WEEKDAYS_MASK,
+  type ReminderLead,
+  type ReminderSettings,
+} from '../hooks/useReminderSettings'
+import { ReminderSection } from './ReminderSection'
 import {
   IconRouteSwap,
   IconContrast,
@@ -10,18 +17,24 @@ import {
   type AppIcon,
   type IconTone,
 } from './AppIcons'
-import { PushDebugPanel } from './PushDebugPanel'
 
 interface Props {
   open: boolean
   settings: AppSettings
+  reminder: ReminderSettings
   onClose: () => void
   onSetDefaultRoute: (v: DefaultRoute) => void
   onSetTheme: (v: Theme) => void
   onSetFontSize: (v: FontSize) => void
+  onSetReminderRoute: (v: RouteKey) => void
+  onSetReminderLead: (v: ReminderLead) => void
+  onSetReminderDays: (v: number) => void
 }
 
-type SelectKey = 'route' | 'theme' | 'font'
+type SelectKey = 'route' | 'theme' | 'font' | 'reminderRoute' | 'reminderLead' | 'reminderDays'
+
+const LEAD_LABELS: Record<ReminderLead, string> = { 5: '5分前', 10: '10分前', 15: '15分前', 20: '20分前' }
+const LEAD_VALUES = Object.entries(LEAD_LABELS) as [string, string][]
 
 function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
@@ -103,8 +116,23 @@ function SettingRow({ icon, tone, title, sub, value, onClick }: { icon: AppIcon;
   )
 }
 
-export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onSetTheme, onSetFontSize }: Props) {
+export function SettingsScreen({
+  open,
+  settings,
+  reminder,
+  onClose,
+  onSetDefaultRoute,
+  onSetTheme,
+  onSetFontSize,
+  onSetReminderRoute,
+  onSetReminderLead,
+  onSetReminderDays,
+}: Props) {
   const [selKey, setSelKey] = useState<SelectKey | null>(null)
+
+  const reminderRouteLabel = reminder.route === 'campus_to_station' ? '大学発' : '松永発'
+  const reminderLeadLabel = LEAD_LABELS[reminder.leadMinutes]
+  const reminderDaysLabel = reminder.daysMask === EVERYDAY_MASK ? '毎日' : '平日のみ'
 
   const SELECTS: Record<SelectKey, { title: string; current: string; options: string[]; apply: (v: string) => void }> = {
     route: {
@@ -124,6 +152,27 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
       current: settings.fontSize === 'small' ? '小' : settings.fontSize === 'large' ? '大' : '標準',
       options: ['小', '標準', '大'],
       apply: (v) => onSetFontSize(v === '小' ? 'small' : v === '大' ? 'large' : 'medium'),
+    },
+    reminderRoute: {
+      title: 'ルート',
+      current: reminderRouteLabel,
+      options: ['大学発', '松永発'],
+      apply: (v) => onSetReminderRoute(v === '大学発' ? 'campus_to_station' : 'station_to_campus'),
+    },
+    reminderLead: {
+      title: '通知するタイミング',
+      current: reminderLeadLabel,
+      options: LEAD_VALUES.map(([, label]) => label),
+      apply: (v) => {
+        const entry = LEAD_VALUES.find(([, label]) => label === v)
+        if (entry) onSetReminderLead(Number(entry[0]) as ReminderLead)
+      },
+    },
+    reminderDays: {
+      title: '通知する曜日',
+      current: reminderDaysLabel,
+      options: ['平日のみ', '毎日'],
+      apply: (v) => onSetReminderDays(v === '毎日' ? EVERYDAY_MASK : WEEKDAYS_MASK),
     },
   }
 
@@ -187,11 +236,15 @@ export function SettingsScreen({ open, settings, onClose, onSetDefaultRoute, onS
           <SettingRow icon={IconFontSize} tone="amber" title="フォントサイズ" sub="時刻の文字の大きさ" value={SELECTS.font.current} onClick={() => openSelect('font')} />
         </Section>
 
-        {/* 通知セクション
-            ⚠️ 現在は検証用パネル（PushDebugPanel）。段階 6 で正式な通知設定 UI に置き換える。
-               「近日公開」のプレースホルダはこの実装で置き換え済み。 */}
+        {/* 通知セクション（「近日公開」のプレースホルダをこの実装で置き換えた） */}
         <Section label="通知">
-          <PushDebugPanel route={settings.defaultRoute} />
+          <ReminderSection
+            reminder={reminder}
+            onOpenSelect={openSelect}
+            routeLabel={reminderRouteLabel}
+            leadLabel={reminderLeadLabel}
+            daysLabel={reminderDaysLabel}
+          />
         </Section>
 
         {/* アプリ情報 */}
