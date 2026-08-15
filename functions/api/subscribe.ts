@@ -1,25 +1,30 @@
 /**
- * 購読の登録・更新（Cloudflare Pages Functions）。
+ * 端末の購読の登録・解除（Cloudflare Pages Functions）。
  *
- * Pages と同じオリジン（campus-bus-navi.pages.dev/api/subscribe）で動くので CORS が要らない。
- * Cron の配信本体は server/ の Worker が担い、ここは D1 への書き込みだけを行う。
+ * 設定画面のトグル（通知の根幹の許可）が呼ぶ。ここで端末が登録されて初めて、
+ * 時刻表から便ごとのリマインドを指定できるようになる。
  *
- * ⚠️ public/_redirects に `/* /index.html 200` があるが、Pages では Functions が
- *    先に評価されるため /api/* はここへ届く。デプロイ後に必ず実際に叩いて確認すること。
+ * 便の指定そのものは /api/reminders が扱う。
+ *
+ * Pages と同じオリジンで動くので CORS が要らない。
+ * public/_redirects の `/* /index.html 200` より Functions が優先されることは
+ * デプロイ後に /api/vapid-key で確認済み。
  */
 
-import { parseSubscribeRequest, subscriptionId } from '../../server/src/subscription.js'
+import { parseSubscribeRequest, isValidEndpoint, subscriptionId } from '../../server/src/subscription.js'
 
 interface Env {
   DB: D1Database
 }
 
-const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' }
-
 function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS })
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+  })
 }
 
+/** 通知をオンにする */
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   let payload: unknown
   try {
@@ -30,43 +35,52 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const parsed = parseSubscribeRequest(payload)
   if (!parsed.ok) return json({ error: parsed.error }, 400)
-  const value = parsed.value
+  const { endpoint, p256dh, auth } = parsed.value
 
   try {
-    const id = await subscriptionId(value.endpoint)
-    // 同じ端末が設定を変えて再購読したときは上書きする。last_sent_on は引き継がず
-    // NULL に戻す（条件が変わったのだから、その日の送信済み判定もやり直す）
+    const id = await subscriptionId(endpoint)
+    // 同じ端末が再購読したときは鍵だけ更新する。created_at は最初の登録時のまま残す
     await env.DB.prepare(
-      `INSERT INTO subscriptions
-         (id, endpoint, p256dh, auth, route, mode, departure, lead_minutes, days_mask, created_at, last_sent_on)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
-       ON CONFLICT(id) DO UPDATE SET
-         p256dh = excluded.p256dh,
-         auth = excluded.auth,
-         route = excluded.route,
-         mode = excluded.mode,
-         departure = excluded.departure,
-         lead_minutes = excluded.lead_minutes,
-         days_mask = excluded.days_mask,
-         last_sent_on = NULL`
+      `INSERT INTO subscriptions (id, endpoint, p256dh, auth, created_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth`
     )
-      .bind(
-        id,
-        value.endpoint,
-        value.p256dh,
-        value.auth,
-        value.route,
-        value.mode,
-        value.departure,
-        value.leadMinutes,
-        value.daysMask,
-        Date.now()
-      )
+      .bind(id, endpoint, p256dh, auth, Date.now())
       .run()
 
     return json({ ok: true })
   } catch (e) {
     console.error('購読の保存に失敗しました', e)
     return json({ error: '購読を保存できませんでした' }, 500)
+  }
+}
+
+/**
+ * 通知をオフにする。端末の購読と、その端末のリマインドをまとめて消す。
+ *
+ * reminders は ON DELETE CASCADE で消えるが、D1 は外部キー制約が既定で無効な
+ * 場合があるため明示的に削除する（残ると配信のたびに無駄な結合が走る）。
+ */
+export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
+  let payload: { endpoint?: unknown }
+  try {
+    payload = (await request.json()) as { endpoint?: unknown }
+  } catch {
+    return json({ error: 'JSON を解釈できませんでした' }, 400)
+  }
+  if (!isValidEndpoint(payload.endpoint)) return json({ error: 'endpoint が不正です' }, 400)
+
+  try {
+    const id = await subscriptionId(payload.endpoint)
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM reminders WHERE subscription_id = ?').bind(id),
+      env.DB.prepare('DELETE FROM subscriptions WHERE id = ?').bind(id),
+    ])
+    // 存在しなかった場合も成功として返す。解除は何度呼ばれても同じ結果になるべきで、
+    // 「その endpoint が登録されていたか」を外部へ漏らす必要もない
+    return json({ ok: true })
+  } catch (e) {
+    console.error('購読の削除に失敗しました', e)
+    return json({ error: '購読を解除できませんでした' }, 500)
   }
 }
