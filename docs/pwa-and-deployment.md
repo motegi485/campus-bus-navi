@@ -9,14 +9,21 @@ public/                 -- Vite が dist/ へコピー
   _headers              -- Cloudflare の配信ヘッダー
   _redirects            -- SPA フォールバック
   manifest.json         -- PWA マニフェスト
+  push-sw.js            -- push 受信ハンドラ（生成 SW から importScripts される）
   data/                 -- 実行時に取得する静的データ
+functions/api/          -- Pages Functions（通知の購読 API）
 src/ + index.html       -- Vite がビルド
+wrangler.toml           -- Pages のバインディング（D1、公開鍵）
 dist/                   -- Cloudflare Pages の出力ディレクトリ
 ```
 
 想定する Cloudflare Pages のビルド設定は、ビルドコマンドが `npm run build`、出力ディレクトリが `dist` です。実際の Pages プロジェクト設定や公開状態はリポジトリだけでは確認できないため、デプロイ時に管理画面で確認してください。
 
+リポジトリ直下の `wrangler.toml` に `pages_build_output_dir` とバインディングを書いてあるため、**Pages のバインディングと環境変数はダッシュボードではなくこのファイルが正**になります。設定がリポジトリに残り、「どこで設定したか分からない」状態を避けられます。配信 Worker の設定は別で、`server/wrangler.toml` にあります（[backend-push.md](backend-push.md)）。
+
 `public/_redirects` の `/* /index.html 200` は直接 URL を開いたときにも SPA を表示するために必要です。`_headers` と `_redirects` をリポジトリ直下へ移すと、`dist` を配信する構成では効きません。
+
+Pages では **Functions が `_redirects` より先に評価される**ため、`/api/*` は SPA フォールバックに飲み込まれません（2026-08-16 に `/api/vapid-key` の応答で確認済み）。
 
 ## Service Worker の構成
 
@@ -35,6 +42,26 @@ dist/                   -- Cloudflare Pages の出力ディレクトリ
 これを外すと、ビルド時のプリキャッシュが `/data/*.json` の素の URL に先に応答し、通常起動で NetworkFirst が通らなくなります。その結果、サーバー上の時刻表を更新しても、ユーザーが更新操作をするまで古いビルド時スナップショットが優先されます。データの鮮度を保つため、この除外は必須です。
 
 `public/data/_examples/` もこの除外に含まれるため、本番プリキャッシュには入りません。
+
+### push ハンドラを `injectManifest` へ移行せずに足している理由
+
+`push` イベントを扱うには生成 SW に独自コードが要りますが、`injectManifest` へ全面移行すると上記のキャッシュ設定（`globIgnores`、NetworkFirst の 3 秒タイムアウト、`timetable-data` の名前、OSM タイル、skip-waiting のフロー）をすべて書き直すことになり、リグレッションのリスクが高くなります。
+
+代わりに `workbox.importScripts` を使い、`public/push-sw.js` を生成 SW へ読み込ませています。**既存のキャッシュ設定には一切触れません。**
+
+```ts
+workbox: {
+  importScripts: [`/push-sw.js?v=${packageJson.version}`],
+  globIgnores: ['data/**/*.json'],   // 以下、従来どおり
+  runtimeCaching: [ /* ... */ ],
+}
+```
+
+URL にバージョンを含めているのは、SW の `updateViaCache` の既定が `'imports'` で、import したスクリプトが HTTP キャッシュから返るためです。固定 URL だと更新が端末へ届きません。
+
+`push-sw.js` が読み込めないと **SW 全体がインストールに失敗**します。`public/` に置いてあるので常に `dist/` へコピーされますが、この結合は意識しておいてください。
+
+`push-sw.js` は `timetable-data` キャッシュ名を参照します。`vite.config.ts` の `cacheName` と `src/hooks/useTimetable.ts` の `DATA_CACHE` に加えて、ここも結合先です。
 
 ## 時刻表の更新と正規 URL キャッシュ
 

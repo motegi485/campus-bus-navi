@@ -103,6 +103,44 @@ Bot は `DRY_RUN` と `SKIP_OCR` を付けた安全な確認から始めます�
 
 Bot の受け入れ基準と人間が行う確認は `BACKEND_REQUIREMENTS.md` と `HANDOFF.md` を正とします。
 
+## 通知（Web Push）の品質ゲート
+
+配信基盤はフロントエンド・Bot と依存を分離しています。設計の背景は [backend-push.md](backend-push.md) を参照してください。
+
+```powershell
+Set-Location server
+npm run typecheck
+npm test
+npx wrangler deploy --dry-run --outdir .wrangler/dry
+```
+
+| 確認 | 何を保証するか | 注意 |
+|---|---|---|
+| `npm run typecheck` | Worker（Cloudflare の型）と tools・test（Node の型）の両方 | 両ランタイムで動く共通モジュールは両方で検査される |
+| `npm test` | 送信の窓、当日限りの判定、運休日・特別ダイヤの除外、JWT の署名形式 | Cloudflare ランタイムには依存しない |
+| `npx wrangler deploy --dry-run` | バンドルとバインディング定義が成立するか | 実際のデプロイ状態は保証しない |
+
+`wrangler` のコマンドは必ず `server/` で実行します。リポジトリ直下の `wrangler.toml` は Pages の設定なので、直下で `wrangler deploy` を実行してはいけません。
+
+コードだけでは確認できないものは次のとおりです。実施日と方法を伴わない限り「確認済み」とは書きません。
+
+- 実機での通知到達（iPhone ホーム画面 PWA / Android / PC）
+- Cron の稼働と D1 の内容（`npx wrangler tail`、`/api/status`）
+- Cloudflare 側の設定（D1 の作成、バインディング、シークレット、デプロイ）
+- 無料枠の実消費
+
+### 現時点の確認状況（2026-08-16）
+
+| 項目 | 状況 |
+|---|---|
+| VAPID 署名と単体送信（PC / Chrome / FCM） | 実機で確認済み |
+| ペイロードなし push の受信（iPhone ホーム画面 PWA / Safari / APNs） | 実機で確認済み |
+| `/api/*` が `_redirects` の SPA フォールバックに飲み込まれないこと | `/api/vapid-key` の応答で確認済み |
+| 購読 API と D1 の往復（登録・保存・削除） | 確認済み |
+| **Cron 経由での実地の通知到達** | **未確認。** 通常ダイヤの日での確認が必要 |
+| Android のメーカー独自省電力下での配送 | 未確認 |
+| 実運用規模での無料枠消費 | 未確認（見積もりのみ） |
+
 ## 文書変更時の確認
 
 - リンク先のパス・見出し・コマンドが存在するか
