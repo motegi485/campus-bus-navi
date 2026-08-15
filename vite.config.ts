@@ -15,6 +15,12 @@ export default defineConfig({
       includeAssets: ['icons/*.png'],
       manifest: false, // public/manifest.json を直接使用
       workbox: {
+        // 発車リマインダーの push 受信ハンドラ（public/push-sw.js）を、生成された SW へ
+        // importScripts で足す。injectManifest へ移行せずに push 対応を入れるための構成で、
+        // 下のキャッシュ設定（globIgnores・NetworkFirst・cacheName）には一切影響しない。
+        // ⚠️ URL にバージョンを含めること。SW の updateViaCache は既定が 'imports' で、
+        //    import したスクリプトは HTTP キャッシュから返るため、固定 URL だと更新が届かない。
+        importScripts: [`/push-sw.js?v=${packageJson.version}`],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
         // data/ 配下の JSON（カレンダー・時刻表・お知らせ）はプリキャッシュ対象から除外する。
         // 除外しないと素のURL (/data/xxx.json) がプリキャッシュに先勝ちでヒットし、
