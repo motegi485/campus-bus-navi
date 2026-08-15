@@ -1,0 +1,23 @@
+# Cloudflare Pages（フロントエンド + functions/api/）の設定。
+#
+# 配信 Worker の設定は server/wrangler.toml。あちらは Cron でひたすら送る側、
+# こちらは購読を受け取って D1 へ書く側で、デプロイ単位が別になっている。
+# ⚠️ 両者は同じ D1 データベースを指すこと。Pages が書き、Worker が読んで送る。
+#
+# このファイルを置くと、Pages のバインディングと環境変数は
+# ダッシュボードの設定ではなくここが正になる。設定がリポジトリに残り、
+# 「どこで設定したか分からない」状態を避けられる。
+
+name = "campus-bus-navi"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "dist"
+
+[vars]
+# 公開鍵は公開してよい値。/api/vapid-key が配る
+VAPID_PUBLIC_KEY = "BLRMuFokCo7G7eGZDlcNt_juDny8UYxxASkVOspnYxcEy0FUGrKnKWpGIBxL32OLtSRvp7b0QtlRXwky0e0lHkY"
+
+# 購読の保存先。server/wrangler.toml の [[d1_databases]] と同じ database_id を指す
+[[d1_databases]]
+binding = "DB"
+database_name = "campus-bus-navi"
+database_id = "51b085a4-cc14-4a84-a346-69cfc27909d4"
