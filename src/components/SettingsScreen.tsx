@@ -1,14 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { setInert, useOverlayA11y } from '../hooks/useOverlayA11y'
 import { usePressable } from '../hooks/usePressable'
-import type { AppSettings, DefaultRoute, Theme, FontSize, RouteKey } from '../types/timetable'
-import {
-  EVERYDAY_MASK,
-  WEEKDAYS_MASK,
-  type ReminderLead,
-  type ReminderSettings,
-} from '../hooks/useReminderSettings'
+import type { AppSettings, DefaultRoute, Theme, FontSize } from '../types/timetable'
 import { ReminderSection } from './ReminderSection'
+import type { PushStatus } from '../hooks/usePushSubscription'
 import {
   IconRouteSwap,
   IconContrast,
@@ -21,20 +16,20 @@ import {
 interface Props {
   open: boolean
   settings: AppSettings
-  reminder: ReminderSettings
   onClose: () => void
   onSetDefaultRoute: (v: DefaultRoute) => void
   onSetTheme: (v: Theme) => void
   onSetFontSize: (v: FontSize) => void
-  onSetReminderRoute: (v: RouteKey) => void
-  onSetReminderLead: (v: ReminderLead) => void
-  onSetReminderDays: (v: number) => void
+  push: {
+    status: PushStatus
+    busy: boolean
+    error: string | null
+    enable: () => void
+    disable: () => void
+  }
 }
 
-type SelectKey = 'route' | 'theme' | 'font' | 'reminderRoute' | 'reminderLead' | 'reminderDays'
-
-const LEAD_LABELS: Record<ReminderLead, string> = { 5: '5分前', 10: '10分前', 15: '15分前', 20: '20分前' }
-const LEAD_VALUES = Object.entries(LEAD_LABELS) as [string, string][]
+type SelectKey = 'route' | 'theme' | 'font'
 
 function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
@@ -119,20 +114,13 @@ function SettingRow({ icon, tone, title, sub, value, onClick }: { icon: AppIcon;
 export function SettingsScreen({
   open,
   settings,
-  reminder,
   onClose,
   onSetDefaultRoute,
   onSetTheme,
   onSetFontSize,
-  onSetReminderRoute,
-  onSetReminderLead,
-  onSetReminderDays,
+  push,
 }: Props) {
   const [selKey, setSelKey] = useState<SelectKey | null>(null)
-
-  const reminderRouteLabel = reminder.route === 'campus_to_station' ? '大学発' : '松永発'
-  const reminderLeadLabel = LEAD_LABELS[reminder.leadMinutes]
-  const reminderDaysLabel = reminder.daysMask === EVERYDAY_MASK ? '毎日' : '平日のみ'
 
   const SELECTS: Record<SelectKey, { title: string; current: string; options: string[]; apply: (v: string) => void }> = {
     route: {
@@ -152,27 +140,6 @@ export function SettingsScreen({
       current: settings.fontSize === 'small' ? '小' : settings.fontSize === 'large' ? '大' : '標準',
       options: ['小', '標準', '大'],
       apply: (v) => onSetFontSize(v === '小' ? 'small' : v === '大' ? 'large' : 'medium'),
-    },
-    reminderRoute: {
-      title: 'ルート',
-      current: reminderRouteLabel,
-      options: ['大学発', '松永発'],
-      apply: (v) => onSetReminderRoute(v === '大学発' ? 'campus_to_station' : 'station_to_campus'),
-    },
-    reminderLead: {
-      title: '通知するタイミング',
-      current: reminderLeadLabel,
-      options: LEAD_VALUES.map(([, label]) => label),
-      apply: (v) => {
-        const entry = LEAD_VALUES.find(([, label]) => label === v)
-        if (entry) onSetReminderLead(Number(entry[0]) as ReminderLead)
-      },
-    },
-    reminderDays: {
-      title: '通知する曜日',
-      current: reminderDaysLabel,
-      options: ['平日のみ', '毎日'],
-      apply: (v) => onSetReminderDays(v === '毎日' ? EVERYDAY_MASK : WEEKDAYS_MASK),
     },
   }
 
@@ -239,11 +206,11 @@ export function SettingsScreen({
         {/* 通知セクション（「近日公開」のプレースホルダをこの実装で置き換えた） */}
         <Section label="通知">
           <ReminderSection
-            reminder={reminder}
-            onOpenSelect={openSelect}
-            routeLabel={reminderRouteLabel}
-            leadLabel={reminderLeadLabel}
-            daysLabel={reminderDaysLabel}
+            status={push.status}
+            busy={push.busy}
+            error={push.error}
+            onEnable={push.enable}
+            onDisable={push.disable}
           />
         </Section>
 

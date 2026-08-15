@@ -1,24 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { isIOS, isStandalone } from '../utils/platform'
-import type { ReminderSettings } from './useReminderSettings'
 
 /**
- * Web Push の購読を扱うフック。
+ * 端末の購読（通知の根幹の許可）を扱うフック。
  *
- * 端末側で購読を作り、その内容をサーバ（/api/subscribe → D1）へ登録する。
- * 配信 Worker は D1 を見て送るので、ここで登録しないと通知は永久に来ない。
+ * 設定画面のトグルがこれを操作する。オンにすると通知許可を取り、push 購読を作り、
+ * サーバへ登録する。**ここが有効になって初めて、時刻表から便ごとのリマインドを
+ * 指定できる**（順序はサーバ側でも守られていて、未登録の端末からの指定は 409 になる）。
+ *
+ * 「どの便に何分前」は useDepartureReminders が扱う。ここは端末の登録だけ。
  *
  * 通知許可は**必ずユーザー操作を起点に**要求する（enable() を呼んだときだけ）。
- * 起動時に勝手にダイアログを出さない。
- *
  * iOS Safari のタブでは Notification / PushManager 自体が未定義のことがあるため、
  * すべての参照を typeof で守る。
  */
-
-/** push-sw.js が読む表示設定の置き場。名前を変えるときは両方直すこと */
-const IDB_NAME = 'campusBusNaviPush'
-const IDB_STORE = 'settings'
-const IDB_KEY = 'current'
 
 export type PushStatus =
   /** ブラウザが Web Push に対応していない */
@@ -31,45 +26,6 @@ export type PushStatus =
   | 'idle'
   /** 購読済み */
   | 'subscribed'
-
-function openDb(): Promise<IDBDatabase | null> {
-  return new Promise(resolve => {
-    let request: IDBOpenDBRequest
-    try {
-      request = indexedDB.open(IDB_NAME, 1)
-    } catch {
-      resolve(null)
-      return
-    }
-    request.onupgradeneeded = () => {
-      const db = request.result
-      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE)
-    }
-    request.onerror = () => resolve(null)
-    request.onsuccess = () => resolve(request.result)
-  })
-}
-
-/**
- * push-sw.js が通知の文面を組み立てるのに使う設定を保存する。
- * ペイロードなし push なので、SW は「どのルートの話か」をここからしか知れない。
- */
-async function saveDisplaySettings(settings: { route: string }): Promise<void> {
-  const db = await openDb()
-  if (!db) return
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, 'readwrite')
-      tx.objectStore(IDB_STORE).put(settings, IDB_KEY)
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error)
-    })
-  } catch {
-    // 保存できなくても push は届く（push-sw.js が既定のルートで表示する）
-  } finally {
-    db.close()
-  }
-}
 
 /** base64url の VAPID 公開鍵を、pushManager.subscribe が要求するバイト列に変換する */
 function publicKeyToBytes(base64Url: string): Uint8Array<ArrayBuffer> {
@@ -90,43 +46,16 @@ function detectUnavailable(): Exclude<PushStatus, 'idle' | 'subscribed'> | null 
   return null
 }
 
-/** サーバへ購読を登録する。D1 に入って初めて配信 Worker の対象になる */
-async function registerOnServer(subscription: PushSubscription, reminder: ReminderSettings): Promise<void> {
-  const json = subscription.toJSON()
-  const response = await fetch('/api/subscribe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      endpoint: json.endpoint,
-      p256dh: json.keys?.p256dh,
-      auth: json.keys?.auth,
-      route: reminder.route,
-      // 段階 6a では最終便のみ。任意の便の指定は D1 のスキーマ上は対応済み
-      mode: 'last_bus',
-      departure: null,
-      leadMinutes: reminder.leadMinutes,
-      daysMask: reminder.daysMask,
-    }),
-  })
-  if (!response.ok) {
-    const detail = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
-    throw new Error((detail as { error?: string }).error ?? `HTTP ${response.status}`)
-  }
+async function readError(response: Response): Promise<string> {
+  const detail = await response.json().catch(() => null)
+  return (detail as { error?: string } | null)?.error ?? `HTTP ${response.status}`
 }
 
-async function unregisterOnServer(endpoint: string): Promise<void> {
-  await fetch('/api/unsubscribe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ endpoint }),
-  })
-}
-
-export function usePushSubscription(reminder: ReminderSettings) {
+export function usePushSubscription() {
   const [status, setStatus] = useState<PushStatus>('idle')
+  const [endpoint, setEndpoint] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const subscriptionRef = useRef<PushSubscription | null>(null)
 
   // 起動時は「いま購読しているか」を読むだけ。許可の要求は一切しない
   useEffect(() => {
@@ -140,7 +69,7 @@ export function usePushSubscription(reminder: ReminderSettings) {
       .then(reg => reg.pushManager.getSubscription())
       .then(existing => {
         if (cancelled) return
-        subscriptionRef.current = existing
+        setEndpoint(existing?.endpoint ?? null)
         setStatus(existing ? 'subscribed' : 'idle')
       })
       .catch(() => {
@@ -151,6 +80,7 @@ export function usePushSubscription(reminder: ReminderSettings) {
     }
   }, [])
 
+  /** 通知をオンにする。ユーザーがトグルを押した文脈でのみ呼ぶこと */
   const enable = useCallback(async () => {
     setError(null)
     const unavailable = detectUnavailable()
@@ -167,7 +97,7 @@ export function usePushSubscription(reminder: ReminderSettings) {
       const { publicKey } = (await keyResponse.json()) as { publicKey?: string }
       if (!publicKey) throw new Error('サーバに鍵が設定されていません')
 
-      // ここが唯一の許可要求。ユーザーがボタンを押した文脈でのみ呼ばれる
+      // ここが唯一の許可要求
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') {
         setStatus(permission === 'denied' ? 'denied' : 'idle')
@@ -182,18 +112,24 @@ export function usePushSubscription(reminder: ReminderSettings) {
         applicationServerKey: publicKeyToBytes(publicKey),
       })
 
-      await registerOnServer(created, reminder)
-      await saveDisplaySettings({ route: reminder.route })
+      const json = created.toJSON()
+      const response = await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: json.endpoint, p256dh: json.keys?.p256dh, auth: json.keys?.auth }),
+      })
+      if (!response.ok) throw new Error(await readError(response))
 
-      subscriptionRef.current = created
+      setEndpoint(created.endpoint)
       setStatus('subscribed')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
-  }, [reminder])
+  }, [])
 
+  /** 通知をオフにする。設定した便のリマインドもすべて消える（一括解除） */
   const disable = useCallback(async () => {
     setError(null)
     setBusy(true)
@@ -203,10 +139,14 @@ export function usePushSubscription(reminder: ReminderSettings) {
       if (existing) {
         // サーバの行を先に消す。端末側の解除だけだと D1 に失効した購読が残り、
         // 配信のたびに無駄なサブリクエストを使う
-        await unregisterOnServer(existing.endpoint)
+        await fetch('/api/subscribe', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: existing.endpoint }),
+        })
         await existing.unsubscribe()
       }
-      subscriptionRef.current = null
+      setEndpoint(null)
       setStatus('idle')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -215,22 +155,5 @@ export function usePushSubscription(reminder: ReminderSettings) {
     }
   }, [])
 
-  /**
-   * 設定変更をサーバへ反映する。購読していないときは何もしない。
-   * /api/subscribe は endpoint のハッシュを主キーにしているので、同じ端末なら上書きになる。
-   */
-  const syncSettings = useCallback(async () => {
-    if (status !== 'subscribed') return
-    const current = subscriptionRef.current
-    if (!current) return
-    setError(null)
-    try {
-      await registerOnServer(current, reminder)
-      await saveDisplaySettings({ route: reminder.route })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }, [status, reminder])
-
-  return { status, error, busy, enable, disable, syncSettings }
+  return { status, endpoint, error, busy, enable, disable }
 }
