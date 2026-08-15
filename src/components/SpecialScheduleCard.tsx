@@ -3,6 +3,13 @@ import { SCHOOL_BUS_INFO_URL } from '../constants/links'
 interface Props {
   /** オフラインだとリンク先を開けないため、その旨を添える */
   isOnline: boolean
+  /**
+   * 見出しラベル。既定はホームの次発カードの位置に出るため「次のバス」。
+   * 週間ダイヤの日別ビューは当日とは限らないので「この日のダイヤ」を渡す。
+   */
+  eyebrow?: string
+  /** 説明文。既定は本日向けの文面。日別ビューは「この日の」に差し替える */
+  description?: string
 }
 
 /**
@@ -13,7 +20,11 @@ interface Props {
  * 推測で埋めると「大学へは行けるが帰れない」時刻を表示しかねない。
  * そのため時刻は一切出さず、大学の掲示そのものへ誘導する。
  */
-export function SpecialScheduleCard({ isOnline }: Props) {
+export function SpecialScheduleCard({
+  isOnline,
+  eyebrow = '次のバス',
+  description = '本日の発車時刻は特別な日程になっています。大学ホームページでご確認ください。',
+}: Props) {
   return (
     <div
       className="hero-card rounded-[22px] px-6 py-[22px] text-white"
@@ -24,13 +35,13 @@ export function SpecialScheduleCard({ isOnline }: Props) {
       }}
     >
       <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
-        次のバス
+        {eyebrow}
       </p>
       <p className="text-[34px] font-black text-white tracking-tight leading-tight mb-[10px]">
         特別な運行日程
       </p>
       <p className="text-[15px] text-white/90 font-semibold leading-relaxed mb-[18px]">
-        本日の発車時刻は特別な日程になっています。大学ホームページでご確認ください。
+        {description}
       </p>
 
       <a

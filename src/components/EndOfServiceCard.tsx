@@ -4,9 +4,14 @@ interface Props {
   tomorrowFirstBus: ScheduleEntry | null
   tomorrowTimetableName?: string
   message?: string
+  /**
+   * 見出しラベル。既定はホームの次発カードの位置に出るため「次のバス」。
+   * 週間ダイヤの日別ビューは当日とは限らないので「この日のダイヤ」を渡す。
+   */
+  eyebrow?: string
 }
 
-export function EndOfServiceCard({ tomorrowFirstBus, tomorrowTimetableName, message = '本日の運行は終了しました' }: Props) {
+export function EndOfServiceCard({ tomorrowFirstBus, tomorrowTimetableName, message = '本日の運行は終了しました', eyebrow = '次のバス' }: Props) {
   return (
     <div
       className="hero-card rounded-[22px] px-6 py-[22px] text-white"
@@ -17,7 +22,7 @@ export function EndOfServiceCard({ tomorrowFirstBus, tomorrowTimetableName, mess
       }}
     >
       <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
-        次のバス
+        {eyebrow}
       </p>
       <p className="text-[60px] font-black text-white tracking-tight leading-none mb-[7px]">
         --:--
