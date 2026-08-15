@@ -1,0 +1,23 @@
+{
+  "name": "campus-bus-navi-push",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "発車リマインダーの Web Push 配信サーバ（フロントエンド・Bot とは依存を分離する）",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "test": "vitest run",
+    "keygen": "tsx tools/generate-vapid-keys.ts",
+    "send-test": "tsx tools/send-test-push.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "@types/node": "^22.20.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "wrangler": "^3.99.0"
+  }
+}
