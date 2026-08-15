@@ -1,0 +1,35 @@
+name = "campus-bus-navi-push"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# 1 分ごとに起動して「いま送るべき購読」を探す。
+# 無料枠は Cron Trigger 5 個までで、最小間隔は 1 分。
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+# 静的データ（calendar_rules.json / timetables/*.json）の取得元
+SITE_ORIGIN = "https://campus-bus-navi.pages.dev"
+# VAPID の subject。連絡先を兼ねる識別子で、mailto: か https: の URL であればよい
+VAPID_SUBJECT = "https://campus-bus-navi.pages.dev/"
+# 公開鍵は公開してよい値なので vars に置く。
+# ⚠️ VAPID_PRIVATE_KEY はここに書かない。`npx wrangler secret put VAPID_PRIVATE_KEY` で登録する
+VAPID_PUBLIC_KEY = ""
+
+# 購読の保存先。Pages Functions（functions/api/）と同じデータベースを指すこと。
+# database_id は `npx wrangler d1 create campus-bus-navi` の出力で置き換える
+[[d1_databases]]
+binding = "DB"
+database_name = "campus-bus-navi"
+database_id = ""
+
+# 送信の分配先。1 実行あたり外部サブリクエスト 50 件という制限を、
+# DO の数だけ分割するために使う
+[[durable_objects.bindings]]
+name = "SENDER"
+class_name = "ReminderSender"
+
+# 無料プランで使えるのは SQLite バックエンドの Durable Objects
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ReminderSender"]
