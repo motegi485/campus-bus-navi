@@ -1,8 +1,19 @@
-/** FR-11: PR 本文（bot/.out/pr-body.md）の生成。テンプレートは要件定義 §8 の FR-11 に従う。 */
+/**
+ * FR-11: 実行レポート（bot/.out/report.md）の生成。
+ *
+ * 【2026-08-16 の自動適用化まで、このファイルは prBody.ts という名前で
+ *   「PR 本文」を作っていた】人間が PR をレビューしてマージする設計だったため、
+ * 実際の発車時刻は PR の diff で見る前提で、ここには便数しか出していなかった。
+ *
+ * 自動適用に切り替えたことで PR が無くなり、diff を人が見る機会そのものが消えた。
+ * そこで本文の役割を「レビュー依頼」から「事後確認できる通知」へ変え、
+ * 元画像リンクと並べて【発車時刻そのもの】を載せる。メール 1 通で
+ * 「画像と時刻の突き合わせ」が完結することが、失われた PR レビューの代替になる。
+ */
 
-import type { ClassifiedLink, FilePlan, OverrideChange, Warning } from './types.js'
+import type { ClassifiedLink, FilePlan, OverrideChange, Route, Timetable, Warning } from './types.js'
 
-export interface PrBodyInput {
+export interface ReportInput {
   runAt: string
   modelUsed: string
   fallbackUsed: boolean
@@ -38,7 +49,65 @@ function overrideLine(change: OverrideChange): string {
   return `- スキップ: ${change.date} → ${change.id}${change.reason ? `（${change.reason}）` : ''}`
 }
 
-export function buildPrBody(input: PrBodyInput): string {
+function departures(route: Route): string[] {
+  return route.schedule.map((entry) => entry.departure)
+}
+
+/** 1 ルート分の発車時刻を、旧との差分つきで書き出す */
+function routeLines(label: string, next: string[], prev?: string[]): string[] {
+  const lines: string[] = []
+
+  if (!prev) {
+    lines.push(`**${label}** ${next.length} 便`)
+    lines.push(`- 全便: ${next.join(', ')}`)
+    return lines
+  }
+
+  const prevSet = new Set(prev)
+  const nextSet = new Set(next)
+  const added = next.filter((t) => !prevSet.has(t))
+  const removed = prev.filter((t) => !nextSet.has(t))
+
+  lines.push(`**${label}** ${prev.length} → ${next.length} 便`)
+  if (added.length === 0 && removed.length === 0) {
+    lines.push('- 発車時刻の変更なし')
+    return lines
+  }
+  if (added.length > 0) lines.push(`- 追加: ${added.join(', ')}`)
+  if (removed.length > 0) lines.push(`- 削除: ${removed.join(', ')}`)
+  lines.push(`- 全便: ${next.join(', ')}`)
+  return lines
+}
+
+/**
+ * 書き込む時刻表ごとの発車時刻。元画像リンクを隣に置き、
+ * メールを見たまま画像と突き合わせられる形にする。
+ */
+export function departureSection(files: FilePlan[]): string[] {
+  const writes = files.filter((f) => f.op !== 'delete' && f.timetable)
+  if (writes.length === 0) return []
+
+  const lines: string[] = ['## 発車時刻', '', '元画像と突き合わせて確認してください。', '']
+
+  for (const plan of writes) {
+    const timetable = plan.timetable as Timetable
+    const image = plan.sourceUrl ? `　[元画像を開く](${plan.sourceUrl})` : ''
+    lines.push(`### ${plan.fileName}（${OP_LABEL[plan.op]}）${image}`)
+    lines.push('')
+
+    for (const key of ['station_to_campus', 'campus_to_station'] as const) {
+      const route = timetable.routes[key]
+      if (!route) continue
+      const prevRoute = plan.prevTimetable?.routes?.[key]
+      lines.push(...routeLines(route.origin, departures(route), prevRoute ? departures(prevRoute) : undefined))
+      lines.push('')
+    }
+  }
+
+  return lines
+}
+
+export function buildReport(input: ReportInput): string {
   const lines: string[] = []
 
   lines.push('## 概要')
@@ -89,6 +158,9 @@ export function buildPrBody(input: PrBodyInput): string {
   }
   lines.push('')
 
+  // 自動適用では PR の diff が存在しないため、時刻そのものをここに出す
+  lines.push(...departureSection(input.files))
+
   lines.push('## 検証')
   const { matched, total, majority } = input.ocrStats
   lines.push(`- 2回読み照合: 一致 ${matched}/${total}（多数決採用: ${majority}件）`)
@@ -115,7 +187,7 @@ export function buildPrBody(input: PrBodyInput): string {
     lines.push('')
   }
 
-  // FR-3: 掲載に年が書かれておらず Bot が補った日付は、レビューで必ず確認できるようにする
+  // FR-3: 掲載に年が書かれておらず Bot が補った日付は、必ず人の目に触れるようにする
   const guessed = guessedYearLinks(input.links ?? [])
   if (guessed.length > 0) {
     lines.push('## 年を推定した日付')
@@ -129,8 +201,8 @@ export function buildPrBody(input: PrBodyInput): string {
     lines.push('')
   }
 
-  lines.push('## レビュー観点')
-  lines.push('- [ ] 元画像と便の突き合わせ（特に JR 列の混入がないか）')
+  lines.push('## 確認する点')
+  lines.push('- [ ] 上の「発車時刻」と元画像が一致しているか（特に JR 列の混入がないか）')
   lines.push('- [ ] override の日付・参照先')
   if (guessed.length > 0) {
     lines.push('- [ ] 年を推定した日付が掲載の意図どおりか')
@@ -139,8 +211,30 @@ export function buildPrBody(input: PrBodyInput): string {
     lines.push('- [ ] 特別ダイヤにした期間の妥当性（通常どおり読める日は手動で個別 override に置き換えられる）')
   }
   lines.push('')
+  lines.push('問題がなければ何もする必要はありません。すでに本番へ反映済みです。')
+  lines.push('')
+
+  lines.push(...rollbackSection())
 
   return lines.join('\n')
+}
+
+/**
+ * 取り消し手順。自動適用では「気づいたときにはもう公開されている」ため、
+ * 通知には必ず戻し方を添える。
+ */
+export function rollbackSection(): string[] {
+  return [
+    '## 取り消したいとき',
+    '',
+    '1. GitHub の該当コミット画面で **Revert** して打ち消しコミットを作る。',
+    '2. 打ち消しだけでは Bot が「処理済み」と判断して再取得しないため、',
+    '   `bot/state.json` の該当キー（`regular` / `vacations.<season>` / `events.<日付>`）も',
+    '   削除して push する。次回実行で再度読み直される。',
+    '3. その期間の時刻を表示させたくない場合は、`public/data/calendar_rules.json` の',
+    '   `overrides` に手動で `timetable_special` を指定する（手動 override を Bot は書き換えない）。',
+    '',
+  ]
 }
 
 export function formatWarning(warning: Warning): string {
