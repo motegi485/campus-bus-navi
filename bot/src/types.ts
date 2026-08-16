@@ -209,6 +209,13 @@ export interface FilePlan {
   sourceUrl?: string
   /** 生成した timetable（削除計画では undefined） */
   timetable?: Timetable
+  /**
+   * 更新前の timetable（新規作成・削除計画では undefined）。
+   *
+   * 【2026-08-16 の自動適用化に伴う追加】PR が無くなり diff を人が見る機会が消えたため、
+   * 通知メールに「旧→新の発車時刻」を載せる必要が生じた。report.ts がここを読む。
+   */
+  prevTimetable?: Timetable
   /** 便数（松永発 / 大学発）と既存との差分 */
   counts?: { station: number; campus: number }
   prevCounts?: { station: number; campus: number }
