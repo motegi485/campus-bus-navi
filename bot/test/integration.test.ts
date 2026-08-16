@@ -1,7 +1,7 @@
 /**
  * エンドツーエンド検証（ネットワーク・書き込みなし）。
  * 2026-08-01 のライブ凍結スナップショット＋ fixtures の中間構造を使って、
- * 抽出 → 分類 → 変更検知（画像取得はスタブ）→ 組み立て → 検証 → カレンダー → PR本文
+ * 抽出 → 分類 → 変更検知（画像取得はスタブ）→ 組み立て → 検証 → カレンダー → 実行レポート
  * までを通し、実走したときに何が起きるかを固定する。
  */
 
@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { extractLinks, classifyLinks } from '../src/extractLinks.js'
 import { logicalKey, type ChangeDecision } from '../src/detectChanges.js'
 import { buildPlan } from '../src/plan.js'
-import { buildPrBody } from '../src/prBody.js'
+import { buildReport } from '../src/report.js'
 import { parseHolidayCsv } from '../src/holidays.js'
 import type { CalendarRules, ClassifiedLink, Intermediate, State, Timetable } from '../src/types.js'
 
@@ -197,8 +197,8 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
     expect(planned.calendar.deletions).toEqual([])
   })
 
-  it('PR 本文がテンプレートどおり生成される', () => {
-    const body = buildPrBody({
+  it('実行レポートがテンプレートどおり生成される', () => {
+    const body = buildReport({
       runAt: RUN_AT,
       modelUsed: 'gemini-3.6-flash',
       fallbackUsed: false,
@@ -218,12 +218,62 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
     expect(body).toContain('- 追加: 2026-08-23 → timetable_event_20260823')
     expect(body).toContain('- 2回読み照合: 一致 3/3')
     expect(body).toContain('- スキーマ検証: すべて合格')
-    expect(body).toContain('## レビュー観点')
+    expect(body).toContain('## 確認する点')
+    // 自動適用では戻し方が常に必要
+    expect(body).toContain('## 取り消したいとき')
     // 年推定が無ければ専用の節は出さない
     expect(body).not.toContain('## 年を推定した日付')
   })
 
-  it('年を推定した日付を PR 本文へ出す（FR-3 / F-010）', () => {
+  // PR の diff が無くなったぶん、時刻そのものがレポートに載っていることが要になる
+  it('発車時刻の節に、新規ファイルの全便と更新ファイルの差分が載る', () => {
+    const body = buildReport({
+      runAt: RUN_AT,
+      modelUsed: 'gemini-3.6-flash',
+      fallbackUsed: false,
+      files: planned.filePlans,
+      overrideChanges: planned.calendar.changes,
+      deletions: planned.calendar.deletions,
+      warnings: planned.warnings,
+      ocrStats: { matched: 3, total: 3, majority: 0 },
+      validationFailures: planned.validationFailures,
+      links: [],
+    })
+    expect(body).toContain('## 発車時刻')
+    // 新規ファイルは全便を出す
+    expect(body).toContain('### timetable_vacation_summer_weekday.json（新規）')
+    expect(body).toContain('**松永発** 25 便')
+    // 既存と同内容の更新は「変更なし」と分かる形にする
+    expect(body).toContain('### timetable_weekday.json（更新）')
+    expect(body).toContain('**松永発** 32 → 32 便')
+    expect(body).toContain('- 発車時刻の変更なし')
+    // 削除計画は発車時刻の節に出さない
+    expect(body).not.toContain('（削除）')
+  })
+
+  it('発車時刻が増減したら追加・削除を明示する', () => {
+    const plan = planned.filePlans.find((f) => f.fileName === 'timetable_weekday.json')!
+    const changed = JSON.parse(JSON.stringify(plan.timetable)) as Timetable
+    changed.routes.station_to_campus.schedule.splice(1, 1) // 2便目を削除
+    const removed = plan.timetable!.routes.station_to_campus.schedule[1]!.departure
+
+    const body = buildReport({
+      runAt: RUN_AT,
+      modelUsed: 'gemini-3.6-flash',
+      fallbackUsed: false,
+      files: [{ ...plan, timetable: changed, counts: { station: 31, campus: 30 } }],
+      overrideChanges: [],
+      deletions: [],
+      warnings: [],
+      ocrStats: { matched: 1, total: 1, majority: 0 },
+      validationFailures: [],
+      links: [],
+    })
+    expect(body).toContain('**松永発** 32 → 31 便')
+    expect(body).toContain(`- 削除: ${removed}`)
+  })
+
+  it('年を推定した日付をレポートへ出す（FR-3 / F-010）', () => {
     const guessed: ClassifiedLink = {
       url: 'https://www.fukuyama-u.ac.jp/oc.jpg',
       rawHref: 'https://www.fukuyama-u.ac.jp/oc.jpg',
@@ -235,7 +285,7 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
       label: 'オープンキャンパス',
       yearGuessed: true,
     }
-    const body = buildPrBody({
+    const body = buildReport({
       runAt: RUN_AT,
       modelUsed: 'gemini-3.6-flash',
       fallbackUsed: false,
