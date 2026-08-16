@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 // public/data 配下の静的データを検証する（Node 標準モジュールのみ、依存追加なし）。
-// ダイヤ改正・お知らせ追加はすべて手編集運用のため、ID の参照切れや
-// 時刻フォーマット崩れ・順序崩れをビルド前に機械的に検出する。
+// ID の参照切れや時刻フォーマット崩れ・順序崩れを機械的に検出する。
+//
+// 実行される場所は 2 つある。
+//   1. `npm run build`（＝ Cloudflare Pages のビルド）の先頭
+//   2. 時刻表自動取り込みワークフローの Validate data ステップ
+// 2 は「Bot が書いた内容を main へコミットする前」の最終ゲートである。
+// 2026-08-16 に Bot の変更が人間のレビューを経ずに反映される運用へ変わったため、
+// ここが壊れたデータを本番へ通さないための機械的な砦になっている（要件定義 §1.1）。
+// 依存を足さないこと。ワークフローはルートで npm ci せずにこのファイルを実行する。
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
