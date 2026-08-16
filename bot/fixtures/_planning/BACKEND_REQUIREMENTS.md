@@ -2,9 +2,10 @@
 
 | 項目 | 内容 |
 |---|---|
-| 文書バージョン | 1.8（実装・運用文書との整合化） |
+| 文書バージョン | 1.9（PR 承認フローの廃止・自動適用とメール通知） |
+| v1.9 変更点 | 2026-08-16、**「Bot が PR を作り人間がレビューしてマージする」という人間ゲートを廃止し、取得から本番反映までを自動化した**（ユーザー決定）。反映の遅れと「PR を放置すると古いダイヤが出続ける」状態を解消するのが目的。**§1.1 / §1.3 / §1.4-3**: 反映は `main` への直接コミットになり、人間の役割は「事後にメールを見る」へ移る。**FR-11**: 「PR 作成」を「自動適用と通知」へ全面改稿。`bot/src/report.ts` は `report.ts` に改名し、出力は `bot/.out/report.md`。PR の diff が無くなるため、**レポートに発車時刻そのもの（旧→新の追加・削除）を載せる**。**FR-8**: 便数 ±50% 超の変化を SHOULD 警告から **MUST エラー（そのファイルを書かない）** へ格上げ（PR レビューという第 3 層の代替）。**§10**: `create-pull-request` を廃し、適用前の `node scripts/validate-data.mjs`・対象パス限定の差分検出・`main` への push・条件付きメール送信に置き換え。`permissions` は `contents: write` のみ。**index.ts**: 「警告あり かつ 差分ゼロで `exitCode = 1`」を廃止（通知メールが入り前提が消えたため）。**§12.3**: AC-4 を「既存 PR の更新」から「差分ゼロの日に何も起きない」へ差し替え、通知の AC-8 を追加。**§16.3**: H-3 の PR 作成許可は不要になり、H-5 は「PR レビュー」から「メール確認」へ。メール用 Secrets（`MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_TO`）を H-9 として追加 |
 | v1.8 変更点 | 2026-08-13、実行可能な `.github/workflows/timetable-sync.yml` と §10 の記載を照合し、action の full commit SHA、`checkout` の `persist-credentials: false`、失敗時の `bot/.out/**` 成果物保存を実装と一致させた。PR タイトルは日付付きではなく固定文字列であることを明記。実行済みテスト・GitHub Actions の有効状態・Secrets・権限を「文書上の過去記録」と「GitHub UI で再確認が必要な外部状態」に分離し、AC-4 と AC-7 が未検証であることを明確化。詳細な全体設計は `docs/` から参照する。 |
-| v1.7 変更点 | 2026-08-08、Codex による公開前システムレビュー（`_codexReview/CODEX_REVIEW_2026-08-08.md`）で妥当と判定した指摘を実装に反映。**FR-3**: 日付は `time.ts` の `isRealDate()` で実在検証し、非実在日・逆転期間（start > end）の掲示は**期間を残さず** `needs_review`（特別ダイヤの塗り潰しもしない）／年を推定した日付（`yearGuessed`）を PR 本文の専用節と Step Summary に出す。**FR-4**: 掲載から消えた未来イベントを `state.events[].missing_count` で数え、`CONFIG.eventMissingRunsBeforeRemoval`（3 回連続）で state・override・event ファイルを撤去する（`plan.ts` の `reconcileEvents`）。ページから時刻表リンクを 1 件も抽出できなかった実行は数えない／同一 URL で event の日付が増減したときに、追加日の `timetable_event_YYYYMMDD` を既存 derived から複製し、外れた日のファイルを撤去する（`syncEventFiles`）。**FR-5 / NFR-8**: 取得先を `url.ts` の allowlist（https のみ・資格情報付き不可・IP リテラル不可・許可ホストのみ）で制限し、リダイレクトは自前で追って各ホップで再検証。応答サイズは Content-Length 事前判定とストリーム上限で頭打ちにし、画像はマジックバイトで実体を確認（§7.2 に `allowed*HostSuffixes`・`maxPageBytes`・`maxCsvBytes`・`maxRedirects` 追加）。**FR-10**: 祝日キャッシュに鮮度（`holidayCacheMaxAgeDays`）と将来カバレッジ（`holidayCoverageMinDays`）の警告を追加。**FR-11/§10**: `level: 'warn'` があるのにリポジトリ差分が 0 の実行は `process.exitCode = 1` で失敗させ、`bot/.out/**` を `if: always()` で成果物に残す（PR も通知も残らないサイレント失敗の解消）／1 実行の締切 `runDeadlineMs`（15 分）を追加し、OCR のリトライがワークフローの `timeout-minutes: 20` を越えないようにする／workflow の action を full commit SHA で固定し、checkout を `persist-credentials: false` にした。**§9**: `state.events[].missing_count` を追加 |
+| v1.7 変更点 | 2026-08-08、Codex による公開前システムレビュー（`_codexReview/CODEX_REVIEW_2026-08-08.md`）で妥当と判定した指摘を実装に反映。**FR-3**: 日付は `time.ts` の `isRealDate()` で実在検証し、非実在日・逆転期間（start > end）の掲示は**期間を残さず** `needs_review`（特別ダイヤの塗り潰しもしない）／年を推定した日付（`yearGuessed`）を レポートの専用節と Step Summary に出す。**FR-4**: 掲載から消えた未来イベントを `state.events[].missing_count` で数え、`CONFIG.eventMissingRunsBeforeRemoval`（3 回連続）で state・override・event ファイルを撤去する（`plan.ts` の `reconcileEvents`）。ページから時刻表リンクを 1 件も抽出できなかった実行は数えない／同一 URL で event の日付が増減したときに、追加日の `timetable_event_YYYYMMDD` を既存 derived から複製し、外れた日のファイルを撤去する（`syncEventFiles`）。**FR-5 / NFR-8**: 取得先を `url.ts` の allowlist（https のみ・資格情報付き不可・IP リテラル不可・許可ホストのみ）で制限し、リダイレクトは自前で追って各ホップで再検証。応答サイズは Content-Length 事前判定とストリーム上限で頭打ちにし、画像はマジックバイトで実体を確認（§7.2 に `allowed*HostSuffixes`・`maxPageBytes`・`maxCsvBytes`・`maxRedirects` 追加）。**FR-10**: 祝日キャッシュに鮮度（`holidayCacheMaxAgeDays`）と将来カバレッジ（`holidayCoverageMinDays`）の警告を追加。**FR-11/§10**: `level: 'warn'` があるのにリポジトリ差分が 0 の実行は `process.exitCode = 1` で失敗させ、`bot/.out/**` を `if: always()` で成果物に残す（PR も通知も残らないサイレント失敗の解消）／1 実行の締切 `runDeadlineMs`（15 分）を追加し、OCR のリトライがワークフローの `timeout-minutes: 20` を越えないようにする／workflow の action を full commit SHA で固定し、checkout を `persist-credentials: false` にした。**§9**: `state.events[].missing_count` を追加 |
 | v1.6 変更点 | 2026-08-02、既定のフォーマットで表現できないダイヤ（お盆期間のように運休日と通常日が混在し、「大学発のみ最終便が変わる」等の但し書きを含むもの）への対処として **特別ダイヤ `timetable_special`** を新設：**§3.4** に `special` と無印 `vacation` を追加（判定順序 `closed → special → event → vacation → holiday → weekday`）／**FR-3** の needs_review に「期間の両端が読めていれば `start`/`end` を残す」を追加／**FR-9 の優先順位を 手動 > special > event > 長期休暇 > 祝日 > default_rules に変更**し、needs_review の期間を `timetable_special` で塗り潰す手順 3a を追加（PR を見落としても誤った時刻を表示しないフェイルセーフ）／FR-9 の改ざん検査で「値が**変更**された」場合も `suppressed_overrides` に記録するよう変更（同じ衝突警告が毎実行 PR に出続けるのを防ぐ）／**§9 に `specials`** 追加／§7.2 に `specialTimetableId`・`specialMaxRangeDays` 追加 |
 | v1.5 変更点 | 2026-08-01 に Phase 0〜1 を実装し、実 API で通し検証した結果を反映：**§5/§7.2 モデル変更**（primary `gemini-3.6-flash` / fallback `gemini-3.5-flash`）／**§7.2 vacation 判定を季節接頭辞つき正規表現へ**（「夏季休業」に対応）／**§8.5.3 OCR プロンプトをレイアウト非依存に全面改稿**＋注記除外・label 規則追加／**§8.5.5 に 503 等の一時障害リトライ・RPD 枯渇の扱い・1実行あたり呼び出し上限**を追加（無料枠 RPD=20 の実測値）／**§3.5 JSON 整形をハウススタイル維持に**／**§9 に `suppressed_overrides`** 追加／FR-10 を「CSV の SHA-256 が変わったときだけ書き換え」に（冪等性）／FR-7 に「label が日付だけのときのフォールバック」追加／§7.1 に `time.ts`・`plan.ts`・`env.ts`・`tools/ocr-check.ts` 追加／§7.3 に `SKIP_OCR`・`.env.local`／§12 の fixtures 供給元と AC を実態へ更新／§4.3 の画像レイアウト記述を実測で訂正 |
 | v1.1 変更点 | §3.1 SW プレキャッシュ挙動の正確化／§3.3 旧スナップショット混在の明記／§7.1 lockfile コミット必須／§7.4 テンプレ実名の確定／FR-9 手動キー欠損の情報警告追加／§15-6 追加 |
@@ -14,8 +15,8 @@
 | 作成日 | 2026-06-13 |
 | 位置づけ | **Bot の要件・安全境界の正本（SSoT）**。他の資料（`HANDOFF.md`、`docs/backend-bot.md`、ルートの `CLAUDE.md` / `AGENTS.md`、`README.md`）と矛盾する場合は本書が優先する。実行可能なワークフローの行単位の設定は `.github/workflows/timetable-sync.yml` を確認する。※ v1.4 まで併記していた `BACKEND_DESIGN.md`（v2ドラフト）は本書へ統合済みで、リポジトリには存在しない |
 | 実装者 | Claude Code（本書を実装指示書として渡す） |
-| 確認境界（v1.8） | テスト 153 件・ローカル AC-1?AC-3 相当の合格、workflow Disable、Secrets 未登録、Workflow permissions 未設定は 2026-08-08 までの文書記録であり、現在値を保証しない。**未検証の受け入れ基準は AC-4 と AC-7。** GitHub Actions の有効状態、Secrets、権限、PR・本番反映は外部状態なので稼働前に GitHub UI で再確認する。 |
-| 実装状況（2026-08-08 までの記録） | **main 統合済み・ワークフローは Disable 中（2026-08-02）**。`bot/` 一式・`.github/workflows/timetable-sync.yml` が main にあり、ユニット/統合テスト 153 件が緑（v1.7 の回帰テストを含む）。実 API での通し実行（ローカル）で AC-1〜AC-3 相当を確認済み。**未了は Actions 実走系（AC-4/AC-7）と H-2/H-3 のみ。2026-08-23 前後に実施予定**（§17.3・手順は `HANDOFF.md`）。現在値は直上の確認境界に従い GitHub UI で再確認する。 |
+| 確認境界（v1.9） | v1.9 のコード変更は 2026-08-16 にローカルでテスト 156 件・`tsc --noEmit` の合格を確認した。**GitHub Actions 上での実走は未検証**（自動適用・メール送信とも 1 度も動かしていない）。workflow の有効状態、Secrets、Workflow permissions、Cloudflare Pages の反映は外部状態であり、稼働前に GitHub UI で再確認する。**未検証の受け入れ基準は AC-4 / AC-7 / AC-8。** |
+| 実装状況（2026-08-16） | **main 統合済み・ワークフローは Disable 中（2026-08-02 以降）**。v1.9 の自動適用・通知への改修はリポジトリ上で完了し、テストは緑。**未了は人間側の外部設定（§16.3 の H-2 / H-3' / H-9）と初回実走**（§17.4・手順は `HANDOFF.md`）。現在値は直上の確認境界に従い GitHub UI で再確認する。 |
 | 主要な訂正（v2ドラフトから） | ① SDKは `@google/genai`（旧 `@google/generative-ai` は使用禁止） ② Gemini 3系は **temperature を指定しない**（公式推奨。temp 0 指定は誤り） ③ `thinking_level` / `media_resolution` を使用 ④ create-pull-request は **v8** ⑤ 出力先は `public/data/timetables/` |
 
 ---
@@ -23,26 +24,38 @@
 ## 1. 目的とスコープ
 
 ### 1.1 目的
-福山大学公式サイトに不定期掲載されるスクールバス時刻表画像を**日次で自動巡回**し、新規・変更を検知したら **Gemini API で画像→JSON 化**し、フロントエンド（campus-bus-navi PWA）が読む `public/data/` 配下のデータファイルを更新する **Pull Request を自動作成**する。**main への直接 push は行わず、人（Nano）が PR をレビューしてマージする。**
+福山大学公式サイトに不定期掲載されるスクールバス時刻表画像を**日次で自動巡回**し、新規・変更を検知したら **Gemini API で画像→JSON 化**し、フロントエンド（campus-bus-navi PWA）が読む `public/data/` 配下のデータファイルを更新して、**`main` へ直接コミットし本番へ反映する**。**変更があった実行だけ、結果をメールで通知する。**
+
+**【v1.9 で方針転換・2026-08-16 ユーザー決定】** v1.8 まではここが「Pull Request を自動作成し、main への直接 push は行わず、人（Nano）が PR をレビューしてマージする」だった。人間ゲートは誤読を止める最終防波堤として機能する一方、PR が放置されるとその間ずっと古いダイヤが利用者に出続けるという、目的に反する失敗の仕方をする。「自動システム」として成立させるため、**適用は自動・人間の確認は事後（メール）** に変えた。
+
+人間ゲートを外す代わりに、次の層で誤りを抑える。
+
+1. OCR の **2 回読み照合**（不一致なら 3 回目・多数決、それでも割れたら取り込まない）
+2. 読めない掲示は**時刻を作らず** `timetable_special` で塗り潰す（フロントは時刻を出さず大学 HP へ誘導）
+3. 書き込み前の zod 検証（FR-8）と、**便数 ±50% 超の変化での取り込み中止**（v1.9 で MUST へ格上げ）
+4. コミット前の `node scripts/validate-data.mjs`（リポジトリ側の検証器を適用前に通す）
+5. 通知メールに**発車時刻そのもの**と元画像リンクを載せ、事後の突き合わせを 1 通で完結させる（FR-11）
 
 ### 1.2 スコープ（v1 で全部実装する）
 - 通常ダイヤ（授業日／休業日）の取り込み
 - 長期休暇ダイヤ（春季・夏季・冬季 × 平日／休日）の取り込みと期間 override 生成
 - イベントダイヤ（単日）の取り込みと override 生成
 - 祝日の自動 override 生成（内閣府CSV由来）
-- 期限切れデータのクリーンアップ（PR 経由）
+- 期限切れデータのクリーンアップ
+- 変更・警告・失敗をメールで通知（v1.9）
 - ドライラン（変更計画のログ出力のみ）
 
 ### 1.3 スコープ外
 - JR 松永駅の時刻表（画像内に同居するが**読み取らない**。将来拡張候補）
 - フロントエンドコードの変更（`src/`、`vite.config.ts`、`index.html` 等には**一切触れない**）
 - `news.json` の自動更新
-- 直接 push、自動マージ
+- `main` 以外のブランチへの反映、リリース・タグ操作
+- 利用者向けの通知（更新バナー・Web Push）。データのみの更新では出さない（§3.1）
 
 ### 1.4 大原則（違反禁止）
 1. **無料運用**: GitHub Actions（公開リポジトリ）＋ Gemini API 無料枠のみ。
-2. **キー非露出**: `GEMINI_API_KEY` は GitHub Secrets にのみ保管。クライアント・リポジトリ内ファイルへ書かない。
-3. **人間レビュー**: 反映は必ず PR 経由。Bot は削除を含む全変更を PR に載せる。
+2. **キー非露出**: `GEMINI_API_KEY` とメール送信の資格情報は GitHub Secrets にのみ保管。クライアント・リポジトリ内ファイル・ログへ書かない。
+3. **事後確認の担保（v1.9 で改訂）**: 反映は自動だが、**削除を含む全変更を必ず通知メールに載せる**。書かなかった・消さなかった判断（要手動確認）も同じメールに出す。「黙って反映する」「黙って止まる」のどちらも禁止。旧 v1.8 の「反映は必ず PR 経由」はこの項に置き換わった。
 4. **手動データ不可侵**: Bot は自分が作ったデータ（state.json に記録された管理分）だけを変更・削除する。人が書いた override・ファイルには触れない。
 5. **フロント契約の遵守**: §3 の既存契約（パス・スキーマ・命名・ID規約）を変更しない。
 
@@ -131,8 +144,10 @@ Bot はフロントを変更しない。以下はリポジトリの現状から�
 - **【v1.5 訂正】シリアライズは素の `JSON.stringify(obj, null, 2)` ではなく、既存ファイルのハウススタイルを再現する専用シリアライザ（`bot/src/files.ts`）を使う。**
   既存の `public/data/timetables/*.json` は `"bus_stop_coords": { "lat": …, "lng": … }` と
   `{ "departure": "08:00", "note": "" }` を**1行に収める**書式で書かれており、素の `JSON.stringify` を使うと
-  Bot が触った全ファイルが全行書き換えになる。本システムの中核である人間の PR レビュー（H-5）が
-  機能しなくなるため、差分が「実際に変わった発車時刻の行だけ」になる形を正とする。
+  Bot が触った全ファイルが全行書き換えになる。差分が「実際に変わった発車時刻の行だけ」になる形を正とする。
+  **【v1.9 注記】** この規約は元々「人間の PR レビュー（H-5）を成立させるため」に置かれた。PR が無くなった
+  現在も、コミット履歴から「いつ何時が変わったか」を追えること、`git revert` で狙った変更だけを
+  戻せること（§14 の巻き戻し手順）が同じ理由で要るため、規約は据え置く。
   `bot/test/files.test.ts` が、既存の `timetable_weekday/holiday/closed.json`・`calendar_rules.json`・
   `_examples/` のテンプレートを parse → 再整形して **byte 一致**することを固定している。
   `calendar_rules.json` と `state.json` は素の2スペース整形、`holidays.json` は holidays 配列の各要素をインラインにする。
@@ -167,7 +182,7 @@ Bot はフロントを変更しない。以下はリポジトリの現状から�
 - したがって **表レイアウトは画像種別から決め打ちできない**。プロンプトは「列見出しを見て『時』列の位置を判断する」「複数種別は上下にも左右にも並ぶ」という**レイアウト非依存**の指示にすること（§8.5.3 規則3・4）。固定列マッピングを前提にした実装・プロンプトは誤抽出のもと。
 - 表の中や周囲に注記が入ることがある（実例: `0808.jpg` のセル内に「8月12日（水）最終」「8月16日（日）始発」の矢印吹き出し）。これらは発車時刻ではないのでプロンプトで明示的に除外する（§8.5.3 規則6）。
 - いずれも電子生成画像（Excel系）。セル内に2桁の「分」が横位置バラバラに 0 個以上並ぶ。
-- **重大リスク**: JR 列の時刻もバスと同形式（`HH:mm` 相当）のため、取り違えはスキーマ検証で検出不能。OCR プロンプト（§8.5.3）と PR レビューで防ぐ。
+- **重大リスク**: JR 列の時刻もバスと同形式（`HH:mm` 相当）のため、取り違えはスキーマ検証で検出不能。OCR プロンプト（§8.5.3）と 2 回読み照合で防ぎ、通り抜けたぶんは便数 ±50% ガード（FR-8）と通知メールの発車時刻一覧（FR-11）で事後に見つける。**v1.8 まではここに「PR レビュー」を数えていた**（§15-1 も参照）。
 - 画像には「最終」という文言は存在しない。最終便の `note: "最終"` は **Bot が付与する推論情報**である（FR-7 の 2）。
 - 発車のない時間帯は空欄行として存在する（7時・11時・16時など）。空行を読み飛ばして後続行を繰り上げると全時間帯がずれるため、「時」列の値をアンカーとして行単位で読む（§8.5.3 規則4）。
 
@@ -190,7 +205,8 @@ Bot はフロントを変更しない。以下はリポジトリの現状から�
 | HTTP | Node 組み込み `fetch` | UA: `campus-bus-navi-bot/1.0 (+https://github.com/motegi485/campus-bus-navi)` |
 | ハッシュ | `node:crypto` SHA-256 | |
 | テスト | `vitest` | フィクスチャ駆動（§12） |
-| PR 作成 | **`peter-evans/create-pull-request` を full commit SHA で固定** | checkout と setup-node も full commit SHA 固定。実際の SHA は `.github/workflows/timetable-sync.yml` を確認する |
+| 本番反映 | ワークフロー内の `git commit` + `git push origin HEAD:main` | v1.9 で `peter-evans/create-pull-request` を廃止。追加 action を使わない |
+| メール通知 | **`dawidd6/action-send-mail` を full commit SHA で固定** | checkout と setup-node も full commit SHA 固定。実際の SHA は `.github/workflows/timetable-sync.yml` を確認する |
 | 祝日データ | 内閣府 CSV `https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv` | CC-BY。Shift_JIS・CRLF。1行目ヘッダ `国民の祝日・休日月日,国民の祝日・休日名称`、データ行 `YYYY/M/D,名称`（月日ゼロ埋めなし）。振替休日込み。1955年〜翌年分（2026-08-01 取得時点で 1067 件・2027-11-23 まで）。**URL は過去に一時変更歴ありのため config 化＋キャッシュフォールバック必須** |
 
 #### 5.1 OCR モデル選定の根拠（v1.5・2026-08-01 実測）
@@ -221,20 +237,28 @@ GitHub Actions cron（毎日 07:00 JST = UTC 22:00）/ workflow_dispatch
      6. fetchImage     : 対象画像 DL（原寸試行 → リサイズ版フォールバック）
      7. ocr            : Gemini で中間構造化（2回照合、最大3回）
      8. assemble       : 中間構造 → timetable JSON（HH:mm 化・整列・最終便付与・メタ保持）
-     9. validate       : Zod + 整合検証。NG はファイル不出力＋PR 警告
+     9. validate       : Zod + 整合検証。NG はファイル不出力＋通知で警告
     10. writeFiles     : timetables/ へ書き込み（§3.5 ポリシー、保護ファイル除外）
     11. updateCalendar : 望ましい管理 override 集合を計算 → overrides 差し替え（手動不可侵）
-    12. cleanup        : 過去日付の管理 override・event ファイル削除（計画を PR に明記）
-    13. writeState     : bot/state.json 更新（PR に同梱 → マージ時に確定）
-    14. prBody         : bot/.out/pr-body.md 生成（git 管理外）
-  └─ peter-evans/create-pull-request（full commit SHA 固定）
-     : 差分があれば単一ローリングブランチ bot/timetable-sync を更新し PR 作成/更新
-人がレビュー＆マージ → Cloudflare Pages（GitHub App 連携）が main push を検知して再デプロイ
+    12. cleanup        : 過去日付の管理 override・event ファイル削除（計画を通知に明記）
+    13. writeState     : bot/state.json 更新（同じコミットに同梱）
+    14. report         : bot/.out/report.md 生成（git 管理外）＋ GITHUB_OUTPUT へ has_warn
+  └─ Validate data    : node scripts/validate-data.mjs（適用前の最終ゲート。失敗ならコミットしない）
+  └─ Detect diff      : git status で public/data・bot/state.json・bot/holidays.json の差分だけを見る
+  └─ Commit and push  : 差分があれば main へ直接コミット（対象パスのみ add）
+  └─ Send notification: 変更あり / 要手動確認あり / 失敗 のいずれかのときだけメール送信
+Cloudflare Pages（GitHub App 連携）が main push を検知して再デプロイ
 ```
 
-**状態確定の仕組み**: Bot は常に main をチェックアウトして state.json を読む。PR 未マージのうちは main の state が旧いままなので、再実行は同じ差分を再計算して**同一ブランチを上書き更新**するだけ（PR 重複なし・冪等）。マージされて初めて state が前進する。
+**状態確定の仕組み（v1.9 で単純化）**: Bot は常に main をチェックアウトして state.json を読み、
+成功した実行はその場で main を前進させる。v1.8 までは「PR が未マージのうちは main の state が旧いまま」
+という中間状態があり、同一ブランチの上書き更新で冪等性を保っていたが、その状態自体が無くなった。
+**適用されなかった変更は state にも残らない**（コミットが起きなければ state も進まない）ため、
+翌日の実行が同じ差分を再計算して再試行する。
 
-**注意（既知の仕様）**: `GITHUB_TOKEN` で作成した PR は他の Actions ワークフローを**トリガーしない**。本プロジェクトの CI は存在せず、デプロイは Cloudflare Pages の GitHub App 連携（Actions ではない）なので影響なし。将来 main への push をトリガーとする Actions を追加する場合は PAT 等の検討が必要（現時点では不要）。
+**注意（既知の仕様）**: `GITHUB_TOKEN` による push は他の Actions ワークフローを**トリガーしない**。
+本プロジェクトの CI は存在せず、デプロイは Cloudflare Pages の GitHub App 連携（Actions ではない）なので影響なし。
+将来 main への push をトリガーとする Actions を追加する場合は PAT 等の検討が必要（現時点では不要）。
 
 ---
 
@@ -262,14 +286,14 @@ campus-bus-navi/
 │   │   ├── calendar.ts         # §8.8（overrides 計算・クリーンアップ）
 │   │   ├── holidays.ts         # §8.9
 │   │   ├── files.ts            # 読み書き・保護ファイルガード・JSON 整形規約
-│   │   └── prBody.ts
+│   │   └── report.ts
 │   ├── tools/
 │   │   └── ocr-check.ts        # 【v1.5 追加】OCR 単体チェック（本番フロー外の開発ツール）
 │   ├── test/                   # vitest（§12）
 │   ├── fixtures/               # §12.1 正解データ
 │   ├── state.json              # §9（初期値 { "version": 1 }）
 │   ├── holidays.json           # 祝日キャッシュ（初期値は実装時に1度取得して同梱）
-│   ├── .out/                   # 実行時生成物（pr-body.md）。.gitignore 対象
+│   ├── .out/                   # 実行時生成物（report.md / mail-body.md）。.gitignore 対象
 │   ├── .env.local              # 【v1.5 追加】ローカル実行用の GEMINI_API_KEY。.gitignore 対象・絶対にコミットしない
 │   ├── .gitignore              # .out/ , node_modules/ , .env.local
 │   ├── package.json            # フロントと独立（依存を混ぜない）
@@ -304,7 +328,7 @@ export const CONFIG = {
   calendarRulesPath: 'public/data/calendar_rules.json',
   statePath: 'bot/state.json',
   holidaysCachePath: 'bot/holidays.json',
-  prBodyPath: 'bot/.out/pr-body.md',
+  reportPath: 'bot/.out/report.md',
 
   seasonMap: { '春': 'spring', '夏': 'summer', '冬': 'winter' } as const,
 
@@ -358,10 +382,20 @@ export const CONFIG = {
 | 変数 | 必須 | 用途 |
 |---|---|---|
 | `GEMINI_API_KEY` | ✔ | Gemini API。GitHub Secrets から注入。**ローカルでは `bot/.env.local` に置く**（git 管理外。`env.ts` が読み込む） |
-| `DRY_RUN` | – | `1` でファイル書込・state 更新・PR をスキップし、変更計画を JSON でログ出力 |
+| `DRY_RUN` | – | `1` でファイル書込・state 更新・レポート生成をスキップし、変更計画を JSON でログ出力。ワークフロー側もコミットと通知をスキップする |
 | `SKIP_OCR` | – | **【v1.5 追加】** `1` で OCR をスキップ（鍵があっても呼ばない）。無料枠 RPD が 20 しかないため、抽出・分類・カレンダーだけ確認したいローカル検証で枠を消費しないようにする |
 | `OCR_MODEL` | – | **【v1.5 追加】** `tools/ocr-check.ts` 専用のモデル上書き。本番フロー（`src/index.ts`）は参照しない |
 | `TZ` | – | ワークフローで `Asia/Tokyo` を設定（日付演算の事故防止。コード側でも dayjs.tz を明示） |
+| `GITHUB_OUTPUT` | – | Actions が自動設定。`index.ts` が `has_warn` / `report_written` を書き、後続の通知ステップが読む（v1.9） |
+
+**【v1.9 追加】メール通知用の Secrets**。`bot/` のコードは一切参照せず、ワークフローの
+`Send notification` ステップだけが使う。Bot 本体からメール資格情報へは到達しない。
+
+| Secret | 必須 | 用途 |
+|---|---|---|
+| `MAIL_USERNAME` | ✔ | 送信元 Gmail アドレス（SMTP 認証のユーザー名兼 From） |
+| `MAIL_PASSWORD` | ✔ | Gmail の**アプリパスワード**（16 文字・スペースなし）。通常のログインパスワードでは送れない |
+| `MAIL_TO` | ✔ | 通知の宛先。カンマ区切りで複数指定できる |
 
 ### 7.4 保護ファイル（FR-PROT）
 - **実体（2026-08-08 HEAD で確認済み）**: `public/data/timetables/` にあるのは次の 8 ファイル。
@@ -388,7 +422,7 @@ export const CONFIG = {
 3. 各ヒットについて、**アンカーの最近接ブロック要素（`<p>` 等）のテキスト全体**（リンク含む行）を `lineText` として取得。同一ブロック内に対象アンカーが複数ある場合は `<br>` でテキストを分割し、当該アンカーを含むセグメントを `lineText` とする（スナップショット実測では 1 `<p>` に 1 リンクだが、将来のマークアップ変化への防御）。
 4. URL 正規化: デコード、相対→絶対化。同一正規化 URL は重複排除。
 5. **トリップワイヤー**: ページ取得成功かつヒット 0 件 → エラーログ（「ページ構造変更の可能性。セレクタ確認要」）を出して **exit 1**。削除・state 変更は行わない。「前回より減った」では発火させない（イベントは正当に消えるため）。
-6. **サイレント欠落対策（警告・処理は続行）**: (a) href が `imageExtPattern` に一致するが条件 (b)（『時刻表』文言）に不一致で、かつ `lineText` に FR-3 の日付パターンを含むアンカーがあれば、needs_review 警告として PR/ログに URL を記載する（リンク文言の変更による取りこぼしの検知。乗り場写真・キャンパスマップは日付を含まないため誤発火しない）。(b) `state.regular` が存在するのに今回 regular リンクが 1 件も抽出できなかった場合、情報警告を PR/ログに記載する（既存の weekday/holiday の削除・変更は行わない）。
+6. **サイレント欠落対策（警告・処理は続行）**: (a) href が `imageExtPattern` に一致するが条件 (b)（『時刻表』文言）に不一致で、かつ `lineText` に FR-3 の日付パターンを含むアンカーがあれば、needs_review 警告として 通知/ログに URL を記載する（リンク文言の変更による取りこぼしの検知。乗り場写真・キャンパスマップは日付を含まないため誤発火しない）。(b) `state.regular` が存在するのに今回 regular リンクが 1 件も抽出できなかった場合、情報警告を 通知/ログに記載する（既存の weekday/holiday の削除・変更は行わない）。
 
 ### FR-3: 分類・日付解析（classify）
 `lineText` を前処理（全角数字→半角、全角空白 U+3000→半角空白、**連続する空白は 1 つに圧縮**、波ダッシュは `U+FF5E ～` と `U+301C 〜` の両方を許容〔スナップショット実測は U+FF5E〕）してから:
@@ -398,13 +432,13 @@ export const CONFIG = {
 | 1 | `vacationPatterns`（§7.2・v1.5 で正規表現化）のいずれかに一致 | **vacation** | season（`seasonMap` の漢字 1 文字を検索。`春季/夏季/冬期/冬季/春休み…` を吸収）、期間 `start`〜`end`（`(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日` を行内から最大2つ抽出（**年月日の間の空白を許容** — 2026-07 ライブの「2026年 7月  5日」形式に対応。年なし形は `(\d{1,2})月\s*(\d{1,2})日`）。`～` 区切り） |
 | 2 | 日付が1つ以上あり `～` を**含まない** | **event** | 行内の**全日付**（複数日掲載に対応。各日付ごとに 1 ファイル＋1 override を生成、OCR は 1 回で結果を共用）、label（行から日付・曜日括弧・記号・「時刻表はコチラ」を除去した残り。例 `日商簿記検定試験日`→ trim） |
 | 3 | 日付が**ちょうど1つ**＋`～` あり | **regular** | 開始日（情報としてログ・PR に記載。処理上は常設扱い）。※日付が2つ以上あるのに `vacationPatterns` に不一致の行は regular に落とさず **needs_review**（通常ダイヤを期間ダイヤで上書きする事故の防止）。**実例（2026-08-01 ライブ）**: お盆特別ダイヤ「2026年 8月 8日（土）～ 8月16日（日）」は休暇語彙が無いのでここに落ちる。この画像は 8/13〜15 運休・8/12 最終便・8/16 始発といったスキーマで表現できない但し書きを含むため、**人間対応に回すのが正しい挙動**であり修正しない |
-| 4 | 上記いずれにも該当しない | **needs_review** | OCR せず PR 警告（「分類不能の時刻表リンクあり」＋URL）。【v1.6】**期間の両端が読めている場合は `start`/`end` を残す**（FR-9 の 3a が特別ダイヤの適用先に使う）。該当するのは「日付2つ＋`～`だが休暇語彙なし」（お盆型）と「休暇語彙はあるが季節不明」の2ケース。日付が取れないケースでは `start`/`end` とも undefined のままにし、特別ダイヤも張らない |
+| 4 | 上記いずれにも該当しない | **needs_review** | OCR せず 通知で警告（「分類不能の時刻表リンクあり」＋URL）。【v1.6】**期間の両端が読めている場合は `start`/`end` を残す**（FR-9 の 3a が特別ダイヤの適用先に使う）。該当するのは「日付2つ＋`～`だが休暇語彙なし」（お盆型）と「休暇語彙はあるが季節不明」の2ケース。日付が取れないケースでは `start`/`end` とも undefined のままにし、特別ダイヤも張らない |
 
 補助規則:
 - 2つ目の日付に年が無い場合（例 `8月1日～9月20日`）: 開始日と同年。それでも `end < start` なら end に +1 年。
-- 年が完全に無い日付: 現在 JST 年を補い、結果が `today - 180日` より過去なら +1 年。**推定した場合は PR に「年推定」フラグ**。
-- vacation で end が取れない場合: ファイル生成と OCR は行うが **override 生成をスキップ**し、PR に「期間不明・手動で override 追加要」警告。
-- event の label（lineText 由来）は PR 表示・ログ用。**timetable の `name` 生成には OCR の day_type ラベルを使う**（FR-7 の 5 参照）。
+- 年が完全に無い日付: 現在 JST 年を補い、結果が `today - 180日` より過去なら +1 年。**推定した場合は 通知メールに「年推定」フラグ**。
+- vacation で end が取れない場合: ファイル生成と OCR は行うが **override 生成をスキップ**し、通知メールに「期間不明・手動で override 追加要」警告。
+- event の label（lineText 由来）は通知表示・ログ用。**timetable の `name` 生成には OCR の day_type ラベルを使う**（FR-7 の 5 参照）。
 
 ### FR-4: 変更検知（detectChanges）
 - 論理キー: regular は固定キー `regular`、vacation は `vacation:{season}`、event は `event:{YYYY-MM-DD}`（複数日イベントは画像単位で `event:{最初の日付}` をキーにし、`dates[]` を保持）。
@@ -413,9 +447,9 @@ export const CONFIG = {
   取得 URL を保存すると次の2点で構造的に一致せず、**毎日全画像を再ダウンロードし続ける**（FR-4 の「URL 同一 → スキップ」と NFR-8「画像 DL は変更分のみ」が効かなくなる）:
   1. リンク側は `decodeURIComponent` 済みだが、フェッチには % エンコードのままの href を使う
   2. FR-5 の原寸試行により、実際に取得する URL はサフィックスを除去したもの（`0817--1024x724.jpg` → `0817-.jpg`）になる
-  §9 の state スキーマ例もデコード済みのリンク URL を示している。PR 本文の「元画像」リンクには実際に取得した URL を使ってよい（実行時の値を使う）。
+  §9 の state スキーマ例もデコード済みのリンク URL を示している。レポートの「元画像」リンクには実際に取得した URL を使ってよい（実行時の値を使う）。
 - vacation/event の `dates`・期間がテキスト側だけ変わった場合（画像同一）も override 再計算には反映する（OCR 不要）。
-- **regular の適用開始日が未来（start > today JST）の場合は取り込まない**（画像 DL・OCR・state 書込のいずれも行わない）。ログおよび（他に変更があれば）PR に「将来開始の通常ダイヤを検知（YYYY-MM-DD〜）。開始日以降に自動取込」と情報記載し、毎日再評価して today ≥ start となった実行で通常フローに乗せる（現行ダイヤの前倒し上書き防止）。
+- **regular の適用開始日が未来（start > today JST）の場合は取り込まない**（画像 DL・OCR・state 書込のいずれも行わない）。ログおよび（他に変更があれば）通知メールに「将来開始の通常ダイヤを検知（YYYY-MM-DD〜）。開始日以降に自動取込」と情報記載し、毎日再評価して today ≥ start となった実行で通常フローに乗せる（現行ダイヤの前倒し上書き防止）。
 - **regular リンクが複数併存する場合**（前期・後期の移行期等）: start ≤ today のうち start が最新の 1 件を採用し、他はログに記録する。start が解析できない regular リンクは needs_review。
 - **event は dates[] の全日付が today より過去ならスキップ**（画像 DL・OCR・state 書込を行わない。ログのみ）。一部の日付のみ過去の複数日イベントは、**today 以降の日付についてのみ**ファイル・override を生成し、過去日はログに記録する。
 - **state.events のプルーニング**: writeState 時、dates の全日付が today より過去のエントリは state から削除する（上記スキップ規則により再取込は発生しないため安全。ファイル削除は FR-9、override の消滅は FR-9 の「today 以降のみ」規則が担う）。
@@ -536,7 +570,7 @@ const json = JSON.parse(res.text);
 #### 8.5.4 2回読み照合（決定性の担保）
 1. 同一画像で `generateContent` を 2 回実行（呼び出し間隔 ≥ `geminiMinIntervalMs`）。
 2. 正規化（day_types を label 昇順、各 rows を hour 昇順、minutes を昇順・重複除去）して deep-equal 比較。
-3. 一致 → 採用。不一致 → 3 回目を実行し、**3 つのうち 2 つが一致すればそれを採用**（PR に「3回読み・多数決採用」注記）。全不一致 → その画像は **needs_review**（ファイル不出力、PR に元画像 URL と不一致箇所を記載）。
+3. 一致 → 採用。不一致 → 3 回目を実行し、**3 つのうち 2 つが一致すればそれを採用**（通知メールに「3回読み・多数決採用」注記）。全不一致 → その画像は **needs_review**（ファイル不出力、通知メールに元画像 URL と不一致箇所を記載）。
 4. 1 画像あたり Gemini 呼び出しは最大 3 回。
 
 #### 8.5.5 モデル・レート制御
@@ -551,8 +585,8 @@ const json = JSON.parse(res.text);
 | **ネットワーク断・タイムアウト** | `fetch failed` / `ECONNRESET` / `ETIMEDOUT` / `AbortError` 等 | 上と同じ扱い。加えて 1 リクエストに `abortSignal`（既定 180 秒）を付け、接続が張り付いたまま戻らない事態を防ぐ |
 | **モデル不存在/権限エラー** | `404` / `403` / `NOT_FOUND` / `PERMISSION_DENIED` | `modelFallback` で再試行 |
 
-- フォールback使用時は PR 本文に「⚠ フォールバックモデル使用」を明記する。フォールバックでも失敗ならジョブ失敗（**黙って成功扱いにしない**）。
-- **1実行あたりの呼び出し上限 `geminiMaxCallsPerRun`（既定 18）**: リトライも無料枠を消費するため、1枚の画像で 503/429 が重なると後続画像の分まで枯渇する。上限に達したら残りの画像は OCR せず needs_review として PR/ログに顕在化させる（既存データは触らない）。翌日の実行で自然に再試行される。
+- フォールback使用時は レポートに「⚠ フォールバックモデル使用」を明記する。フォールバックでも失敗ならジョブ失敗（**黙って成功扱いにしない**）。
+- **1実行あたりの呼び出し上限 `geminiMaxCallsPerRun`（既定 18）**: リトライも無料枠を消費するため、1枚の画像で 503/429 が重なると後続画像の分まで枯渇する。上限に達したら残りの画像は OCR せず needs_review として 通知/ログに顕在化させる（既存データは触らない）。翌日の実行で自然に再試行される。
 - **無料枠の実測値（2026-08-01・H-8 の答え）**: `gemini-3.5-flash` の Free Tier は
   **RPD（1日あたりリクエスト数）= 20**（エラー本文の `quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier` / `quotaValue: 20` より）。
   **RPD は太平洋時間の深夜（＝日本時間 16:00）にリセット**され、**モデルごとに独立**して管理される。
@@ -575,13 +609,20 @@ const json = JSON.parse(res.text);
      コード側でも日付・曜日括弧・記号を除去して空になるラベルを無効とみなす二段構えにする（`assemble.ts` の `isMeaninglessLabel()`）。
 
 ### FR-8: 検証（validate / zod）
-ファイル出力前に各 timetable オブジェクトへ適用。**1 つでも失敗したらそのファイルは書かず**、対応する override も生成せず、PR に「要手動確認」として理由・元画像 URL を記載する。
+ファイル出力前に各 timetable オブジェクトへ適用。**1 つでも失敗したらそのファイルは書かず**、対応する override も生成せず、通知メールの「要手動確認」として理由・元画像 URL を記載する。
 - `departure` が `^([01]\d|2[0-3]):[0-5]\d$`。
 - 各方向: 厳密昇順（重複不可）、件数 ≥ 1、全時刻が 05:00〜23:59。
 - `note`: 末尾要素のみ `最終`、それ以外は空文字。
 - `id` === ファイル名（拡張子なし）。`routes` のキーが `station_to_campus` / `campus_to_station` の 2 つ丁度。
 - 2回読み照合が成立していること（§8.5.4）。
-- （SHOULD・警告のみ）既存ファイル更新時、便数変化が ±50% 超なら PR に注意書き。
+- **【v1.9 で MUST へ格上げ】既存ファイル更新時、便数変化が ±50% 超ならそのファイルを書かない。**
+  v1.8 までは「SHOULD・警告のみ（書き込みは止めない）」だった。人間の PR レビューが最終ゲートとして
+  存在し、そこで元画像と突き合わせられる前提だったためである。自動適用ではそのゲートが無いので、
+  NFR-3「判定不能・検証失敗は書かない・消さない・顕在化させる」に合わせる。
+  実データの便数は 1 ルートあたり 10〜32 便で、最小の 10 便でも 5 便以下 / 16 便以上でしか発火しない。
+  正しい改正でここに落ちた場合の復旧は「`bot/state.json` の該当キーを削除して再実行」または手動投入で、
+  この手順は通知メールにも書かれる（`validate.ts` のエラーメッセージ）。
+  新規作成（`prevCounts` なし）は比較対象が無いため対象外。
 
 ### FR-9: カレンダー更新（calendar）— 中核アルゴリズム
 
@@ -594,51 +635,83 @@ const json = JSON.parse(res.text);
       今回の有効データ {events, vacations(期間), holidays(CSV)}, today(JST)
 
 1) 改ざん検査: 各 (k,v) ∈ M について
-   - O[k] が存在し v と異なる → k を「手動化」: M から除外し、O[k] は現状維持。PR 警告（revert しない）。
+   - O[k] が存在し v と異なる → k を「手動化」: M から除外し、O[k] は現状維持。通知で警告（revert しない）。
      【v1.6】削除時と同様に state.suppressed_overrides に記録し、以後この日付は計算対象にしない
-     （記録しないと毎実行 D に現れては「手動と衝突」を報告し続け、PR に同じ警告が出続ける）
+     （記録しないと毎実行 D に現れては「手動と衝突」を報告し続け、通知に同じ警告が出続ける）
    - O[k] が存在しない（人が削除）→ M から除外し、【v1.5】state.suppressed_overrides に記録して
-     **以後この日付には override を生成しない**。PR 警告
+     **以後この日付には override を生成しない**。通知で警告
 2) 手動キー集合 H = { k ∈ O | k ∉ M }   // Bot は H に一切触れない
 3) 望ましい管理集合 D を優先順に構築（today 以降 かつ suppressed_overrides に無い日付のみ）:
    a.【v1.6】special: state.specials の各期間 [start, end] 内の日 d → D[d] = timetable_special
    b. event: 各イベント日 d（d ∉ D）→ D[d] = timetable_event_{d}
    c. vacation: 各期間内の日 d（d ∉ D）→ 月〜金かつ祝日でない → _weekday / 土日または祝日 → _holiday
    d. holiday baseline: CSV の祝日 d（today ≤ d ≤ CSV最終日, 月〜金, d ∉ D）→ timetable_holiday
-4) 衝突解決: d ∈ D かつ d ∈ H → D から削除（手動が勝つ）。値が異なる場合のみ PR 警告
-5) 整合: D の各値 id に対応する {id}.json が（今回の書き込み後に）存在しない → その d を D から外し PR 警告
+4) 衝突解決: d ∈ D かつ d ∈ H → D から削除（手動が勝つ）。値が異なる場合のみ 通知で警告
+5) 整合: D の各値 id に対応する {id}.json が（今回の書き込み後に）存在しない → その d を D から外し 通知で警告
 6) 新 overrides = H ∪ D を日付昇順で並べ、calendar_rules.json を再構築
-   （default_rules は無変更。ただし参照先ファイル欠如を検知したら PR 警告）
+   （default_rules は無変更。ただし参照先ファイル欠如を検知したら 通知で警告）
 7) state.managed_overrides ← D（カテゴリ別 special/event/vacation/holiday に分けて記録）
 ```
 - 【v1.6】**state.specials の作り方**（`plan.ts` の `applySpecials`）: FR-3 で `needs_review` に落ちたリンクのうち、
   **期間の両端（`start`/`end`）が読めているもの**だけを記録する。日付が読めないものは適用先を決められないので
   従来どおり警告のみ。期間が `CONFIG.specialMaxRangeDays`（92日）を超えるものは日付の誤読を疑って適用せず警告する。
-  記録するのは期間そのもの（適用日リストではない）。日が進むたびに state が書き換わって「state だけが変わった PR」が
+  記録するのは期間そのもの（適用日リストではない）。日が進むたびに state が書き換わって「state だけが変わったコミット」が
   期間中ずっと立つのを避けるため。過去日の切り捨ては 3) の「today 以降のみ」規則が担う。
   掲示がページから消えれば state.specials からも消え、override も自然に外れる。
-- 【v1.6】特別ダイヤの適用は `warn` レベルの警告として PR の「⚠ 要手動確認」に出す。人は掲示を見て、
+- 【v1.6】特別ダイヤの適用は `warn` レベルの警告として通知メールの「⚠ 要手動確認」に出す。人は掲示を見て、
   通常どおり読める日だけ個別の時刻表ファイルを作って手動 override に置き換えられる（手動が最優先なので上書きされない）。
 - **D の構築は「本実行の結果を反映した後の state」から行う**（state.regular / state.vacations / state.events の全既知エントリ＋holidays キャッシュ。今回 OCR した分だけを入力にすると、変更のなかった日の管理 override が消える誤実装になる）。state.events の過去日プルーニングは FR-4 参照。
 - クリーンアップは 3) の「today 以降のみ」から自然に導かれる: **過去日付の旧管理キーは新 overrides に含まれず消える**。
-- **event ファイル削除**: 旧 `M.event` にあり、日付 < today、ファイル名が `^timetable_event_\d{8}\.json$`、かつ保護リスト外 → 削除（PR の Deleted 欄に列挙）。**state に記録のない event ファイル（人が手置きしたもの）は削除しない**。
+- **event ファイル削除**: 旧 `M.event` にあり、日付 < today、ファイル名が `^timetable_event_\d{8}\.json$`、かつ保護リスト外 → 削除（レポートの「削除ファイル」欄に列挙）。**state に記録のない event ファイル（人が手置きしたもの）は削除しない**。
 - vacation ファイルは削除しない（翌季に同名上書き）。`timetable_weekday/holiday` も削除しない。
-- （SHOULD・情報警告）**手動キー**の参照先 `{id}.json` が `timetables/` に存在しない場合、PR 本文に情報として列挙する（**修正・削除は行わない**。旧命名の遺残 override や手入力ミスの検知が目的）。
+- （SHOULD・情報警告）**手動キー**の参照先 `{id}.json` が `timetables/` に存在しない場合、レポートに情報として列挙する（**修正・削除は行わない**。旧命名の遺残 override や手入力ミスの検知が目的）。
 
 ### FR-10: 祝日取得（holidays）
 1. `holidayCsvUrl` を GET → `iconv-lite` で Shift_JIS → UTF-8、CRLF/最終行欠落を許容してパース。1 行目ヘッダをスキップ、`YYYY/M/D,名称` を `{ date:'YYYY-MM-DD', name }` に正規化。
-2. 成功 → `bot/holidays.json` を `{ fetched_at, source_sha256, holidays:[...] }` で上書き（PR に同梱）。
+2. 成功 → `bot/holidays.json` を `{ fetched_at, source_sha256, holidays:[...] }` で上書き（コミットに同梱）。
    **【v1.5 追加】ただし取得した CSV の SHA-256 が既存キャッシュと同じなら書き換えない。**
-   毎回 `fetched_at` を更新すると、データ無変更の日でも差分が出て**毎日 PR が立ってしまい NFR-1（冪等性）と AC-3 に反する**。
+   毎回 `fetched_at` を更新すると、データ無変更の日でも差分が出て**毎日コミットが積まれ NFR-1（冪等性）と AC-3/AC-4 に反する**。
    また CSV は 1955 年からの全件（2026-08-01 時点で 1067 件）をそのまま保持する。実行日によって内容が変わる絞り込みをすると同じ理由で冪等性が壊れる。
-3. 失敗（非200/パース不能）→ **既存キャッシュを使用**して処理続行、PR に「祝日CSV取得失敗・キャッシュ使用」警告。キャッシュも無い初回失敗時のみ祝日 baseline をスキップして警告。
+3. 失敗（非200/パース不能）→ **既存キャッシュを使用**して処理続行、通知メールに「祝日CSV取得失敗・キャッシュ使用」警告。キャッシュも無い初回失敗時のみ祝日 baseline をスキップして警告。
 
-### FR-11: PR 作成
-> **v1.8 訂正:** この節の直後に残る `@v8` と日付付き title の記述は、v1.7 以前の履歴であり実行定義ではない。action は full commit SHA 固定、title は固定文字列、失敗時の成果物保存を含む現在の実行設定は `.github/workflows/timetable-sync.yml` を正とする。
+### FR-11: 自動適用と通知
+> **【v1.9 で全面改稿】** 旧 FR-11 は「PR 作成」で、`peter-evans/create-pull-request` に
+> 単一ローリングブランチ `bot/timetable-sync` を更新させ、人がレビューしてマージする設計だった。
+> v1.9 でこの人間ゲートを廃止した（理由は §1.1）。実行可能な設定は
+> `.github/workflows/timetable-sync.yml` を正とする。
 
-- `peter-evans/create-pull-request@v8`。`branch: bot/timetable-sync`（単一ローリング）、`base: main`、`delete-branch: true`、`title: "🤖 時刻表データの自動更新 (YYYY-MM-DD)"`、`body-path: bot/.out/pr-body.md`、`add-paths: public/data/** , bot/state.json , bot/holidays.json`。
-- 差分ゼロならアクションが何もしない（PR は作られない）。
-- **pr-body.md テンプレート**（生成内容）:
+#### 11.1 適用
+- Bot 本体は **commit も push もしない**。作業ツリーにファイルを書き、`bot/.out/report.md` を生成し、
+  `GITHUB_OUTPUT` に `has_warn` / `report_written` を出すところまでが責務。
+- ワークフローが次の順で適用する。
+  1. `node scripts/validate-data.mjs`（リポジトリ側の検証器。**失敗したらコミットしない**）
+  2. `git status --porcelain -- public/data bot/state.json bot/holidays.json` で差分検出
+  3. 差分があれば `git add` を**上記 3 パスに限定**して commit し、`git push origin HEAD:main`
+- コミットメッセージは `bot: 時刻表データの自動更新 (YYYY-MM-DD)` 固定。
+- push が拒否された場合は `git pull --rebase origin main` して 1 回だけ再試行し、それでも駄目ならジョブ失敗。
+- `checkout` は `persist-credentials: false` のままとし、**push するステップの中だけ** remote に token を差す
+  （Bot 実行ステップから repository write token へ到達させない設計を維持する）。
+
+#### 11.2 通知
+差分・警告・失敗のいずれかがある実行だけメールを送る。**変化が何も無い日は送らない**（ユーザー決定）。
+
+| 状況 | 送信 | 件名 |
+|---|---|---|
+| ジョブ失敗（取得失敗・トリップワイヤー・鍵なし・検証失敗・push 失敗） | ✔ | `❌ [campus-bus-navi] 自動取得に失敗しました (MM-DD)` |
+| `public/data/**` に差分あり ＋ 要手動確認あり | ✔ | `⚠ [campus-bus-navi] 時刻表を更新しました／要確認あり (MM-DD)` |
+| `public/data/**` に差分あり（要手動確認なし） | ✔ | `[campus-bus-navi] 時刻表を更新しました (MM-DD)` |
+| 差分なし ＋ 要手動確認あり | ✔ | `⚠ [campus-bus-navi] 要確認 (MM-DD)` |
+| `state.json` / `holidays.json` だけの差分、要手動確認なし | – | （コミットと push はする） |
+| 完全に変化なし | – | |
+| `dry_run: true` の手動実行 | – | ログのみ |
+
+- ユーザーが手で実行をキャンセルした場合は送らない（`!cancelled()`）。ジョブごと強制終了された場合は
+  このステップも走らないので、GitHub 標準の失敗通知が受け持つ。
+- 本文は `bot/.out/report.md` の先頭に実行日時・実行ログ URL・反映コミット URL を足したもの。
+  レポートが生成される前に落ちた実行では、実行ログへの導線だけを出すフォールバック本文を使う
+  （**無言で失敗させない**）。
+
+#### 11.3 report.md テンプレート（生成内容）
 ```md
 ## 概要
 実行: {ISO日時 JST} / モデル: {使用モデル}{フォールバック注記}
@@ -656,6 +729,18 @@ const json = JSON.parse(res.text);
 ### 削除ファイル
 - timetable_event_20260315.json（適用日経過）
 
+## 発車時刻                      ← 【v1.9 追加】
+元画像と突き合わせて確認してください。
+
+### timetable_weekday.json（更新）　[元画像を開く]({URL})
+
+**松永発** 32 → 33 便
+- 追加: 08:20
+- 全便: 07:30, 07:50, ...
+
+**大学発** 30 → 30 便
+- 発車時刻の変更なし
+
 ## 検証
 - 2回読み照合: 一致 {n}/{m}（多数決採用: {件数}）
 - スキーマ検証: すべて合格 / ⚠ 失敗 {件数}（下記）
@@ -663,13 +748,25 @@ const json = JSON.parse(res.text);
 ## ⚠ 要手動確認
 - {あれば列挙。なければ「なし」}
 
-## レビュー観点
-- [ ] 元画像と便の突き合わせ（特に JR 列の混入がないか）
+## 確認する点
+- [ ] 上の「発車時刻」と元画像が一致しているか（特に JR 列の混入がないか）
 - [ ] override の日付・参照先
+
+問題がなければ何もする必要はありません。すでに本番へ反映済みです。
+
+## 取り消したいとき                ← 【v1.9 追加】
+1. GitHub の該当コミット画面で Revert する。
+2. `bot/state.json` の該当キーも削除して push する（消さないと再取得されない）。
+3. 時刻を出したくない期間は手動で `timetable_special` の override を張る。
 ```
 
+**「発車時刻」節を置く理由**: v1.8 まで実際の時刻は PR の diff で見る前提で、本文には便数しか
+出していなかった。PR が無くなると時刻が人の目に触れる経路が消えるため、旧→新の追加・削除と
+全便一覧を本文に載せる。**メール 1 通で「画像と時刻の突き合わせ」が完結すること**が、
+失われた PR レビューの実質的な代替になる（§1.1 の第 5 層）。
+
 ### FR-12: ドライラン
-`DRY_RUN=1` のとき: 手順 1〜9・11(計算) まで実行し、**ファイル書込・state 更新・PR を行わず**、変更計画（書く予定のファイル一覧・overrides 差分・削除予定・警告）を JSON でログ出力。workflow_dispatch の boolean 入力 `dry_run` と連動。
+`DRY_RUN=1` のとき: 手順 1〜9・11(計算) まで実行し、**ファイル書込・state 更新・レポート生成を行わず**、変更計画（書く予定のファイル一覧・overrides 差分・削除予定・警告）を JSON でログ出力。ワークフロー側も検証・差分検出・コミット・通知をすべてスキップする。workflow_dispatch の boolean 入力 `dry_run` と連動。
 
 ---
 
@@ -714,7 +811,7 @@ const json = JSON.parse(res.text);
 - **【v1.6 追加】`specials`**（期間開始日 → 読み取れなかった掲示の記録）: FR-3 で `needs_review` に落ちたリンクのうち
   **期間の両端が読めているもの**だけを記録する。FR-9 の 3a がこれを見て `timetable_special` の override を張り、
   アプリはその日、発車時刻を出さずに大学ホームページへ誘導する。**適用日リストではなく期間そのもの**を持つのは、
-  日が進むたびに state が書き換わって「state だけが変わった PR」が期間中ずっと立つのを避けるため。
+  日が進むたびに state が書き換わって「state だけが変わったコミット」が期間中ずっと立つのを避けるため。
   掲示がページから消えればこの記録も消え、override も自然に外れる。
 - **【v1.5 追加】`suppressed_overrides`**（日付 → 削除された時点の時刻表 ID）:
   FR-9 の「人が削除した管理キーは再追加しない」は、記録を残さないと**1実行分しか効かない**。
@@ -723,100 +820,60 @@ const json = JSON.parse(res.text);
   過去日になったエントリは自動的に捨てる。
   **【v1.6 で変更】「値を別のダイヤに変更」した場合もここに記録する。**
   変更されたキーはその実行で手動キー（H）になるため値そのものは維持されるが、記録しないと Bot は毎実行
-  その日付を D に再計算しては「手動と衝突」を報告し続け、同じ警告が PR に出続けてレビューの妨げになる。
+  その日付を D に再計算しては「手動と衝突」を報告し続け、同じ警告が毎回の通知に出続けてしまう。
   FR-9 の 1) がこの動作の正であり、v1.5 までの「変更時は記録不要」という記述は本項で撤回する
   （実装は `calendar.ts` の改ざん検査が削除・変更の両方を `suppressed` に入れる）。
-- 初期値はリポジトリに `{ "version": 1 }` でコミット（＝初回実行で全件が「新規」扱いになり、現行ページの全時刻表を取り込む PR が出る）。
+- 初期値はリポジトリに `{ "version": 1 }` でコミット（＝初回実行で全件が「新規」扱いになり、現行ページの全時刻表を取り込むコミットが出る）。
 - **初回導入の注意**: 既存 overrides（祝日・土曜授業日等の手動分）はすべて「手動」扱いとなり Bot は触れない。祝日 baseline が手動キーと同日になった場合は衝突スキップ（値が同じなら警告も不要）。
 
 ---
 
 ## 10. GitHub Actions ワークフロー（実行定義はリポジトリ上の YAML）
 
-> **実行可能な設定の最終確認先は `.github/workflows/timetable-sync.yml`**。以下は 2026-08-13 時点の実装と照合した記載であり、変更時は必ず実ファイルと合わせて更新する。
+> **実行可能な設定の最終確認先は `.github/workflows/timetable-sync.yml`**。
+> **【v1.9 で方針変更】** ここに YAML 全文を複製していたが、実ファイルと二重管理になり
+> 片方だけ古くなる事故が起きやすい。本節は**要件として固定したい事項**だけを書き、
+> 行単位の設定は実ファイルを見ることとする。
 
-`.github/workflows/timetable-sync.yml`
-```yaml
-name: timetable-sync
+#### ジョブ全体（要件として固定する事項）
 
-on:
-  schedule:
-    - cron: '0 22 * * *'        # 07:00 JST（UTC+9）。GitHub の cron は遅延し得る
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'ドライラン（PRを作らず計画のみログ出力）'
-        type: boolean
-        default: false
+| 項目 | 値 | 理由 |
+|---|---|---|
+| トリガー | `schedule: '0 22 * * *'`（07:00 JST）＋ `workflow_dispatch`（boolean 入力 `dry_run`） | NFR-8: 日次 1 回を超えて頻度を上げない |
+| concurrency | `group: timetable-sync` / `cancel-in-progress: false` | 多重起動で state が壊れるのを防ぐ（前の実行を待つ） |
+| permissions | **`contents: write` のみ** | main へ push するため。**v1.9 で `pull-requests: write` を削除**（PR を作らなくなった） |
+| timeout-minutes | 20 | `CONFIG.runDeadlineMs`（15 分）と対。OCR は締切前に打ち切る |
+| env | `TZ: Asia/Tokyo` | 日付演算の事故防止 |
+| action の固定 | **すべて full commit SHA** | 可変タグは移動・侵害され得る。GitHub の Secure use reference が full-length SHA のみを immutable としている |
+| checkout | `persist-credentials: false` | Bot 実行ステップから repository write token へ到達させない |
 
-concurrency:
-  group: timetable-sync
-  cancel-in-progress: false      # 多重起動防止（前の実行を待つ）
+#### ステップ構成
 
-permissions:
-  contents: write
-  pull-requests: write
+| # | ステップ | 条件 | 要点 |
+|---|---|---|---|
+| 1 | checkout / setup-node（22）/ `npm ci`（`working-directory: bot`） | 常時 | npm キャッシュのキーは `bot/package-lock.json` |
+| 2 | `Run sync`（`id: sync`）= `npx tsx src/index.ts` | 常時 | env に `GEMINI_API_KEY` と `DRY_RUN`。`GITHUB_OUTPUT` へ `has_warn` を返す |
+| 3 | `Validate data`（`id: validate`）= `node scripts/validate-data.mjs` | `dry_run != true` | **適用前の最終ゲート**。落ちたらコミットしない。Node 標準モジュールのみなのでルートの `npm ci` は不要 |
+| 4 | `Detect diff`（`id: diff`） | `dry_run != true` | `git status --porcelain` を `public/data` / `bot/state.json` / `bot/holidays.json` に限定。`changed` と `data_changed` を返す |
+| 5 | `Commit and push`（`id: push`） | `dry_run != true` かつ `changed == 'true'` | `git add` は同 3 パスのみ（`git add -A` 禁止）。token はこのステップ内でのみ remote に差す。push 拒否時は rebase して 1 回だけ再試行 |
+| 6 | `Upload run artifacts` | `always()` | `bot/.out/**` を 30 日保存。差分ゼロの実行では他に何も残らないため |
+| 7 | `Compose notification`（`id: mail`） | `!cancelled()` かつ `dry_run != true` | FR-11.2 の表に従って送信要否・件名・本文を決める |
+| 8 | `Send notification` | `!cancelled()` かつ `send == 'yes'` | `dawidd6/action-send-mail`（full SHA 固定）。Gmail は `smtp.gmail.com:465` / `secure: true` |
 
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      TZ: Asia/Tokyo
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: bot/package-lock.json
-
-      - name: Install
-        run: npm ci
-        working-directory: bot
-
-      - name: Run sync
-        run: npx tsx src/index.ts
-        working-directory: bot
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
-
-      - name: Upload run artifacts
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: timetable-sync-out
-          path: bot/.out/**
-          if-no-files-found: ignore
-          retention-days: 30
-
-      - name: Create Pull Request
-        if: ${{ inputs.dry_run != true }}
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1
-        with:
-          branch: bot/timetable-sync
-          base: main
-          delete-branch: true
-          commit-message: 'bot: 時刻表データの自動更新'
-          title: '🤖 時刻表データの自動更新'
-          body-path: bot/.out/pr-body.md
-          add-paths: |
-            public/data/**
-            bot/state.json
-            bot/holidays.json
-```
-
-### 10.1 リポジトリ初期設定チェックリスト（実装時に必ず実施）
-1. **Secrets**: `Settings → Secrets and variables → Actions` に `GEMINI_API_KEY` を登録（Google AI Studio で発行）。
-2. **PR 作成許可**: `Settings → Actions → General → Workflow permissions` で
-   - 「Read and write permissions」を選択
-   - **「Allow GitHub Actions to create and approve pull requests」にチェック**（create-pull-request 公式要件。未設定だと PR 作成が失敗する）。
-3. AI Studio のプロジェクト画面で `gemini-3.5-flash` の無料枠レート（RPM/RPD）を確認し、必要なら `geminiMinIntervalMs` を調整。
-4. 運用注意: スケジュールワークフローは**リポジトリに 60 日コミットがないと自動無効化**される（フロント開発が続く間は問題なし。Actions タブの無効化通知に留意）。
+### 10.1 リポジトリ初期設定チェックリスト（稼働前に必ず実施）
+1. **Secrets**: `Settings → Secrets and variables → Actions` に 4 件登録する。
+   - `GEMINI_API_KEY`（Google AI Studio で発行）
+   - `MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_TO`（v1.9。Gmail はアプリパスワードが要る）
+2. **書き込み許可**: `Settings → Actions → General → Workflow permissions` で
+   「Read and write permissions」を選択する（main へ push するため）。
+   - **【v1.9】「Allow GitHub Actions to create and approve pull requests」は不要になった**（PR を作らない）。
+   - なお、リポジトリ既定が読み取り専用のときにワークフローの `permissions:` 宣言が昇格として
+     効くかは公式文書で確認できなかった（未確認）。確実な「Read and write permissions」を設定する。
+3. AI Studio のプロジェクト画面で `gemini-3.6-flash` の無料枠レート（RPM/RPD）を確認し、必要なら `geminiMinIntervalMs` を調整。
+4. 運用注意: スケジュールワークフローは**リポジトリに 60 日コミットがないと自動無効化**される。
+   Bot は変更があった日しかコミットしないため、**掲載が長期間動かない時期は Bot だけでは無効化を防げない**
+   （フロント開発のコミットがあれば防げる）。無効化時は GitHub から通知が届くので、
+   Actions タブで Enable し直す。§14 の「長期間メールが来ない」と対で読むこと。
 
 ---
 
@@ -824,9 +881,9 @@ jobs:
 
 | ID | 要件 |
 |---|---|
-| NFR-1 | **冪等性**: 同一入力（ページ・画像・state）での再実行は同一の差分を生成し、同一ブランチを上書きするのみ。PR の重複を作らない |
+| NFR-1 | **冪等性**: 同一入力（ページ・画像・state）での再実行は差分を生まない。**空コミットも余計な通知も発生させない**（v1.9: 旧「同一ブランチを上書きし PR の重複を作らない」から書き換え） |
 | NFR-2 | **JSON 整形規約**: UTF-8（BOM なし）・LF・2 スペースインデント・末尾改行 1 つ。overrides キーは日付昇順。既存ファイル更新時はキー順を保持（§3.5） |
-| NFR-3 | **安全側default**: 判定不能・検証失敗・取得失敗は「書かない・消さない・PR/ログで顕在化」。黙って成功扱いにしない |
+| NFR-3 | **安全側default**: 判定不能・検証失敗・取得失敗は「書かない・消さない・通知/ログで顕在化」。黙って成功扱いにしない |
 | NFR-4 | **ログ**: 各ステップの判断（リンク分類結果、変更検知の理由、OCR 照合結果、override 差分）を console に構造化出力。`GITHUB_STEP_SUMMARY` にも要約を書く（SHOULD） |
 | NFR-5 | **依存分離**: `bot/package.json` はフロントの `package.json`・lockfile と独立。フロントのビルドへ影響を与えない |
 | NFR-6 | **タイムゾーン**: すべての「今日」「日付」判定は JST（dayjs.tz('Asia/Tokyo')）。`new Date()` の素の比較を禁止 |
@@ -871,7 +928,7 @@ jobs:
 **【v1.5 追加】**
 
 9. `files`: 既存の `timetable_weekday/holiday/closed.json`・`calendar_rules.json`・`_examples/` のテンプレートを
-   parse → 再整形して **byte 一致**する（§3.5 のハウススタイル維持。崩れると PR が全行差分になる）。
+   parse → 再整形して **byte 一致**する（§3.5 のハウススタイル維持。崩れるとコミットが全行差分になる）。
 10. `extractLinks`: `page_snapshot_20260801.html`（ライブ凍結）で **regular / needs_review / vacation(summer) / event** の4分類、
     「通常授業日／休業日」を休暇と誤判定しない、「夏季休業」を期間つきで拾う、お盆行が needs_review に落ちる。
 11. `assemble`: 夏季休暇画像の中間構造から `timetable_vacation_summer_weekday/_holiday` を生成し expected と一致（左右2表・共有「時」列の経路）。
@@ -879,8 +936,15 @@ jobs:
 12. `calendar`: `suppressed_overrides` により人の削除が翌実行以降も維持される／過去日エントリは自動的に捨てる／
     抑止された日付に人が改めて override を書いたらその値が使われる。
 13. **統合テスト**（`test/integration.test.ts`・ネットワーク無し）: ライブ凍結スナップショット＋ fixtures の中間構造で
-    抽出→分類→組立→検証→カレンダー→PR本文まで通し、生成ファイル一覧・override の値・state・PR 本文を固定する。
+    抽出→分類→組立→検証→カレンダー→実行レポートまで通し、生成ファイル一覧・override の値・state・レポートを固定する。
     2回目の実行で差分ゼロになること（AC-3 相当）も含む。
+
+**【v1.9 追加】**
+
+18. `validate`: 便数が ±50% 超変化したら `ok: false`（書かない）になる。範囲内なら合格。
+    新規作成（`prevCounts` なし）は対象外。
+19. **統合テスト**: 実行レポートに「発車時刻」節が出て、新規ファイルは全便、更新ファイルは旧→新の
+    追加・削除が載る。削除計画は発車時刻の節に出さない。「取り消したいとき」が常に付く。
 
 **【v1.6 追加】**
 
@@ -896,20 +960,21 @@ jobs:
 ### 12.3 受け入れ基準（実環境）
 > 前提: ライブ掲載は変動するため、AC はライブ状態に依存しない形で定義する（「実行時点のライブ掲載リンク集合」を基準に読む）。ロジックの網羅検証は §12.2 のユニットテスト（凍結 fixtures）が担い、実走 AC は配線の確認を主目的とする。
 >
-> **【v1.5 追加】検証経路について**: GitHub Actions の `schedule` / `workflow_dispatch` は**デフォルトブランチにワークフローファイルがある場合のみ**動作する。
-> 作業ブランチ（`sandbox`）に置いている間は Actions 実走・PR 自動作成が起動できないため、**AC-1〜AC-3・AC-5・AC-6 はローカル実行で検証する**。
-> ローカルでも `DRY_RUN=1`（計画のみ）と実走（実際に `public/data/` を書き換え `bot/.out/pr-body.md` を生成）の両方が可能で、
-> 生成差分は `git diff` で人間がレビューできる＝ PR レビューの代替になる。**PR 配線に依存する AC-4・AC-7 は main 統合時に持ち越す**。
+> **【v1.5 追加 / v1.9 更新】検証経路について**: GitHub Actions の `schedule` / `workflow_dispatch` は**デフォルトブランチにワークフローファイルがある場合のみ**動作する。
+> 作業ブランチ（`sandbox`）に置いている間は Actions 実走が起動できないため、**AC-1〜AC-3・AC-5・AC-6 はローカル実行で検証する**。
+> ローカルでも `DRY_RUN=1`（計画のみ）と実走（実際に `public/data/` を書き換え `bot/.out/report.md` を生成）の両方が可能で、
+> 生成差分は `git diff` で確認できる。**Actions 配線に依存する AC-4・AC-7・AC-8 は実走で確認する**。
 
 | AC | 条件 | 合格基準 | 状況（2026-08-01） |
 |---|---|---|---|
 | AC-1 | state 初期値でドライラン | 計画ログに: 通常ダイヤ（weekday/holiday）の取り込み、未来 event の取り込み計画、過去日 event のスキップ記録、祝日 baseline override の追加計画、既存の手動 override は保持。ファイル変更ゼロ | ✅ **ローカルで確認済み** |
-| AC-2 | 同条件で実走 | `timetable_weekday.json`・`timetable_holiday.json` が更新（**生成 schedule が fixtures/expected と一致**）、未来 event の `timetable_event_{YYYYMMDD}.json` 生成と `overrides` 追加、過去日 event のファイルは生成されない。`calendar_rules.json` に override 追加（手動キーは保持）、`state.json` 更新。PR 本文はテンプレ通り | ✅ **ローカルで確認済み**。weekday/holiday は**本番データと content 差分ゼロ**（＝画像から起こし直しても同一）、vacation 2件・event 1件を新規生成、手動 override 10件は無傷、`npm run validate:data` 合格 |
-| AC-3 | AC-2 の直後に再実行 | 差分ゼロ（＝PR が作られない）で冪等 | ✅ **ローカルで確認済み**（OCR 呼び出し 0回・ファイル書込 0件・override 差分 0件・`calendar_rules.json` と `state.json` が byte 一致） |
-| AC-4 | マージせず再実行 | 既存 PR（同一ブランチ）が更新されるのみで重複 PR なし | ⏸ **main 統合時に持ち越し**（Actions 配線が必要） |
+| AC-2 | 同条件で実走 | `timetable_weekday.json`・`timetable_holiday.json` が更新（**生成 schedule が fixtures/expected と一致**）、未来 event の `timetable_event_{YYYYMMDD}.json` 生成と `overrides` 追加、過去日 event のファイルは生成されない。`calendar_rules.json` に override 追加（手動キーは保持）、`state.json` 更新。レポートはテンプレ通り | ✅ **ローカルで確認済み**。weekday/holiday は**本番データと content 差分ゼロ**（＝画像から起こし直しても同一）、vacation 2件・event 1件を新規生成、手動 override 10件は無傷、`npm run validate:data` 合格 |
+| AC-3 | AC-2 の直後に再実行 | 差分ゼロ（＝コミットが作られない）で冪等 | ✅ **ローカルで確認済み**（OCR 呼び出し 0回・ファイル書込 0件・override 差分 0件・`calendar_rules.json` と `state.json` が byte 一致） |
+| AC-4 | **【v1.9 で定義変更】**変更が無い日に Actions が走る | コミットが作られず、**メールも届かない**。ジョブは緑で終わる | ⏸ **未検証**（Actions 実走が必要）。旧 AC-4「マージせず再実行したとき既存 PR が更新されるのみ」は PR 廃止により消滅 |
 | AC-5 | `GEMINI_API_KEY` 未設定で実行 | OCR 対象が無ければ成功、有ればジョブ失敗（明確なエラー）。いずれも不正なファイルを書かない | ✅ 実装・確認済み（ドライラン時のみ情報警告を出してスキップ） |
 | AC-6 | イベント取り込み・クリーンアップ（ロジック検証） | ユニットテスト 6（優先順位・クリーンアップ）と 4（event の assemble）で検証する | ✅ **テスト緑**（過去日の管理キー消滅＋event ファイル削除計画、state に無い event ファイルは削除しない、を含む） |
-| AC-7 | **イベント実走** | 適用日より前の実行で `timetable_event_{YYYYMMDD}.json` 生成＋`overrides` 追加が PR に出る。適用日経過後の実行で当該 override とファイルの削除が PR に出る。`timetable_closed.json`・`_examples/` 配下は常に無傷 | ⏸ **main 統合時に持ち越し**。次の実走対象は **2026-08-23 オープンキャンパス**（v1.4 が挙げていた 2026-07-18 は既に過去日） |
+| AC-7 | **イベント実走** | 適用日より前の実行で `timetable_event_{YYYYMMDD}.json` 生成＋`overrides` 追加がコミットされ通知に出る。適用日経過後の実行で当該 override とファイルの削除がコミットされ通知に出る。`timetable_closed.json`・`_examples/` 配下は常に無傷 | ⏸ **未検証**。次の実走対象は **2026-08-23 オープンキャンパス**（削除の観測は 8/24 以降） |
+| AC-8 | **【v1.9 追加】通知** | 時刻表が変わった実行でメールが届き、本文に発車時刻・元画像リンク・反映コミット URL・取り消し手順が含まれる。要手動確認があれば件名に ⚠ が付く。ジョブ失敗時は ❌ のメールが届く。変更も警告も無い日は届かない | ⏸ **未検証**（Actions 実走が必要） |
 
 ---
 
@@ -918,8 +983,9 @@ jobs:
 | Phase | 内容 | 完了条件 | 状況 |
 |---|---|---|---|
 | 0 | `bot/` 雛形（package/tsconfig/config/types）、fetchPage/extractLinks/classify、holidays、state 読み書き、**ドライラン経路**、ユニットテスト 1–3,8 | AC-1 相当のドライランがローカルで通る | ✅ 完了（2026-08-01） |
-| 1 | fetchImage/ocr/assemble/validate/files/calendar/prBody、ワークフロー YAML、テスト 4–7 | AC-2〜AC-5 | ✅ 完了（2026-08-01。AC-4 のみ main 統合時へ） |
-| 2 | クリーンアップ動作の実地確認、STEP_SUMMARY、便数±50%警告、運用調整 | AC-6 | ✅ 実装済み・テスト緑。実走確認は AC-7 と同じく main 統合時 |
+| 1 | fetchImage/ocr/assemble/validate/files/calendar/レポート生成、ワークフロー YAML、テスト 4–7 | AC-2〜AC-5 | ✅ 完了（2026-08-01） |
+| 2 | クリーンアップ動作の実地確認、STEP_SUMMARY、便数±50%警告、運用調整 | AC-6 | ✅ 実装済み・テスト緑。実走確認は AC-7 と同じく未了 |
+| 3 | **【v1.9】自動適用と通知**: `prBody.ts` → `report.ts` への改称と発車時刻節の追加、便数 ±50% の MUST 化、ワークフローの適用・通知ステップ、文書更新 | AC-4 / AC-7 / AC-8 | ✅ リポジトリ側は完了（2026-08-16・テスト 156 件緑）。**実走確認は未了** |
 
 ※ローカル開発（Windows 11 / PowerShell）:
 ```powershell
@@ -938,54 +1004,74 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 
 ## 14. 運用（Runbook 抜粋）
 
-- **PR に「要手動確認」がある**: 元画像リンクを開いて該当ファイルを手修正 → 同 PR に追いコミットしてマージ（state は PR 内の値のままで良い。sha256 が記録済みなので再 OCR は走らない）。
+- **通知メールの「要手動確認」がある**: 元画像リンクを開いて該当ファイルを手修正し、`main` へ直接コミットする
+  （state は Bot が書いた値のままで良い。sha256 が記録済みなので再 OCR は走らない）。
+- **【v1.9】通知メールを見て内容がおかしい**: メール末尾の「取り消したいとき」に従う。
+  ① 該当コミットを revert ② `bot/state.json` の該当キーを削除して push（消さないと「処理済み」と判断されて
+  再取得されない）③ 時刻を出したくない期間は手動で `timetable_special` の override を張る。
 - **モデル変更**: `config.ts` の `modelPrimary` を書き換えるだけ。切り替え前に
   `npm run ocr:check -- <画像> <正解fixture>`（`OCR_MODEL` で一時的にモデルを上書き可）で読み取り精度を確かめること。
 - **【v1.5】無料枠を使い切った / 使いたくないとき**: `SKIP_OCR=1` を付けると OCR を通さずに
   抽出・分類・カレンダー計算だけ実行できる。RPD は太平洋時間の深夜（日本時間 16:00）にリセットされる。
-- **【v1.5】PR に「呼び出し上限に達したためスキップ」が出た**: その画像は翌日の実行で自動的に再試行される。
+- **【v1.5】通知メールに「呼び出し上限に達したためスキップ」が出た**: その画像は翌日の実行で自動的に再試行される。
   急ぐ場合は `geminiMaxCallsPerRun` を一時的に上げるか、時間を空けて再実行する。
 - **強制再 OCR**: `state.json` から該当キーを削除して push（次回実行で新規扱い）。※適用日がすべて過去の event は FR-4 のスキップ規則により削除しても再取込されない（過去分のダイヤを再生成したい場合は手動対応）。
-- **誤マージの巻き戻し**: PR を revert（state も一緒に戻るので整合が保たれる）。
-- **大学ページの構造変更（トリップワイヤー発火）**: Actions の失敗通知 → `announceBoxSelector` / 抽出条件を実ページに合わせて修正。
+- **誤反映の巻き戻し**: 該当コミットを revert（state も一緒に戻るので整合が保たれる）。**ただし state が戻る＝
+  Bot にとっては「未処理」に戻るため、翌日の実行で同じ内容が再取得される。**恒久的に止めたい場合は
+  手動 override を張る（Bot は手動キーに触れない）。
+- **大学ページの構造変更（トリップワイヤー発火）**: ❌ の通知メール（および Actions の失敗通知）→
+  `announceBoxSelector` / 抽出条件を実ページに合わせて修正。
+- **【v1.9】メールが届かない**: ① Gmail 側で迷惑メール判定されていないか ② `MAIL_*` の 3 Secrets が正しいか
+  （アプリパスワードは 16 文字・スペースなし）③ Actions の `Send notification` ステップのログ。
+  送信に失敗するとジョブが赤くなるので、GitHub 標準の失敗通知が届く。
+- **【v1.9】長期間メールが来ない**: 変更が無ければ届かないのが正常だが、**リポジトリに 60 日間コミットが
+  無いと GitHub が scheduled workflow を自動 Disable する**（§10.1 の 4）。Actions 画面で有効状態を確認する。
 - **無料枠変更で 429/権限エラーが続く**: フォールバックモデル運用 or AI Studio で枠確認。Bot の消費は微小なので、多くの場合は `geminiMinIntervalMs` 引き上げで足りる。
 
 ---
 
 ## 15. 既知の制約・残存リスク（合意済み）
 
-1. **バス/JR 取り違え**は機械検証不能 → プロンプト＋2回照合＋PR レビューの 3 層で抑止（残存リスクとして受容）。
+1. **バス/JR 取り違え**は機械検証不能 → プロンプト＋2回照合＋**便数 ±50% ガード**＋**通知メールの発車時刻一覧**で抑止（残存リスクとして受容）。
+   **【v1.9 で性質が変わった】** v1.8 まではここに PR レビューがあり、**誤りは公開前に止まった**。
+   自動適用では**誤りは一度公開されてから気づく**ことになる。列の取り違えは便数が近いことも多く
+   ±50% ガードをすり抜け得るため、**通知メールの「発車時刻」節を実際に読むこと**が最終防衛線である。
+   気づいた場合の復旧は §14 の巻き戻し手順による。これは 2026-08-16 に「反映の遅れ」と
+   「誤りの公開」を天秤にかけたうえでユーザーが受容した残存リスクである。
 2. **分類キーワード依存**（通常/休暇/イベントの判定は `lineText` の語彙に依存）→ 不能時は needs_review に落ちる設計で安全側。
 3. **Gemini 3.5 Flash の無料枠数値は非公表・変動** → フォールバック＋429 顕在化で対応。実値は導入時に確認。
 4. **cron 遅延・60 日無効化・祝日 CSV の URL 変更歴** → 各所に注意として明記済み（§5, §10.1, FR-10）。
 5. 本書の確認済みスナップショット（ページ構造・ライブ calendar_rules・テンプレファイル名）が実装時点で変わっている可能性 → 実装着手時に §7.4 と §3.3 の「実体確認」を必ず行う。
 7. **【v1.5 追加】無料枠の RPD が小さい**（`gemini-3.5-flash` で実測 20/日）。通常運用（更新なし日 0 回・更新日 6〜9 回）には足りるが、
    ライブに大量の新規リンクが同時掲載された日や 503/429 が重なった日は `geminiMaxCallsPerRun` に達し、一部が needs_review になり得る。
-   その場合は翌日の実行で自然に再試行されるため恒久的な取りこぼしにはならないが、**PR の「要手動確認」を必ず読むこと**。
+   その場合は翌日の実行で自然に再試行されるため恒久的な取りこぼしにはならないが、**通知メールの「要手動確認」を必ず読むこと**。
 8. **【v1.5 追加】期間ダイヤのうち「休暇語彙を持たないもの」は自動取込されない**（お盆特別ダイヤ等）。これは安全側の設計であり不具合ではないが、
-   該当期間のダイヤは人が手動で用意する必要がある（`timetable_closed.json` の override 追加を含む）。PR の警告に URL が出るのでそれを起点に対応する。
+   該当期間のダイヤは人が手動で用意する必要がある（`timetable_closed.json` の override 追加を含む）。⚠ の通知メールに URL が出るのでそれを起点に対応する。
+9. **【v1.9 追加】無変更が続くと稼働しているか分からない**。変更が無い日は通知を送らない設計のため、
+   「静か＝正常」と「静か＝Bot が止まっている」を通知だけでは区別できない。月次の稼働確認メールは
+   今回見送った（ユーザー決定）。§10.1 の 4（60 日無効化）と併せて、Actions 画面での確認に依存する。
 6. **状態依存記述の陳腐化リスク**: 本書の「確認済み」記述（ページ構造・ライブ掲載・リポジトリ実体）は執筆時点のスナップショットである。v1.3 の「ライブにイベントなし」「テンプレが timetables/ に実在」「CLAUDE.md に旧命名残存」はいずれも v1.4 時点で事実と不一致となり訂正済み。**実装着手時に §7.4 の実体と §4 のライブ状態を必ず再確認する**こと（旧命名 `timetable_spring_vac_*` はリポジトリから解消済みで対応不要）。
 
 ---
 
 ## 16. 実装・導入の役割分担
 
-> **【v1.7 注記】本節は 2026-07〜08 の導入時点の記録である。** C-1〜C-10 はすべて完了済みで、
-> 残っているのは §17.3 の 3 項目（H-2/H-3 と初回実走）だけ。本節に出てくる `_reviewRSD/` は
+> **【v1.7 注記 / v1.9 更新】本節は 2026-07〜08 の導入時点の記録である。** C-1〜C-10 はすべて完了済み。
+> 残っているのは §17.4 の人間タスク（H-2 / H-3' / H-9 と初回実走）だけ。本節に出てくる `_reviewRSD/` は
 > 当時の作業ディレクトリ名で、**リポジトリには存在しない**（原本は `bot/fixtures/_planning/`）。
 > 現在の運用手順を知りたい場合は本節ではなく `HANDOFF.md` を読むこと。
 
 ### 16.1 結論
 本書を Claude Code に渡せば**コードと設定はほぼ全量を自動実装できる**が、**完全自動では完了しない**。理由は次の2系統が Claude Code の外にあるため。
-- **(A) リポジトリ外の認証・権限・観測タスク**（API キー発行、GitHub Secrets、リポジトリ設定、PR レビュー/マージ、デプロイ観測、無料枠確認）。
+- **(A) リポジトリ外の認証・権限・観測タスク**（API キー発行、Gmail アプリパスワード発行、GitHub Secrets、リポジトリ設定、通知メールの確認、デプロイ観測、無料枠確認）。
 - **(B) 供給物の配置順序**。時刻表画像・正解 fixtures は当時リポジトリ内 `_reviewRSD/`（現在は存在しない。原本は `bot/fixtures/_planning/`）に置かれており、Claude Code は画像の閲覧も含めて扱えた（v1.3 の「Claude Code は画像を読めない」は誤りだったため訂正）。fixtures 配置は Claude Code の機械的コピー作業（C-10）で完結するが、**供給元ディレクトリの削除前に実施することが必須**という順序制約があった。**この制約は C-10 完了（2026-08-01）により解消済み。**
 
 ### 16.2 Claude Code が行う（リポジトリ内で完結）
 | # | 作業 | 補足 |
 |---|---|---|
-| C-1 | `bot/` 一式の実装（§7.1 の全ファイル）：fetch/extract/classify/detect/ocr/assemble/validate/calendar/holidays/files/prBody/index | 本書 §8 が仕様の正本 |
+| C-1 | `bot/` 一式の実装（§7.1 の全ファイル）：fetch/extract/classify/detect/ocr/assemble/validate/calendar/holidays/files/report/index | 本書 §8 が仕様の正本 |
 | C-2 | `bot/package.json`・`tsconfig.json`・`.gitignore` 作成と `npm install`→`package-lock.json` 生成（§7.1, §5） | 依存はフロントと分離 |
-| C-3 | `.github/workflows/timetable-sync.yml` 配置（§10 の確定 YAML をそのまま） | |
+| C-3 | `.github/workflows/timetable-sync.yml` 配置（§10 の要件どおり） | v1.9 で自動適用・通知の構成へ改修 |
 | C-4 | ユニットテスト実装（§12.2 の 1〜8）と `vitest` 設定 | 正解データは C-7/C-10 供給分を使用 |
 | C-5 | `bot/holidays.json` 初期キャッシュ生成＋`fixtures/holidays_sample.csv`（Shift_JIS）作成 | Claude Code は実行環境にネット接続があるため内閣府CSVを取得・エンコードできる。取得不可なら H-7 に降格 |
 | C-6 | `fixtures/calendar_rules_live.json` を **HEAD の実体からコピー**して作成（§12.1） | |
@@ -995,18 +1081,20 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 | C-10 | 供給元（当時 `_reviewRSD/`、現在の原本は `bot/fixtures/_planning/`）から `bot/fixtures/` への fixtures 複製（§12.1 の対応表どおり） | 旧 H-4 を移管。**2026-08-01 完了** |
 
 ### 16.3 人間（Nano）が行う（Claude Code 不可）
-| # | 作業 | 手段 | これがないと | 状況（2026-08-01） |
+| # | 作業 | 手段 | これがないと | 状況（2026-08-16） |
 |---|---|---|---|---|
 | H-1 | Google AI Studio で **`GEMINI_API_KEY` を発行**（ローカル検証では `bot/.env.local` に置く） | AI Studio（Google ログイン要） | OCR 不能 | ✅ 完了（2026-08-01） |
-| H-2 | GitHub に **`GEMINI_API_KEY` を登録** | `Settings → Secrets and variables → Actions`（または `gh secret set`） | Actions 実行時に OCR 不能 | ⏸ 2026-08-23 前後（main 統合は済。ワークフローを Disable 中） |
-| H-3 | **「Allow GitHub Actions to create and approve pull requests」を有効化**＋Workflow permissions を Read/Write に | `Settings → Actions → General`（または `gh api -X PUT repos/:owner/:repo/actions/permissions/workflow -F default_workflow_permissions=write -F can_approve_pull_request_reviews=true`） | **PR 作成が必ず失敗**（create-pull-request 公式要件） | ⏸ 2026-08-23 前後（main 統合は済。ワークフローを Disable 中） |
+| H-2 | GitHub に **`GEMINI_API_KEY` を登録** | `Settings → Secrets and variables → Actions`（または `gh secret set`） | Actions 実行時に OCR 不能 | ⏸ 未了 |
+| H-3' | **Workflow permissions を「Read and write permissions」に**する | `Settings → Actions → General` | **main への push が失敗する** | ⏸ 未了 |
+| ~~H-3~~ | ~~「Allow GitHub Actions to create and approve pull requests」を有効化~~ | — | — | **【v1.9】不要になった**（PR を作らない） |
 | H-4 | （C-10 に移管・完了） | — | — | ✅ |
-| H-5 | Bot が出した **PR をレビューしてマージ**（本システムの人間ゲート） | GitHub PR 画面。元画像と便を突き合わせ | データが反映されない（設計どおり） | 運用時 |
-| H-6 | マージ後の **Cloudflare Pages デプロイ反映を確認** | Pages のデプロイ履歴／実機 | — | 運用時 |
+| H-5 | **【v1.9 で変更】通知メールを読む**（元画像と発車時刻を突き合わせる。問題なければ何もしない） | メール本文の「発車時刻」節と元画像リンク | 誤ったダイヤが公開されたまま残る | 運用時 |
+| H-6 | **Cloudflare Pages デプロイ反映を確認** | Pages のデプロイ履歴／実機 | — | 運用時（初回のみ必須。以降は随時） |
 | H-7 | （C-5 が不可だった場合のみ）祝日 CSV 取得・初期キャッシュの手当て | 手動 DL → 配置 | 祝日 baseline 不可 | ✅ 不要（C-5 完了） |
 | H-8 | AI Studio で**無料枠 RPM/RPD を確認**し必要なら `geminiMinIntervalMs` 調整 | AI Studio のレート制限画面 | 429 のリスク評価 | ✅ 一部判明: `gemini-3.5-flash` は **RPD=20**（§8.5.5）。新 primary `gemini-3.6-flash` の実値は要確認 |
+| H-9 | **【v1.9 追加】Gmail のアプリパスワードを発行し、`MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_TO` を Secrets に登録** | Google アカウント（2 段階認証が前提）→ `Settings → Secrets and variables → Actions` | **通知が一切届かない**＝自動適用の内容を誰も確認できない | ⏸ 未了 |
 
-> H-2/H-3 は `gh` CLI が admin 権限で認証済みなら Claude Code に代行させることも技術的には可能。ただし秘密情報の取り扱いとリポジトリ権限変更は**人間が明示実施するのが安全**なので、本書では人間タスクとする。
+> H-2 / H-3' / H-9 は `gh` CLI が admin 権限で認証済みなら Claude Code に代行させることも技術的には可能。ただし秘密情報の取り扱いとリポジトリ権限変更は**人間が明示実施するのが安全**なので、本書では人間タスクとする。
 
 #### 16.3.1 画像由来 fixtures（C-10 の中身・供給元）
 | ファイル（`bot/fixtures/` 配下） | 供給元 | 状態 |
@@ -1021,8 +1109,9 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 | `page_snapshot.html` | **原本 `bot/fixtures/_planning/page_snapshot.html` を複製**（ライブ再取得は不可：イベント構成が変わると §12.2 テスト1の前提が崩れるため、この凍結スナップショットを使う） | 複製済み（2026-08-01・C-10）。原本は `_planning/` に残置 |
 
 ### 16.4 役割の境界（誤解防止）
-- Claude Code は **OCR の精度を保証しない**。fixtures による検証は assemble/validate/calendar の**ロジック**を保証するもので、実画像に対する読み取り精度は実行時の 2 回照合＋PR レビュー（H-5）で担保する。
-- Claude Code は **PR を作るところまで**。マージ（反映）は常に人間（H-5）。
+- Claude Code は **OCR の精度を保証しない**。fixtures による検証は assemble/validate/calendar の**ロジック**を保証するもので、実画像に対する読み取り精度は実行時の 2 回照合＋便数ガード＋**事後のメール確認（H-5）** で担保する。
+- **【v1.9 で変更】反映は Bot が自動で行う**。v1.8 までの「Claude Code は PR を作るところまで。マージは常に人間」は、
+  適用が自動になったことで成立しない。人間の役割は**事後にメールを読み、必要なら巻き戻す**ことへ移った（§14）。
 - Claude Code は **calendar_rules の手動キーを生成も削除もしない**実装を作るが、既存の手動 override の正しさ自体は人間の責任領域。
 
 ---
@@ -1035,7 +1124,7 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 [Claude Code] C-10 fixtures を `bot/fixtures/_planning/` から `bot/fixtures/` へ複製（原本は残す）
 [Claude Code] Phase 0: 雛形・抽出・分類・祝日・state・ドライラン経路 + テスト1-3,8
         → ローカルで DRY_RUN=1 のドライランが通り、テスト緑（AC-1 相当）
-[Claude Code] Phase 1: OCR・組立・検証・calendar・PR本文 + ワークフロー YAML + テスト4-7
+[Claude Code] Phase 1: OCR・組立・検証・calendar・レポート生成 + ワークフロー YAML + テスト4-7
 [人間]        H-1 Gemini APIキー発行 → bot/.env.local に配置
 [Claude Code] 実 API での検証:
         - ocr-check で通常ダイヤ画像・夏季休暇画像とも正解 fixture と完全一致を確認
@@ -1055,30 +1144,56 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
               SHA-256 一致を確認（2026-08-02）
 ```
 
-**当初は「H-2/H-3 を済ませてから main へマージ」という順序だったが、お盆ダイヤ（8/8 開始）を
+**当初は「H-2/H-3（当時）を済ませてから main へマージ」という順序だったが、お盆ダイヤ（8/8 開始）を
 本番へ届ける必要が生じたため、マージを先行させ、代わりにワークフローを Disable する形に変えた。**
 結果として「コードは本番、日次実行は保留」という状態になっている。
 
-### 17.3 残（2026-08-23 前後に実施）
+### 17.3 実施済み（2026-08-16）
 
 ```
-[人間] H-2 Secrets 登録 / H-3 PR作成権限の有効化   ← 実行の前に必須
+[ユーザー決定] PR 承認フローを廃止し、取得から本番反映までを自動化する。
+               変更があったときだけメールで通知する（送信元は Gmail、適用は main へ直接コミット、
+               無変更日は通知しない）。
+[Claude Code] Phase 3: bot/src/report.ts（発車時刻節・取り消し手順）、便数 ±50% の MUST 化、
+               index.ts の GITHUB_OUTPUT 出力と終了コード方針の変更、
+               ワークフローの適用・通知ステップ、本書 v1.9 と docs/・HANDOFF の更新
+        → ローカルで vitest 156 件・tsc --noEmit 合格（2026-08-16）
+```
+
+**旧 §17.3「残（2026-08-23 前後に実施）」は、PR 作成権限の有効化と初回 PR レビューを
+含んでいたため、この方針転換で内容が変わった。現行の残作業は §17.4 を見ること。**
+
+### 17.4 残（稼働のために人間が行う）
+
+```
+[人間] H-9 Gmail のアプリパスワード発行         ← 2 段階認証が前提
         ↓
-[人間] Actions → timetable-sync → Enable workflow  ← Disable を解除
+[人間] H-2 GEMINI_API_KEY を Secrets へ登録
+       H-9 MAIL_USERNAME / MAIL_PASSWORD / MAIL_TO を Secrets へ登録
+       H-3' Workflow permissions を Read and write に
         ↓
-[人間 or 手動トリガー] workflow_dispatch(dry_run=true) → 計画ログ確認
-                       workflow_dispatch(dry_run=false) → 初回 PR 生成（AC-4 の確認もここ）
-[人間] H-5 初回 PR をレビュー（元画像と突き合わせ）→ マージ → H-6 デプロイ確認
+[人間] Actions → timetable-sync → Enable workflow  ← 手動 Disable を解除
         ↓
-[人間] AC-7 の実走確認（2026-08-23 オープンキャンパスの override とファイルが、
+[人間] workflow_dispatch(dry_run=true)  → 計画ログを確認（変更もメールも起きない）
+       workflow_dispatch(dry_run=false) → 初回の自動適用。main にコミットが増え、
+                                          メールが届くこと（AC-8）を確認
+        ↓
+[人間] H-6 Cloudflare Pages のデプロイと実機を確認
+        ↓
+[人間] AC-4 の確認（変更が無い日にコミットもメールも発生しないこと）
+[人間] AC-7 の確認（2026-08-23 オープンキャンパスの override とファイルが
        適用日経過後に削除されること。8/24 以降の実行で観測できる）
 [人間] H-8 新 primary（gemini-3.6-flash）の無料枠実値を確認・必要なら間隔/上限を調整
 ```
 
-- **依存の急所**: H-3（PR作成権限）未実施だと最初の実行で PR 作成が必ず失敗する。
-- **作業手順の具体（GitHub の画面操作・切り分け表・ローカル再現）は `HANDOFF.md` §4〜5 にまとめてある。**
+- **依存の急所**:
+  - **H-3'（Read and write permissions）未実施だと最初の実行で push が失敗する。**
+  - **H-9（メール Secrets）未実施だと通知が届かず、自動適用の結果を誰も確認できない**
+    （＝人間ゲートも通知も無い状態になるので、Enable より先に済ませる）。
+  - 初回はメールが迷惑メールに入りやすい。届かないときは必ずスパムフォルダを確認する。
+- **作業手順の具体（GitHub の画面操作・切り分け表・ローカル再現）は `HANDOFF.md` §3〜5 にまとめてある。**
   次に着手する人（人間・AI とも）はまずそちらを読む。
 - **【v1.5 重要 / v1.6 で状況更新】GitHub Actions の `schedule` / `workflow_dispatch` はデフォルトブランチにワークフローファイルがある場合のみ動作する。**
   この前提は main 統合（2026-08-02）で満たされた。**現在停止しているのは手動 Disable によるもの**なので、
-  稼働させるには Actions 画面で Enable する（§17.3）。それまでの検証は引き続きローカル実行で行う（§12.3 の注記）。
+  稼働させるには Actions 画面で Enable する。それまでの検証は引き続きローカル実行で行う（§12.3 の注記）。
 - **鍵なしでも進む範囲**: `SKIP_OCR=1` を付ければ抽出・分類・祝日・カレンダー計算まで無料枠を消費せず検証できる。

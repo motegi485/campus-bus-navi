@@ -76,7 +76,7 @@ public/data/
 - `origin`、`destination`、`bus_stop_name` は空でない文字列、座標は数値とする。
 - `departure` は 24 時間表記の `HH:mm`（`00:00` から `23:59`）、`note` は文字列とする。
 - 発車時刻は昇順に並べる。同時刻は警告ですが、逆順は検証エラーです。
-- `bus_stop_coords` と `schedule` の各要素は、既存の JSON 整形スタイルに合わせて 1 行で保つ。Bot が触るファイルで整形を一括変更すると、レビュー不能な大差分になります。
+- `bus_stop_coords` と `schedule` の各要素は、既存の JSON 整形スタイルに合わせて 1 行で保つ。Bot が触るファイルで整形を一括変更すると、Bot の自動コミットが全行差分になり、いつ何時が変わったのかを履歴から追えなくなります。
 
 ## ダイヤ種別と命名規約
 
@@ -140,6 +140,8 @@ UI のダイヤ種別は時刻表 ID の部分文字列から判定します。�
 Bot は `timetable_weekday`、`timetable_holiday`、所定の `timetable_vacation_*_{weekday,holiday}`、`timetable_event_YYYYMMDD` だけを管理対象にします。`timetable_closed.json`、`timetable_special.json`、`_examples/` は Bot の書込対象ではありません。
 
 Bot が管理した override を人が変更または削除すると、その日付は以後 Bot による再生成を抑止されます。Bot の運用・手動 override の優先順位は [backend-bot.md](backend-bot.md) と Bot 正本を必ず確認してください。
+
+**2026-08-16 以降、Bot の変更は人間のレビューを経ずに `main` へ直接コミットされます。** そのため、これらのファイルを手で編集している最中に Bot の日次実行（07:00 JST）が同じファイルを書き換えることがあります。作業前に最新の `main` を取り込み、コンフリクトしたときは「どちらが新しい掲示に基づくか」で判断してください。手動 override と保護ファイルは Bot が触らないので、恒久的に固定したい内容はそちらに置きます。
 
 ## ビルド前検証
 

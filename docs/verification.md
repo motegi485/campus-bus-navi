@@ -91,15 +91,29 @@ $env:SKIP_OCR = "1"
 npx tsx src/index.ts
 ```
 
-Bot は `DRY_RUN` と `SKIP_OCR` を付けた安全な確認から始めます。OCR、実ファイル書込、GitHub Actions、PR 作成を伴う確認は、必要な権限・鍵・レビューがそろった人間管理下で段階的に実施します。
+Bot は `DRY_RUN` と `SKIP_OCR` を付けた安全な確認から始めます。ローカル実行は commit も push もしません。
+
+ワークフローが適用前に通す検証器と同じものを、リポジトリ直下でも実行できます。
+
+```powershell
+Set-Location ..
+node scripts/validate-data.mjs
+```
+
+OCR、実ファイル書込、GitHub Actions での自動適用とメール送信を伴う確認は、必要な権限・鍵がそろった人間管理下で段階的に実施します。
+
+**2026-08-16 に PR 承認フローを廃止し、取得から `main` への反映までを自動化しました。** 誤りを公開前に止める人間ゲートは無くなり、確認は事後の通知メールに移っています。この設計判断と残存リスクは `BACKEND_REQUIREMENTS.md` の §1.1 と §15-1 を正とします。
 
 次の状態はコードだけでは保証できません。
 
 - GitHub Actions が有効か
 - `GEMINI_API_KEY` が Secrets に登録されているか
-- PR 作成権限が有効か
+- メール用の `MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_TO` が登録されているか
+- Workflow permissions が `main` への push を許可しているか
 - 実 API の現時点の応答、利用枠、画像品質
-- 本番での PR 作成、レビュー、マージ、Pages 反映
+- 本番での自動コミット、メール到達（迷惑メール判定を含む）、Pages 反映
+
+**自動適用とメール通知は GitHub 上で 1 度も実行していません。** 未検証の受け入れ基準は AC-4（変更が無い日に何も起きない）、AC-7（イベントのライフサイクル）、AC-8（通知）です。
 
 Bot の受け入れ基準と人間が行う確認は `BACKEND_REQUIREMENTS.md` と `HANDOFF.md` を正とします。
 
