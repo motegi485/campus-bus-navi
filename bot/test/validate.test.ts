@@ -97,14 +97,20 @@ describe('テスト5: validate（FR-8）', () => {
     expect(result.errors.join('\n')).toContain('2回読み照合')
   })
 
-  it('便数が ±50% 超変化したら警告する（書き込みは止めない）', () => {
+  // 自動適用（2026-08-16〜）では人間の事前レビューが無いため、便数の急変は
+  // 警告ではなく「書かない」で止める。
+  it('便数が ±50% 超変化したら書き込みを止める', () => {
     const result = validateTimetable(base(), { ...opts, prevCounts: { station: 30, campus: 30 } })
-    expect(result.ok).toBe(true)
-    expect(result.warnings.join('\n')).toContain('便数が大きく変化')
+    expect(result.ok).toBe(false)
+    expect(result.errors.join('\n')).toContain('便数が大きく変化')
   })
 
-  it('便数の変化が範囲内なら警告しない', () => {
+  it('便数の変化が範囲内なら合格する', () => {
     const result = validateTimetable(base(), { ...opts, prevCounts: { station: 11, campus: 12 } })
-    expect(result.warnings).toEqual([])
+    expect(result).toMatchObject({ ok: true, errors: [] })
+  })
+
+  it('新規ファイル（prevCounts なし）は便数チェックの対象外', () => {
+    expect(validateTimetable(base(), opts).ok).toBe(true)
   })
 })

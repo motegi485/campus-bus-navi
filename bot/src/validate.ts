@@ -1,6 +1,6 @@
 /**
  * FR-8: 出力前の検証。1つでも失敗したらそのファイルは書かず、対応する override も生成しない。
- * 「安全側 default」(NFR-3) に従い、失敗は必ず PR / ログに顕在化させる。
+ * 「安全側 default」(NFR-3) に従い、失敗は必ず通知メール / ログに顕在化させる。
  */
 
 import { z } from 'zod'
@@ -36,8 +36,6 @@ const timetableSchema = z.object({
 export interface ValidateResult {
   ok: boolean
   errors: string[]
-  /** SHOULD 警告（便数の急変など。書き込みは止めない） */
-  warnings: string[]
 }
 
 export interface ValidateOptions {
@@ -51,14 +49,13 @@ export interface ValidateOptions {
 
 export function validateTimetable(timetable: Timetable, options: ValidateOptions): ValidateResult {
   const errors: string[] = []
-  const warnings: string[] = []
 
   const parsed = timetableSchema.safeParse(timetable)
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       errors.push(`${issue.path.join('.') || '(root)'}: ${issue.message}`)
     }
-    return { ok: false, errors, warnings }
+    return { ok: false, errors }
   }
 
   // id === ファイル名（拡張子なし）
@@ -104,7 +101,20 @@ export function validateTimetable(timetable: Timetable, options: ValidateOptions
     errors.push('2回読み照合が成立していません。')
   }
 
-  // SHOULD: 便数が ±50% 超変化したら注意書き
+  /**
+   * 便数が ±50% を超えて変化したら書き込みを止める。
+   *
+   * 【要件定義 v1.8 からの変更・2026-08-16 の自動適用化に伴い承認済み】
+   * 元は「警告するが書き込みは止めない」SHOULD 条件だった。人間の PR レビューが
+   * 最終ゲートとして存在し、そこで元画像と突き合わせられる前提だったためである。
+   * 自動適用ではそのゲートが無くなるため、NFR-3「判定不能・検証失敗は書かない・
+   * 消さない・顕在化させる」に合わせて MUST へ格上げする。
+   * 実データの便数は 1 ルートあたり 10〜32 便なので、±50% は誤読を疑うに足る幅である
+   * （最小の 10 便でも 5 便以下 / 16 便以上でしか発火しない）。
+   *
+   * 正しい改正でここに落ちた場合は、bot/state.json の該当キーを消して再実行するか、
+   * 手動でデータを投入する。復旧手順は通知メールにも載せる。
+   */
   if (options.prevCounts) {
     const counts = {
       station: timetable.routes.station_to_campus.schedule.length,
@@ -117,10 +127,14 @@ export function validateTimetable(timetable: Timetable, options: ValidateOptions
       const prev = options.prevCounts[key]
       const now = counts[key]
       if (prev > 0 && Math.abs(now - prev) / prev > 0.5) {
-        warnings.push(`${label}の便数が大きく変化しました（${prev} → ${now}）。元画像との突き合わせを推奨します。`)
+        errors.push(
+          `${label}の便数が大きく変化しました（${prev} → ${now}）。` +
+            '読み取り誤り（JR 列の混入など）の可能性があるため取り込みを見送りました。' +
+            '元画像を確認し、正しい改正であれば bot/state.json の該当キーを削除して再実行してください。',
+        )
       }
     }
   }
 
-  return { ok: errors.length === 0, errors, warnings }
+  return { ok: errors.length === 0, errors }
 }
