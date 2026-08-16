@@ -140,20 +140,13 @@ export function buildPlan(input: PlanInput): PlanOutput {
         }
         continue
       }
-      for (const warning of validation.warnings) {
-        warnings.push({
-          level: 'warn',
-          code: 'count_delta',
-          message: `${output.fileName}: ${warning}`,
-          ...(decision.imageUrl ? { url: decision.imageUrl } : {}),
-        })
-      }
       plans.push({
         op: existing ? 'update' : 'create',
         fileName: output.fileName,
         kind: decision.link.kind,
         ...(decision.imageUrl ? { sourceUrl: decision.imageUrl } : {}),
         timetable: output.timetable,
+        ...(existing ? { prevTimetable: existing } : {}),
         counts: counts(output.timetable),
         ...(prevCounts ? { prevCounts } : {}),
       })
