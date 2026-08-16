@@ -1,12 +1,19 @@
 # スクールバス時刻表の自動取り込み（要件定義 §10 の確定 YAML）
 #
+# 取得から本番反映までを自動で行い、変更があったときだけメールで通知する。
+# 人間の PR レビューは経由しない（2026-08-16 の方針転換。要件定義 §1.1 / FR-11 が正本）。
+#
 # 現状: このワークフローは main に統合済みだが、GitHub UI から【手動で Disable 中】。
 # 稼働させるには次の3つが必要（詳細は bot/fixtures/_planning/HANDOFF.md）:
-#   1. Settings → Secrets and variables → Actions に GEMINI_API_KEY を登録（H-2）
+#   1. Settings → Secrets and variables → Actions に次を登録
+#        GEMINI_API_KEY  … OCR 用（H-2）
+#        MAIL_USERNAME   … 送信元 Gmail アドレス
+#        MAIL_PASSWORD   … Gmail のアプリパスワード（16文字・スペースなし）
+#        MAIL_TO         … 通知の宛先（カンマ区切りで複数可）
 #   2. Settings → Actions → General → Workflow permissions を
-#      「Read and write permissions」にし、
-#      「Allow GitHub Actions to create and approve pull requests」にチェック（H-3）
-#      ※未設定だと create-pull-request が必ず失敗する
+#      「Read and write permissions」にする（main へ push するため）
+#      ※「Allow GitHub Actions to create and approve pull requests」は【不要】。
+#        PR を作らなくなったため。
 #   3. Actions タブでこのワークフローを Enable
 #
 # action は full commit SHA で固定する（可変タグは移動・侵害され得る。GitHub の
@@ -21,7 +28,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'ドライラン（PRを作らず計画のみログ出力）'
+        description: 'ドライラン（何も変更せず計画のみログ出力。メールも送らない）'
         type: boolean
         default: false
 
@@ -29,12 +36,12 @@ concurrency:
   group: timetable-sync
   cancel-in-progress: false # 多重起動防止（前の実行を待つ）
 
-# 解析ステップ自体は書き込み不要だが、同一 job 内の create-pull-request が必要とする。
-# job を分けるには成果物の受け渡しが要るため、ここでは checkout の資格情報を
-# 後続ステップへ残さない（persist-credentials: false）ことで到達範囲を狭める。
+# main へ直接コミットするため contents: write が要る。
+# PR を作らなくなったので pull-requests は不要。
+# 解析ステップ自体は書き込み不要なので、checkout の資格情報を後続ステップへ残さず
+# （persist-credentials: false）、push するステップの中だけで remote に token を差す。
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   sync:
@@ -47,7 +54,7 @@ jobs:
         with:
           # 既定の true は git の資格情報を .git/config に残し、後続ステップ（npm ci や
           # Bot 本体）から repository write token に到達できてしまう。
-          # create-pull-request は自身の token 入力で動くのでこれで問題ない。
+          # push する Commit & push ステップは自前で remote に token を差すのでこれで問題ない。
           persist-credentials: false
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -61,14 +68,75 @@ jobs:
         working-directory: bot
 
       - name: Run sync
+        id: sync
         run: npx tsx src/index.ts
         working-directory: bot
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
 
-      # 警告だけで差分ゼロの実行は PR が作られず、bot/.out は gitignore 下にあるため
-      # 何も残らない。実行が失敗したときこそ中身が要るので if: always() で必ず上げる。
+      # 人間の PR レビューが無くなったぶん、適用前にリポジトリの検証器を通す。
+      # ここで落とせば壊れたデータはコミットされず、本番は前の状態のまま残る。
+      # scripts/validate-data.mjs は Node 標準モジュールだけで動くので npm ci は要らない。
+      - name: Validate data
+        id: validate
+        if: ${{ inputs.dry_run != true }}
+        run: node scripts/validate-data.mjs
+
+      # 通知するかの判断材料。対象パスを限定するのが要点で、
+      # gitignore 下の bot/.out や無関係な変更を巻き込まない。
+      - name: Detect diff
+        id: diff
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          status=$(git -c core.quotepath=false status --porcelain -- public/data bot/state.json bot/holidays.json)
+          if [ -z "$status" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "data_changed=false" >> "$GITHUB_OUTPUT"
+            echo "リポジトリに差分はありません。"
+            exit 0
+          fi
+          echo "$status"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          if printf '%s\n' "$status" | cut -c4- | grep -q '^public/data/'; then
+            echo "data_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "data_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push
+        id: push
+        if: ${{ inputs.dry_run != true && steps.diff.outputs.changed == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # add-paths 相当のホワイトリスト。git add -A は使わない。
+          git add -- public/data bot/state.json bot/holidays.json
+          if git diff --cached --quiet; then
+            echo "ステージされた差分がありません。コミットしません。"
+            exit 0
+          fi
+          git commit -m "bot: 時刻表データの自動更新 ($(date +%Y-%m-%d))"
+
+          # token はこのステップの中だけで remote に差す
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if ! git push origin HEAD:main; then
+            # 人手のコミットと競合した場合。--autostash は、対象外パスに残った
+            # 変更で rebase が止まるのを防ぐための保険。
+            echo "push が拒否されました。rebase して 1 回だけ再試行します。"
+            git pull --rebase --autostash origin main
+            git push origin HEAD:main
+          fi
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "committed=true" >> "$GITHUB_OUTPUT"
+
+      # 差分ゼロの実行では何も残らないため、失敗したときこそ中身が要る。
+      # if: always() で必ず上げる（bot/.out は gitignore 下）。
       - name: Upload run artifacts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -78,17 +146,103 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-      - name: Create Pull Request
-        if: ${{ inputs.dry_run != true }}
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+      # 送るかどうか・件名・本文を決める。Bot が途中で落ちて report.md が無い場合も
+      # 実行ログへの導線だけは必ず出す（無言で失敗させない）。
+      - name: Compose notification
+        id: mail
+        # cancelled() を除くのは、人が手で止めた実行で ❌ メールを飛ばさないため。
+        # ジョブごと強制終了された場合はこのステップも走らないので、
+        # そこは GitHub 標準の失敗通知が受け持つ。
+        if: ${{ !cancelled() && inputs.dry_run != true }}
+        env:
+          SYNC_OUTCOME: ${{ steps.sync.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          PUSH_OUTCOME: ${{ steps.push.outcome }}
+          HAS_WARN: ${{ steps.sync.outputs.has_warn }}
+          DATA_CHANGED: ${{ steps.diff.outputs.data_changed }}
+          COMMIT_SHA: ${{ steps.push.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          mkdir -p bot/.out
+          body=bot/.out/mail-body.md
+          stamp=$(date '+%Y-%m-%d %H:%M JST')
+          short=$(date '+%m-%d')
+
+          failed=no
+          if [ "$SYNC_OUTCOME" != "success" ] || [ "$VALIDATE_OUTCOME" = "failure" ] || [ "$PUSH_OUTCOME" = "failure" ]; then
+            failed=yes
+          fi
+
+          if [ "$failed" = "yes" ]; then
+            send=yes
+            subject="❌ [campus-bus-navi] 自動取得に失敗しました (${short})"
+            headline="❌ 失敗しました。**本番（main）へは反映されていません**。アプリは前の状態のままです。"
+          elif [ "$DATA_CHANGED" = "true" ] && [ "$HAS_WARN" = "true" ]; then
+            send=yes
+            subject="⚠ [campus-bus-navi] 時刻表を更新しました／要確認あり (${short})"
+            headline="時刻表を更新して本番へ反映しました。**確認が必要な項目があります**（下の「⚠ 要手動確認」）。"
+          elif [ "$DATA_CHANGED" = "true" ]; then
+            send=yes
+            subject="[campus-bus-navi] 時刻表を更新しました (${short})"
+            headline="時刻表を更新して本番へ反映しました。内容に問題がなければ、何もする必要はありません。"
+          elif [ "$HAS_WARN" = "true" ]; then
+            send=yes
+            subject="⚠ [campus-bus-navi] 要確認 (${short})"
+            headline="時刻表そのものに変更はありませんでしたが、**確認が必要な項目があります**（読み取れない掲示が残っているなど）。"
+          else
+            send=no
+            subject=""
+            headline=""
+          fi
+
+          echo "send=$send" >> "$GITHUB_OUTPUT"
+          echo "subject=$subject" >> "$GITHUB_OUTPUT"
+          if [ "$send" = "no" ]; then
+            echo "通知条件に該当しないためメールは送りません。"
+            exit 0
+          fi
+
+          {
+            echo "# 🤖 スクールバス時刻表の自動取り込み"
+            echo
+            echo "$headline"
+            echo
+            echo "- 実行日時: ${stamp}"
+            echo "- 実行ログ: ${RUN_URL}"
+            if [ -n "$COMMIT_SHA" ]; then
+              echo "- 反映コミット: ${REPO_URL}/commit/${COMMIT_SHA}"
+            fi
+            echo
+            echo "---"
+            echo
+          } > "$body"
+
+          if [ -f bot/.out/report.md ]; then
+            cat bot/.out/report.md >> "$body"
+          else
+            {
+              echo "## 詳細"
+              echo
+              echo "実行レポートが生成される前に処理が終了しました。"
+              echo "上の実行ログと、成果物 \`timetable-sync-out\` を確認してください。"
+              echo
+            } >> "$body"
+          fi
+
+          echo "件名: $subject"
+
+      - name: Send notification
+        if: ${{ !cancelled() && steps.mail.outputs.send == 'yes' }}
+        uses: dawidd6/action-send-mail@94de994a9f6fffee200243214e17002e2920bb59 # v18
         with:
-          branch: bot/timetable-sync
-          base: main
-          delete-branch: true
-          commit-message: 'bot: 時刻表データの自動更新'
-          title: '🤖 時刻表データの自動更新'
-          body-path: bot/.out/pr-body.md
-          add-paths: |
-            public/data/**
-            bot/state.json
-            bot/holidays.json
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          from: campus-bus-navi bot <${{ secrets.MAIL_USERNAME }}>
+          to: ${{ secrets.MAIL_TO }}
+          subject: ${{ steps.mail.outputs.subject }}
+          html_body: file://bot/.out/mail-body.md
+          convert_markdown: true
