@@ -13,7 +13,7 @@
 | 通知の配信 | `server/` | Cron Trigger、D1、Durable Objects、APNs / FCM |
 | 通知の受信 | `public/push-sw.js` | Service Worker（`workbox.importScripts` で生成 SW へ読み込む） |
 
-同じリポジトリには、大学サイト上の時刻表画像を取得して JSON 更新案を作る Bot もあります。Bot は利用者向けアプリの実行経路には含まれません。詳細は [backend-bot.md](backend-bot.md) を参照してください。
+同じリポジトリには、大学サイト上の時刻表画像を取得して `public/data/` を更新する Bot もあります。Bot は利用者向けアプリの実行経路には含まれませんが、**2026-08-16 以降は GitHub Actions が `main` へ直接コミットするため、配信データは自動で更新されます**（変更があった実行だけ運用者にメールが届きます）。詳細は [backend-bot.md](backend-bot.md) を参照してください。
 
 ## 技術構成
 
