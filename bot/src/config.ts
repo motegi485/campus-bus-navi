@@ -91,7 +91,8 @@ export const CONFIG = {
   calendarRulesPath: 'public/data/calendar_rules.json',
   statePath: 'bot/state.json',
   holidaysCachePath: 'bot/holidays.json',
-  prBodyPath: 'bot/.out/pr-body.md',
+  /** 実行レポート（通知メールの本文になる）。gitignore 下 */
+  reportPath: 'bot/.out/report.md',
 
   seasonMap: { 春: 'spring', 夏: 'summer', 冬: 'winter' } as Record<string, Season>,
 
@@ -120,7 +121,8 @@ export const CONFIG = {
    * 【要件定義 v1.5 への追加・2026-08-02 承認済み】
    * needs_review（読めない・解釈が割れる掲示）と判定した期間は、この ID で塗り潰す。
    * フロントは id に 'special' を含むことを見て、発車時刻を出さず大学ホームページへ誘導する。
-   * PR を見落としても誤った時刻を表示しないためのフェイルセーフ。
+   * 通知メールを見落としても誤った時刻を表示しないためのフェイルセーフであり、
+   * 自動適用（人間の事前レビューなし）を許容できる最大の根拠でもある。
    * Bot はこのファイルを【書かない】（files.ts のホワイトリスト外。参照するだけ）。
    */
   specialTimetableId: 'timetable_special',
@@ -138,10 +140,11 @@ export const CONFIG = {
   eventMissingRunsBeforeRemoval: 3,
 
   /**
-   * 1実行の締切（ミリ秒）。ワークフローの timeout-minutes: 20 から、PR 本文生成などの
-   * 後処理ぶんの余裕を引いた値。OCR のリトライはこの締切を越えないところで打ち切り、
-   * ジョブが強制終了される前に needs_review へ収束させる（強制終了されると PR 本文も
-   * Step Summary も残らず、失敗が最も観測しにくい形になる）。
+   * 1実行の締切（ミリ秒）。ワークフローの timeout-minutes: 20 から、レポート生成・
+   * コミット・メール送信などの後処理ぶんの余裕を引いた値。OCR のリトライはこの締切を
+   * 越えないところで打ち切り、ジョブが強制終了される前に needs_review へ収束させる
+   * （強制終了されるとレポートも Step Summary も残らず、通知も飛ばないため、
+   * 失敗が最も観測しにくい形になる）。
    */
   runDeadlineMs: 15 * 60 * 1000,
 

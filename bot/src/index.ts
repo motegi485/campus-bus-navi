@@ -3,10 +3,14 @@
  *
  *   1. fetchPage → 2. extractLinks → 3. classify → 4. fetchHolidays → 5. detectChanges
  *   → 6. fetchImage → 7. ocr → 8. assemble → 9. validate → 10. writeFiles
- *   → 11. updateCalendar → 12. cleanup → 13. writeState → 14. prBody
+ *   → 11. updateCalendar → 12. cleanup → 13. writeState → 14. report
  *
  * 8〜13 の純粋部分は plan.ts（buildPlan）に切り出してある。
- * DRY_RUN=1 のときはファイル書込・state 更新・PR 用ファイル生成を行わず、変更計画を JSON で出力する。
+ * DRY_RUN=1 のときはファイル書込・state 更新・レポート生成を行わず、変更計画を JSON で出力する。
+ *
+ * このプロセスは commit も push もしない。書いたファイルをコミットして main へ反映し、
+ * 結果をメールで通知するのは .github/workflows/timetable-sync.yml の後続ステップである。
+ * そのための判断材料（要手動確認の有無・レポートの有無）は GITHUB_OUTPUT へ渡す。
  */
 
 import { appendFileSync } from 'node:fs'
@@ -18,7 +22,7 @@ import { fetchHolidays } from './holidays.js'
 import { detectChanges } from './detectChanges.js'
 import { OcrClient } from './ocr.js'
 import { buildPlan } from './plan.js'
-import { buildPrBody, formatWarning, linkDates } from './prBody.js'
+import { buildReport, formatWarning, linkDates } from './report.js'
 import {
   readState,
   writeState,
@@ -28,8 +32,6 @@ import {
   deleteTimetableFile,
   writeHolidaysCache,
   writeTextFile,
-  formatCalendarRules,
-  formatState,
 } from './files.js'
 import { nowIsoJst, todayJst } from './time.js'
 import type { Intermediate, State, Warning } from './types.js'
@@ -51,6 +53,20 @@ function summary(lines: string[]): void {
     appendFileSync(target, lines.join('\n') + '\n', 'utf-8')
   } catch (e) {
     console.warn(`[summary] GITHUB_STEP_SUMMARY への書き込みに失敗しました: ${(e as Error).message}`)
+  }
+}
+
+/**
+ * ステップ出力（GITHUB_OUTPUT）。後続のコミット・通知ステップが読む。
+ * ローカル実行では GITHUB_OUTPUT が無いので何もしない。
+ */
+function output(key: string, value: string): void {
+  const target = process.env.GITHUB_OUTPUT
+  if (!target) return
+  try {
+    appendFileSync(target, `${key}=${value}\n`, 'utf-8')
+  } catch (e) {
+    console.warn(`[output] GITHUB_OUTPUT への書き込みに失敗しました: ${(e as Error).message}`)
   }
 }
 
@@ -221,18 +237,14 @@ async function main(): Promise<void> {
   }
 
   /**
-   * リポジトリに差分が出るか（＝ PR が作られるか）を書き込み前に判定する。
+   * 人が読む必要のあることが起きたか。
    *
-   * 警告だけが出て差分が 0 の実行は PR も作られず、警告は gitignore 下の
-   * bot/.out と Step Summary にしか残らない。定期実行の緑表示や PR 一覧だけを
-   * 見ている運用では「読めないまま古いダイヤが残り続けている」ことに気づけないため、
-   * この組み合わせのときはジョブを失敗させる（下の終了処理）。
+   * リポジトリ差分が無くても、読めない掲示が居座っている・画像が取れない等の状態は
+   * 人に届かないと「古いダイヤのまま止まっている」ことに気づけない。
+   * ワークフローはこの値を見て、差分が無くても通知メールを送る。
    */
-  const noRepoChange =
-    planned.filePlans.length === 0 &&
-    formatCalendarRules({ ...rules, overrides: planned.calendar.nextOverrides }) === formatCalendarRules(rules) &&
-    formatState(planned.nextState) === formatState(state) &&
-    !holidaysResult.cacheToWrite
+  const hasWarn = warnings.some((w) => w.level === 'warn') || planned.validationFailures.length > 0
+  output('has_warn', hasWarn ? 'true' : 'false')
 
   // ---- FR-12: ドライランはここで計画を出力して終了 ----------------------
   if (isDryRun) {
@@ -240,6 +252,7 @@ async function main(): Promise<void> {
     console.log(JSON.stringify(summaryData, null, 2))
     console.log('===== ファイルは一切変更していません =====')
     summary(buildSummaryLines(summaryData))
+    output('report_written', 'false')
     return
   }
 
@@ -262,8 +275,8 @@ async function main(): Promise<void> {
   writeState(planned.nextState)
   if (holidaysResult.cacheToWrite) writeHolidaysCache(holidaysResult.cacheToWrite)
 
-  // ---- 14. PR 本文 -------------------------------------------------------
-  const body = buildPrBody({
+  // ---- 14. 実行レポート（通知メールの本文になる） -------------------------
+  const body = buildReport({
     runAt,
     modelUsed: ocrClient?.modelUsed ?? CONFIG.modelPrimary,
     fallbackUsed: ocrClient?.usedFallback ?? false,
@@ -275,22 +288,27 @@ async function main(): Promise<void> {
     validationFailures: planned.validationFailures,
     links: classified,
   })
-  writeTextFile(CONFIG.prBodyPath, body)
-  log('prBody', `${CONFIG.prBodyPath} を生成しました`)
+  writeTextFile(CONFIG.reportPath, body)
+  log('report', `${CONFIG.reportPath} を生成しました`)
+  output('report_written', 'true')
   summary(buildSummaryLines(summaryData))
 
-  // 警告があるのに差分が無い ＝ PR が作られない。緑で終わらせず失敗として顕在化させる。
-  const hasWarn = warnings.some((w) => w.level === 'warn') || planned.validationFailures.length > 0
-  if (hasWarn && noRepoChange) {
-    console.error(
-      '[fail] 要手動確認の警告がありますが、リポジトリに差分が無いため PR は作成されません。' +
-        '掲載ページを確認してください（内容は Step Summary と成果物 pr-body.md にあります）。',
-    )
+  /**
+   * 要手動確認はログにも出す（メールが届かなかったときの二重化）。
+   *
+   * 【要件定義 v1.7 からの変更・2026-08-16 の自動適用化に伴い承認済み】
+   * 以前はここで「警告あり かつ リポジトリ差分ゼロ」のとき process.exitCode = 1 として
+   * ジョブを赤くしていた。PR も通知も残らないサイレント失敗を防ぐためである。
+   * 通知メールが入ったことでその前提は消えた。読めない掲示が数週間居座るだけで
+   * Actions が常時赤くなると、本当の失敗（取得失敗・鍵なし・検証エラー）の信号が
+   * 埋もれるため、警告は ⚠ 付きのメールで伝え、終了コードは 0 のままにする。
+   */
+  if (hasWarn) {
+    console.warn('[warn] 要手動確認があります（通知メールの「⚠ 要手動確認」節と同じ内容）:')
     for (const warning of warnings.filter((w) => w.level === 'warn')) {
-      console.error(`  - ${formatWarning(warning)}`)
+      console.warn(`  - ${formatWarning(warning)}`)
     }
-    for (const failure of planned.validationFailures) console.error(`  - ${failure}`)
-    process.exitCode = 1
+    for (const failure of planned.validationFailures) console.warn(`  - ${failure}`)
   }
 }
 
