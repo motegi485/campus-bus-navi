@@ -15,7 +15,7 @@ interface Props {
 /**
  * ホームに置く週間ダイヤの帯。「本日の全時刻表」の下、「乗り場マップ」の直前。
  *
- * 出すのは「この先 7 日がどの種類のダイヤで動くか」だけに絞ってある。
+ * 出すのは「今日を含む 7 日間がどの種類のダイヤで動くか」だけに絞ってある。
  * 日付の下に本数を重ねると数字が縦に 2 つ並び、どちらが日付か一目で分からなくなるため、
  * 本数は週間ダイヤ画面（1 行 1 日で横に余裕がある）の担当にした。
  * 帯そのものはルートによって変わらない（ダイヤ種別は両ルート共通）ので route を受け取らない。
@@ -24,7 +24,7 @@ interface Props {
  * スクロール中の指の接触で意図しない遷移が起きる。
  *
  * 支援技術には帯ではなくチップの用途だけを伝える（帯は aria-hidden）。
- * 7 日 × 3 項目を読み上げても行動につながらず、同じ情報は遷移先の週間ダイヤ画面が
+ * 7 日分 × 3 項目を読み上げても行動につながらず、同じ情報は遷移先の週間ダイヤ画面が
  * 1 日 1 ボタンとして正しくラベル付けして持っているため。
  */
 export function WeekStrip({ days, todayKey, onOpen }: Props) {
@@ -45,7 +45,7 @@ export function WeekStrip({ days, todayKey, onOpen }: Props) {
           type="button"
           onClick={() => { tapFeedback(8); onOpen() }}
           {...pressHandlers}
-          aria-label="週間ダイヤをすべて見る（7日先までの運行予定）"
+          aria-label="週間ダイヤをすべて見る（今日を含む7日間の運行予定）"
           className="flex items-center gap-[5px] rounded-[20px] px-3 py-[6px] text-[12px] font-bold select-none"
           style={{
             border: '1px solid var(--chip-border)',

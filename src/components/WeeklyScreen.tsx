@@ -478,7 +478,7 @@ export function WeeklyScreen({
 
           {days.length > 0 && (
             <p className="text-[11px] leading-relaxed text-center" style={{ color: 'var(--text-muted)', padding: '12px 8px 0' }}>
-              表示できるのは 7 日先までです。
+              表示できるのは今日を含む 7 日間（6 日先まで）です。
               <br />
               予定は変更されることがあります。
             </p>
