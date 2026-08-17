@@ -103,12 +103,19 @@ function resolveFetchedAt(serverTime: number | null): number | null {
  * レスポンスは SW のキャッシュでは別キーになる。これを行わないと「更新ボタンを
  * 押した直後にオフラインで起動すると旧ダイヤに戻る」（通常起動は素の URL を要求し、
  * NetworkFirst が前回の素の URL のエントリへフォールバックするため）。
+ *
+ * 書き戻したあとで `?t=` 側のエントリを消すのは、これが更新のたびに 1 件ずつ増え、
+ * canonical エントリと同じ `timetable-data` の枠を食い潰すため（Workbox の
+ * maxEntries に達すると、オフライン起動が頼りにしている素の URL のエントリが
+ * 押し出される）。SW 側の cache.put と競合して消し損ねることはありうるので、
+ * これは best-effort であり、枠そのものも vite.config.ts で余裕を持たせてある。
  */
-async function putCanonical(path: string, res: Response): Promise<void> {
+async function syncCanonical(path: string, bustedUrl: string, res: Response): Promise<void> {
   try {
     if (typeof caches === 'undefined') return
     const cache = await caches.open(DATA_CACHE)
     await cache.put(path, res)
+    await cache.delete(bustedUrl)
   } catch {
     // Cache API 非対応・容量不足などでは諦める（表示は既に最新になっている）
   }
@@ -123,7 +130,7 @@ async function fetchJSON<T>(path: string, bustCache = false): Promise<FetchResul
   const res = await fetch(url, bustCache ? { cache: 'reload' } : undefined)
   if (!res.ok) throw new Error(`${path} の取得に失敗しました (${res.status})`)
   // 本文を読む前に clone すること（res.json() が本文を消費するため）
-  if (bustCache) void putCanonical(path, res.clone())
+  if (bustCache) void syncCanonical(path, url, res.clone())
   const raw = res.headers.get('date')
   const parsed = raw ? Date.parse(raw) : NaN
   const data = (await res.json()) as T
@@ -170,20 +177,27 @@ export function useTimetable(now: dayjs.Dayjs): UseTimetableResult {
       const tomorrowId = resolveCalendar(rules.data, tomorrow)
 
       // 翌日分は normalize まで含めて catch する。翌日の形式不正で今日の表示まで
-      // 落とさないため（prefetch はあくまで日付跨ぎ用の保険）
-      const [todayRes, tomorrowData] = await Promise.all([
+      // 落とさないため（prefetch はあくまで日付跨ぎ用の保険）。
+      // 同じ ID なら取りに行かない（長期休暇中など、連日同じ表になる期間は多い）
+      const sameId = todayId === tomorrowId
+      const [todayRes, tomorrowFetched] = await Promise.all([
         fetchJSON<Timetable>(`/data/timetables/${todayId}.json`, bustCache),
-        fetchJSON<Timetable>(`/data/timetables/${tomorrowId}.json`, bustCache)
-          .then(res => normalizeTimetable(res.data))
-          .catch(() => null),
+        sameId
+          ? Promise.resolve(null)
+          : fetchJSON<Timetable>(`/data/timetables/${tomorrowId}.json`, bustCache)
+              .then(res => normalizeTimetable(res.data))
+              .catch(() => null),
       ])
 
       if (seq !== seqRef.current) return false // より新しい取得が始まっている
+      const todayTimetable = normalizeTimetable(todayRes.data)
       setData({
         dateKey: current.format('YYYY-MM-DD'),
         tomorrowDateKey: tomorrow.format('YYYY-MM-DD'),
-        timetable: normalizeTimetable(todayRes.data),
-        tomorrowTimetable: tomorrowData,
+        timetable: todayTimetable,
+        // 同じ ID のときは当日分をそのまま翌日分としても使う。日付跨ぎの昇格で
+        // 参照されるだけで、内容は同一のオブジェクトで問題ない
+        tomorrowTimetable: sameId ? todayTimetable : tomorrowFetched,
       })
       // 鮮度の根拠は本日分の本文が返ってきた時刻。null は「取得できたとは言えない」の意味なので
       // その場合は前回値を維持する（オフラインでキャッシュから読めただけ、など）
