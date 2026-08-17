@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { isIOS, isStandalone } from '../utils/platform'
+import { clearPushMirror } from '../utils/pushMirror'
 
 /**
  * 端末の購読（通知の根幹の許可）を扱うフック。
@@ -113,12 +114,25 @@ export function usePushSubscription() {
       })
 
       const json = created.toJSON()
-      const response = await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: json.endpoint, p256dh: json.keys?.p256dh, auth: json.keys?.auth }),
-      })
-      if (!response.ok) throw new Error(await readError(response))
+      let response: Response
+      try {
+        response = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: json.endpoint, p256dh: json.keys?.p256dh, auth: json.keys?.auth }),
+        })
+      } catch (e) {
+        // 通信そのものが失敗した場合も、端末だけ購読済みの状態を残さない
+        await created.unsubscribe().catch(() => undefined)
+        throw e
+      }
+      if (!response.ok) {
+        // サーバに登録できていないのに端末の購読だけ残ると、次回起動時に
+        // getSubscription() が見つけて「通知オン」と表示し、D1 未登録を隠してしまう。
+        // 作ったばかりの購読を巻き戻してから失敗させる
+        await created.unsubscribe().catch(() => undefined)
+        throw new Error(await readError(response))
+      }
 
       setEndpoint(created.endpoint)
       setStatus('subscribed')
@@ -139,13 +153,19 @@ export function usePushSubscription() {
       if (existing) {
         // サーバの行を先に消す。端末側の解除だけだと D1 に失効した購読が残り、
         // 配信のたびに無駄なサブリクエストを使う
-        await fetch('/api/subscribe', {
+        const response = await fetch('/api/subscribe', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ endpoint: existing.endpoint }),
         })
+        // fetch は 4xx / 5xx では reject しない。ok を見ずに端末だけ解除すると、
+        // 画面は「オフ」なのに D1 に購読とリマインドが残り、README の
+        // 「オフにすると預かっている情報はすべて削除されます」と食い違う
+        if (!response.ok) throw new Error(await readError(response))
         await existing.unsubscribe()
       }
+      // サーバ側を消せたので、端末に写していた予約も残さない
+      await clearPushMirror()
       setEndpoint(null)
       setStatus('idle')
     } catch (e) {
