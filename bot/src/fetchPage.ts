@@ -9,6 +9,10 @@ export interface FetchResult {
   buffer: Buffer
   contentType: string
   url: string
+  /** 応答の ETag（無ければ空文字）。次回の条件付き GET に使う */
+  etag: string
+  /** 応答の Last-Modified（無ければ空文字）。次回の条件付き GET に使う */
+  lastModified: string
 }
 
 export interface FetchOptions {
@@ -17,6 +21,8 @@ export interface FetchOptions {
   /** 本文の上限バイト数。超えた時点で受信を打ち切る */
   maxBytes: number
   timeoutMs?: number
+  /** 追加リクエストヘッダ（条件付き GET の If-None-Match / If-Modified-Since 用） */
+  headers?: Record<string, string>
 }
 
 /** 上限を超えた本文を受け取ったときのエラー（呼び出し側が理由をそのまま警告にする） */
@@ -77,7 +83,7 @@ export async function fetchWithTimeout(url: string, options: FetchOptions): Prom
 
     for (let hop = 0; hop <= CONFIG.maxRedirects; hop++) {
       const res = await fetch(current, {
-        headers: { 'user-agent': CONFIG.userAgent },
+        headers: { 'user-agent': CONFIG.userAgent, ...(options.headers ?? {}) },
         redirect: 'manual',
         signal: controller.signal,
       })
@@ -86,20 +92,32 @@ export async function fetchWithTimeout(url: string, options: FetchOptions): Prom
         const location = res.headers.get('location')
         await res.body?.cancel().catch(() => { /* noop */ })
         if (!location) {
-          return { ok: false, status: res.status, buffer: Buffer.alloc(0), contentType: '', url: current }
+          return {
+            ok: false, status: res.status, buffer: Buffer.alloc(0), contentType: '',
+            url: current, etag: '', lastModified: '',
+          }
         }
         // 相対 Location も絶対化したうえで、行き先を必ず検査する
         current = assertAllowedUrl(new URL(location, current).toString(), options.allowedHostSuffixes).toString()
         continue
       }
 
-      const buffer = await readBodyWithLimit(res, options.maxBytes, current)
+      let buffer: Buffer
+      if (res.status === 304) {
+        // 304 は本文を持たない（条件付き GET の「変わっていない」応答）
+        await res.body?.cancel().catch(() => { /* noop */ })
+        buffer = Buffer.alloc(0)
+      } else {
+        buffer = await readBodyWithLimit(res, options.maxBytes, current)
+      }
       return {
         ok: res.ok,
         status: res.status,
         buffer,
         contentType: res.headers.get('content-type') ?? '',
         url: res.url || current,
+        etag: res.headers.get('etag') ?? '',
+        lastModified: res.headers.get('last-modified') ?? '',
       }
     }
 

@@ -94,7 +94,26 @@ export interface Intermediate {
 // 状態ファイル（§9）
 // ---------------------------------------------------------------------------
 
-export interface StateRegular {
+/**
+ * 同一 URL のまま画像が差し替わっていないかを確かめるための情報（FR-4）。
+ *
+ * URL が同じというだけで「変化なし」と決めると、大学の CMS が同じ URL の内容を
+ * 差し替えたときに、URL か state が別途変わるまで古い時刻表を出し続ける。
+ * 条件付き GET の検証子と、最後に内容一致を確認した日を持ち、
+ * 見逃しの上限を有限にする（detectChanges の revalidate 判定が読む）。
+ *
+ * すべて任意項目。この情報を持たない既存の state もそのまま読める。
+ */
+export interface StateFetchCheck {
+  /** 応答の ETag。次回の If-None-Match に使う */
+  etag?: string
+  /** 応答の Last-Modified。次回の If-Modified-Since に使う */
+  last_modified?: string
+  /** 最後に「内容が変わっていない」ことを確認した日（YYYY-MM-DD / JST） */
+  checked_at?: string
+}
+
+export interface StateRegular extends StateFetchCheck {
   url: string
   sha256: string
   start?: string
@@ -102,7 +121,7 @@ export interface StateRegular {
   processed_at: string
 }
 
-export interface StateVacation {
+export interface StateVacation extends StateFetchCheck {
   url: string
   sha256: string
   period: { start: string; end?: string }
@@ -110,7 +129,7 @@ export interface StateVacation {
   processed_at: string
 }
 
-export interface StateEvent {
+export interface StateEvent extends StateFetchCheck {
   url: string
   sha256: string
   label: string
@@ -166,6 +185,13 @@ export interface State {
    */
   suppressed_overrides?: Record<string, string>
   holidays_source?: { fetched_at: string; sha256: string }
+  /**
+   * 同じ日に使った Gemini 呼び出し回数。
+   *
+   * 上限が 1 実行単位しか無いと、手動実行を繰り返すだけで無料枠の RPD を超えられる。
+   * 日付が変われば 0 から数え直す（`date` が今日でなければ無視する）。
+   */
+  ocr_usage?: { date: string; calls: number }
 }
 
 // ---------------------------------------------------------------------------
