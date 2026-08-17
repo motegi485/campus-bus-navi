@@ -443,6 +443,16 @@ export function applyToState(
     const url = link.url
     const sha256 = decision.sha256 ?? ''
     const processedAt = decision.action === 'ocr' ? runAt : undefined
+    /**
+     * 再検証に使う検証子と、最後に内容一致を確認できた日（FR-4）。
+     * detectChanges が決めた値をそのまま持ち越す。取れなかった項目は書かない
+     * （空文字を残すと、次回の条件付き GET に無意味なヘッダを付けてしまう）。
+     */
+    const check = {
+      ...(decision.check?.etag ? { etag: decision.check.etag } : {}),
+      ...(decision.check?.last_modified ? { last_modified: decision.check.last_modified } : {}),
+      ...(decision.check?.checked_at ? { checked_at: decision.check.checked_at } : {}),
+    }
 
     if (link.kind === 'regular') {
       next.regular = {
@@ -451,6 +461,7 @@ export function applyToState(
         ...(link.start ? { start: link.start } : {}),
         derived: derived.length > 0 ? derived : (next.regular?.derived ?? []),
         processed_at: processedAt ?? next.regular?.processed_at ?? runAt,
+        ...check,
       }
       continue
     }
@@ -463,6 +474,7 @@ export function applyToState(
         period: { start: link.start!, ...(link.end ? { end: link.end } : {}) },
         derived: derived.length > 0 ? derived : (next.vacations[link.season]?.derived ?? []),
         processed_at: processedAt ?? next.vacations[link.season]?.processed_at ?? runAt,
+        ...check,
       }
       continue
     }
@@ -477,6 +489,7 @@ export function applyToState(
         dates: decision.effectiveDates ?? link.dates,
         derived: derived.length > 0 ? derived : (next.events[key]?.derived ?? []),
         processed_at: processedAt ?? next.events[key]?.processed_at ?? runAt,
+        ...check,
       }
     }
   }
