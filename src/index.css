@@ -38,11 +38,28 @@
   --bg-input:      #f0f0f5;
   --text-primary:  #1a1a2e;
   --text-secondary:#6b7280;
-  --text-muted:    #aaaaaa;
+  /* 補助文字。旧値 #aaaaaa はページ面 2.10 / カード面 2.32 で AA を大きく割っていた。
+     実測（この値）: --bg-page 4.75 / --bg-card 5.27 / --bg-card2 4.89。 */
+  --text-muted:    #666c79;
   --border:        #f3f3f3;
   --border2:       #ececf0;
-  --past-text:     #cccccc;
+  /* 過ぎた便の時刻。旧値 #cccccc は --past-bg 上で 1.53 と、ほぼ読めない値だった。
+     淡く見せる意図は面（--past-bg）と字の細さで保ち、文字自体は AA を満たす。
+     実測（この値）: --past-bg 上で 5.00。 */
+  --past-text:     #666c79;
   --past-bg:       #f9f9f9;
+
+  /* キーボードのフォーカスリング（:focus-visible）。
+     地の明暗どちらでも見えるよう、濃淡 2 色を重ねた二重リングにしてある。
+
+     ⚠️ `--focus-ring`（outline 側）だけで成立する色を選ぶこと。
+     ヘッダーのアイコンボタンなど inline style で box-shadow を持つ要素では、
+     外側リング（box-shadow）が inline に負けて outline しか描かれない。
+     実測（この値）: ヘッダー上端 #7c87f0 で 5.56 / #0d9966 で 4.87、
+     ページ面 16.00 / カード面 17.74。彩度のある青（旧 #1d4ed8）は
+     ヘッダーのグラデ上で 1.50〜2.27 しかなく、非文字要素の 3:1 を満たさない。 */
+  --focus-ring:     #111827;
+  --focus-ring-alt: #ffffff;
 
   /* 押下ハイライト・チップの厚み表現（アフォーダンス強化で追加） */
   --row-active:    #eceef4;
@@ -108,11 +125,22 @@
   --bg-input:      #374151;
   --text-primary:  #f9fafb;
   --text-secondary:#9ca3af;
-  --text-muted:    #6b7280;
+  /* 補助文字（ダーク）。旧値 #6b7280 はカード面 3.04 で AA を割っていた。
+     実測（この値）: --bg-card 5.78 / --bg-page 6.99 / --bg-card2 6.22。 */
+  --text-muted:    #9ca3af;
   --border:        #374151;
   --border2:       #2d3748;
-  --past-text:     #4b5563;
+  /* 過ぎた便の時刻（ダーク）。旧値 #4b5563 は --past-bg 上で 2.09 だった。
+     過ぎた便は補助情報なので通常文字の 4.5 は狙わず、非文字要素と同じ 3:1 を
+     確実に超える値にしてある（実測 4.24）。淡さは面と字の細さで保つ。 */
+  --past-text:     #7c8595;
   --past-bg:       #1a2332;
+
+  /* フォーカスリング（ダーク）。明暗を反転させる。
+     実測: ページ面 16.98 / カード面 14.05 / 入力面 9.86、
+     ヘッダー上端 #7c87f0 で 3.05 / #0d9966 で 3.49（ヘッダーはテーマで変わらない）。 */
+  --focus-ring:     #f9fafb;
+  --focus-ring-alt: #0b1220;
 
   /* 押下ハイライト・チップの厚み表現（アフォーダンス強化で追加） */
   --row-active:    #2b3648;
@@ -188,12 +216,27 @@ input, textarea {
    移すため、タップで開いただけでドロワーの「大学ホームページ」や設定の
    「戻る」に青い枠が出て、押した覚えのないものが選択されて見えていた。
    * { -webkit-tap-highlight-color: transparent } で OS 標準のタップ反応を消し
-   usePressable に寄せているのと同じ方針。押下の表現はそちらが担う。
-   入力欄を持たないアプリなので、これで失われるのはキーボード Tab 移動時の
-   現在位置表示だけ（戻すなら :focus-visible に自前のリングを定義する）。 */
-:focus,
-:focus-visible {
+   usePressable に寄せているのと同じ方針。押下の表現はそちらが担う。 */
+:focus {
   outline: none;
+}
+
+/* ただしキーボード操作では現在位置が見えなければならない。
+   :focus-visible はブラウザが「キーボード等の起点」と判断したときだけ当たるので、
+   タップで開いたオーバーレイに枠が出る問題は起きない。
+
+   以前は :focus と :focus-visible の両方を outline: none にしており、
+   キーボード利用者は自分がどこにいるか一切分からなかった（主要操作を安全に
+   完了できない状態）。二重リングにしているのは、フォーカスがヘッダーの濃い
+   グラデ面にも淡いページ面にも載るため。片方の色だけでは一方の地で消える。
+
+   border-radius は指定しない。outline は要素自身の角丸に沿うので、丸ボタン
+   （ハンバーガー・更新）にも正しい形で付く。ここで角丸を足すと要素の形自体が変わる。 */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  /* 外側の白（ダークでは濃色）リング。outline と違い box-shadow は角丸に沿う */
+  box-shadow: 0 0 0 4px var(--focus-ring-alt);
 }
 
 html {
