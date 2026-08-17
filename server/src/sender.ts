@@ -70,19 +70,28 @@ export class ReminderSender {
       }
     }
 
-    await this.recordOutcome(sent, expiredEndpoints)
+    const recorded = await this.recordOutcome(sent, expiredEndpoints)
 
     if (failed > 0) console.warn(`${failed} 件の送信に失敗しました（購読は残します）`)
-    return Response.json({ sent: sent.length, expired: expiredEndpoints.length, failed })
+
+    // 記録に失敗すると sent_at が付かず、次の分で同じ集合へ再送する（重複通知）。
+    // 呼び出し側が実行を失敗として扱えるよう、200 では返さない
+    if (!recorded) {
+      return Response.json(
+        { sent: sent.length, expired: expiredEndpoints.length, failed, recorded: false },
+        { status: 500 }
+      )
+    }
+    return Response.json({ sent: sent.length, expired: expiredEndpoints.length, failed, recorded: true })
   }
 
   /**
-   * D1 への後片付け。
+   * D1 への後片付け。記録できたら true。
    *
    * まとめて 2 文に収める（1 件ずつ実行すると D1 の行書き込み枠を無駄に消費し、
    * サブリクエスト相当の往復も増える）。
    */
-  private async recordOutcome(sent: string[], expiredEndpoints: string[]): Promise<void> {
+  private async recordOutcome(sent: string[], expiredEndpoints: string[]): Promise<boolean> {
     const statements: D1PreparedStatement[] = []
 
     if (sent.length > 0) {
@@ -104,12 +113,14 @@ export class ReminderSender {
       )
     }
 
-    if (statements.length === 0) return
+    if (statements.length === 0) return true
     try {
       await this.env.DB.batch(statements)
+      return true
     } catch (e) {
       // ここで落ちると二重送信または失効購読の残留が起きる。必ず記録に残す
       console.error('送信結果の記録に失敗しました', e)
+      return false
     }
   }
 }
