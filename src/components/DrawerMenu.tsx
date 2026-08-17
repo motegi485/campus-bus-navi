@@ -108,7 +108,7 @@ export function DrawerMenu({ open, covered, hasUnread, onClose, onOpenNews, onOp
           <DrawerItem icon={<IconMegaphone />} tone="amber" title="お知らせ" sub="バス運行情報・重要連絡" chevron="›"
             showDot={hasUnread}
             onClick={onOpenNews} />
-          <DrawerItem icon={<IconCalendarWeek />} tone="blue" title="週間ダイヤ" sub="7日先までの運行予定" chevron="›"
+          <DrawerItem icon={<IconCalendarWeek />} tone="blue" title="週間ダイヤ" sub="今日を含む7日間の運行予定" chevron="›"
             onClick={onOpenWeekly} />
 
           <Divider />
