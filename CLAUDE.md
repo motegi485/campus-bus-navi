@@ -78,5 +78,25 @@ npx tsx src/index.ts
 
 ## Git と外部操作
 
-- エージェントは Git の状態を変更する操作を実行しない。許可するのは `status`、`diff`、`log`、`show`、`rev-parse`、`ls-files`、`branch --list`、`branch --show-current`、`remote -v`、`stash list`、読み取り専用の `config --get` / `--get-all` / `--list --show-origin` のみである。
-- `add`、`commit`、`push`、`pull`、`fetch`、`merge`、`rebase`、`reset`、`clean`、`checkout`、`switch`、`restore`、ブランチ・タグ・stash・remote・PR・Issue・Release の変更操作は実行しない。必要なら人間向けの手順と影響だけを示す。
+操作は「自動許可」「説明付き承認」「常時禁止」の3段階で扱う。安全性を確認できない操作は自動許可に分類しない。ユーザーの依頼は、その達成に必要な範囲だけを許可する。承認済みのコマンドを、引数・対象・実行場所・外部送信先が実質的に変わった別コマンドへ流用しない。
+
+### 自動許可
+
+- 読み取り専用 Git 操作は実行してよい。対象は `status`、`diff`、`log`、`show`、`blame`、`grep`、`rev-parse`、`ls-files`、`ls-tree`、`cat-file`、`for-each-ref`、`merge-base`、`branch --list`、`branch --show-current`、`remote -v`、`stash list`、読み取り専用の `config --get` / `--get-all` / `--list --show-origin`。
+- 読み取り用サブコマンドでも、出力先ファイル指定、外部コマンド実行、設定変更、ネットワーク送信、ワイルドカードによる意図しない対象拡大を含む場合は自動許可しない。
+- 依存関係・ロックファイルを変更せず、外部接続を行わない検査・テストは実行してよい。
+
+### 説明付き承認
+
+- ローカルで対象が限定され、結果を検証でき、現実的な復旧手段がある変更コマンドは、実行直前の承認を条件に実行してよい。対象は `git add`、`git commit`、通常のブランチ作成・切替・改名、`git fetch`、条件を満たした `pull` / `merge` / `rebase` / `cherry-pick`、依存関係変更、対象が明確な単一ファイルの削除・移動など。
+- 競合し得る Git 操作は、作業ツリーと index の状態、現在ブランチ、対象 ref、予想される変更、競合時の停止条件と復旧方法を先に確認する。
+- 承認要求には、実行する正確なコマンド、目的と必要性、作用範囲（対象パス・Git ref・外部接続先など）、予想される変更、安全と判断した根拠、残るリスク、実行後の確認方法、失敗・不一致時の停止条件と復旧方法を簡潔かつ具体的に示す。
+- 承認後に前提・コマンド・引数・対象・接続先・変更内容が実質的に変わった場合は、再承認を得る。
+
+### 常時禁止
+
+- 秘密情報・資格情報の読取り、出力、変更、およびポリシーや sandbox の回避は行わない。
+- `git push`、PR・Issue・Release の作成・変更、リモートリポジトリ設定の破壊的変更は実行しない。
+- `git reset`、実削除を行う `git clean`、作業内容を破棄する `git restore`、force push、ブランチ・タグ・stash・reflog・worktree の削除、履歴の恒久的書換え、到達不能オブジェクトの削除は実行しない。
+- 本番デプロイ、クラウド資源変更、DB接続・書込み・migration、OS サービス変更は実行しない。
+- 常時禁止操作は、ユーザーがその場で承認しても実行せず、安全な代替案と人間が実行する場合の影響を提示する。
