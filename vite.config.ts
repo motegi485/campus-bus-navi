@@ -47,7 +47,13 @@ export default defineConfig({
               cacheName: 'timetable-data',
               networkTimeoutSeconds: 3,
               expiration: {
-                maxEntries: 20,
+                // 更新ボタンは ?t=timestamp 付きで取得するため、押すたびに
+                // クエリの違う一意のエントリが同じキャッシュへ増える。
+                // useTimetable が書き戻し後に消しているが、SW 側の cache.put と
+                // 競合して消し損ねうるので、枠自体にも余裕を持たせる。
+                // 枠が尽きると、オフライン起動が頼りにしている素の URL のエントリが
+                // 押し出される（= 更新直後にオフラインで開くと旧ダイヤに戻る）。
+                maxEntries: 60,
                 maxAgeSeconds: 60 * 60 * 24 * 7, // 7日
               },
             },
