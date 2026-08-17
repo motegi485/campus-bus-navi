@@ -7,7 +7,14 @@
  * その検知に使う。
  *
  * 返すのは件数だけで、endpoint も鍵も個人を特定しうる値も含めない。
+ * 例外の内容も返さない（無認証の公開エンドポイントなので、スキーマ名や
+ * ドライバの状態を匿名クライアントへ渡さない）。詳細はサーバのログにだけ残す。
+ *
+ * 集計は 1 文にまとめる。以前は 4 本の COUNT を並べており、公開エンドポイントを
+ * 叩くだけで D1 の読み取りを 4 回発生させられた。
  */
+
+import { toJst } from '../../server/src/schedule.js'
 
 interface Env {
   DB: D1Database
@@ -20,43 +27,54 @@ function json(body: unknown, status = 200): Response {
   })
 }
 
-/** JST の "YYYY-MM-DD"。Worker と同じ +9 時間固定の計算 */
-function jstDateKey(epochMs: number): string {
-  const shifted = new Date(epochMs + 9 * 60 * 60 * 1000)
-  const y = shifted.getUTCFullYear()
-  const m = String(shifted.getUTCMonth() + 1).padStart(2, '0')
-  const d = String(shifted.getUTCDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
-  const today = jstDateKey(Date.now())
+  const nowMs = Date.now()
+  const today = toJst(nowMs).dateKey
 
   try {
-    const [devices, todayTotal, todaySent, stale] = await env.DB.batch([
-      env.DB.prepare('SELECT COUNT(*) AS n FROM subscriptions'),
-      env.DB.prepare('SELECT COUNT(*) AS n FROM reminders WHERE date_key = ?').bind(today),
-      env.DB.prepare('SELECT COUNT(*) AS n FROM reminders WHERE date_key = ? AND sent_at IS NOT NULL').bind(today),
-      // 前日以前が残っていたら掃除が動いていない兆候。Cron が止まっている可能性がある
-      env.DB.prepare('SELECT COUNT(*) AS n FROM reminders WHERE date_key < ?').bind(today),
-    ])
+    const row = await env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM subscriptions) AS devices,
+         SUM(CASE WHEN date_key = ?1 THEN 1 ELSE 0 END) AS today_total,
+         SUM(CASE WHEN date_key = ?1 AND sent_at IS NOT NULL THEN 1 ELSE 0 END) AS today_sent,
+         -- 前日以前が残っていたら掃除が動いていない兆候。Cron が止まっている可能性がある
+         SUM(CASE WHEN date_key < ?1 THEN 1 ELSE 0 END) AS stale,
+         -- 発車時刻を過ぎたのに未送信のまま残っている当日行。配信が止まった兆候。
+         -- ただし運休日・特別ダイヤ・ダイヤ差し替えで消えた便では正常に増える
+         SUM(CASE WHEN date_key = ?1 AND sent_at IS NULL AND notify_at + lead_minutes * 60000 < ?2
+                  THEN 1 ELSE 0 END) AS overdue
+       FROM reminders`
+    )
+      .bind(today, nowMs)
+      .first<Record<string, unknown>>()
 
-    const count = (result: D1Result) => Number((result.results?.[0] as { n?: unknown } | undefined)?.n ?? 0)
-    const staleCount = count(stale)
+    const count = (key: string) => Number(row?.[key] ?? 0)
+    const staleCount = count('stale')
+    const overdueCount = count('overdue')
+
+    const warnings: string[] = []
+    if (staleCount > 0) {
+      warnings.push('前日以前のリマインドが残っています。Cron が動いているか確認してください')
+    }
+    if (overdueCount > 0) {
+      warnings.push(
+        '発車時刻を過ぎても未送信の指定があります。運休日・特別ダイヤ・ダイヤ差し替えでなければ配信を確認してください'
+      )
+    }
 
     return json({
       today,
-      devices: count(devices),
-      remindersToday: count(todayTotal),
-      sentToday: count(todaySent),
-      pendingToday: count(todayTotal) - count(todaySent),
+      devices: count('devices'),
+      remindersToday: count('today_total'),
+      sentToday: count('today_sent'),
+      pendingToday: count('today_total') - count('today_sent'),
       staleReminders: staleCount,
-      // 前日以前が残っている＝日付が変わる分の掃除が走っていない。Cron を疑う
-      warning: staleCount > 0 ? '前日以前のリマインドが残っています。Cron が動いているか確認してください' : null,
+      overdueReminders: overdueCount,
+      warning: warnings.length > 0 ? warnings.join(' / ') : null,
     })
   } catch (e) {
+    // D1 の無料枠を使い切ったときもここに来る。理由はログにだけ残す
     console.error('状態の取得に失敗しました', e)
-    // D1 の無料枠を使い切ったときもここに来る。理由を残す
-    return json({ error: 'D1 にアクセスできませんでした', detail: e instanceof Error ? e.message : String(e) }, 500)
+    return json({ error: 'D1 にアクセスできませんでした' }, 500)
   }
 }
