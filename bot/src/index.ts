@@ -106,7 +106,12 @@ async function main(): Promise<void> {
   )
 
   // ---- 5〜6. 変更検知（必要なら画像 DL） --------------------------------
-  const detected = await detectChanges(classified, state, today)
+  // 取得フェーズにも締切と件数上限を渡す。無いと遅い応答が並んだだけで
+  // 取得だけに実行時間を使い切り、レポートもメールも残さずジョブが強制終了される
+  const detected = await detectChanges(classified, state, today, {
+    deadlineAt: startedAt + CONFIG.fetchDeadlineMs,
+    maxFetches: CONFIG.maxImageFetchesPerRun,
+  })
   warnings.push(...detected.warnings)
   log(
     'detectChanges',
@@ -143,8 +148,11 @@ async function main(): Promise<void> {
         )
       }
     } else {
-      // 締切はプロセス開始基準。ジョブが強制終了される前に needs_review へ収束させる
-      ocrClient = new OcrClient(apiKey, undefined, startedAt + CONFIG.runDeadlineMs)
+      // 締切はプロセス開始基準。ジョブが強制終了される前に needs_review へ収束させる。
+      // 同じ日に既に使った回数を渡し、手動の再実行が無料枠の RPD を超えないようにする
+      const usedToday = state.ocr_usage?.date === today ? state.ocr_usage.calls : 0
+      if (usedToday > 0) log('ocr', `本日は既に ${usedToday} 回呼び出しています（日次上限 ${CONFIG.geminiMaxCallsPerDay}）`)
+      ocrClient = new OcrClient(apiKey, undefined, startedAt + CONFIG.runDeadlineMs, usedToday)
     }
   }
 
@@ -163,7 +171,7 @@ async function main(): Promise<void> {
         // 無料枠を使い切った残りは「読めなかった」として顕在化させる（古いデータは触らない）
         ocrFailures.set(
           decision.key,
-          `Gemini の呼び出し上限（${CONFIG.geminiMaxCallsPerRun}回/実行）に達したため読み取りをスキップしました。翌日の実行で再試行されます（元画像: ${decision.imageUrl}）`,
+          `Gemini の呼び出し上限（${CONFIG.geminiMaxCallsPerRun}回/実行・${CONFIG.geminiMaxCallsPerDay}回/日）に達したため読み取りをスキップしました。翌日の実行で再試行されます（元画像: ${decision.imageUrl}）`,
         )
         log('ocr', `${decision.key}: 呼び出し上限に達したためスキップします`)
         continue
@@ -181,7 +189,11 @@ async function main(): Promise<void> {
       intermediates.set(decision.key, outcome.intermediate)
       log('ocr', `${decision.key}: 成功（${outcome.attempts}回読み${outcome.majority ? '・多数決採用' : '・一致'}）`)
     }
-    log('ocr', `Gemini 呼び出し回数: ${ocrClient.calls} / 上限 ${CONFIG.geminiMaxCallsPerRun}`)
+    log(
+      'ocr',
+      `Gemini 呼び出し回数: 今回 ${ocrClient.calls} / 上限 ${CONFIG.geminiMaxCallsPerRun}、` +
+        `本日累計 ${ocrClient.callsToday} / 上限 ${CONFIG.geminiMaxCallsPerDay}`,
+    )
     if (ocrClient.deadlineExceeded) {
       warnings.push({
         level: 'warn',
@@ -210,6 +222,8 @@ async function main(): Promise<void> {
   })
   warnings.push(...planned.warnings)
   if (holidaysResult.source) planned.nextState.holidays_source = holidaysResult.source
+  // 日次の呼び出し回数を持ち越す（同じ日の再実行が無料枠の RPD を超えないようにする）
+  if (ocrClient) planned.nextState.ocr_usage = { date: today, calls: ocrClient.callsToday }
 
   log('calendar', `overrides ${Object.keys(planned.calendar.nextOverrides).length} 件`, {
     changes: planned.calendar.changes.length,
