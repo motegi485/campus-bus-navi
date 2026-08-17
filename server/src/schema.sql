@@ -30,13 +30,19 @@ CREATE TABLE IF NOT EXISTS reminders (
   route           TEXT NOT NULL,     -- 'campus_to_station' | 'station_to_campus'
   departure       TEXT NOT NULL,     -- "HH:mm"
   lead_minutes    INTEGER NOT NULL,  -- 5 | 10 | 15 | 20
+  -- 送信を始めてよい瞬間（= 発車時刻 − lead_minutes）の epoch ミリ秒。
+  -- 登録時に計算して持つ。これが無いと Cron が「無順序で N 件に切ってから
+  -- TypeScript で due 判定」になり、上限内を未到来の行が占めたときに
+  -- 上限外の本当に送るべき行を読まない（飢餓）
+  notify_at       INTEGER NOT NULL,
   -- 送信済みなら epoch ミリ秒。二重送信を防ぐ番人
   sent_at         INTEGER,
   FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE
 );
 
--- Cron は毎分「今日ぶんで未送信」だけを引く。全行スキャンを避けて
--- D1 の行読み取り（無料枠 500 万行/日）を節約する
-CREATE INDEX IF NOT EXISTS idx_reminders_pending ON reminders (date_key, sent_at);
+-- Cron は毎分「今日ぶんで未送信、かつ送信開始時刻を過ぎた行」を notify_at 順に引く。
+-- 全行スキャンを避けて D1 の行読み取り（無料枠 500 万行/日）を節約しつつ、
+-- 1 実行あたりの上限に当たっても「最も早く送るべき行」から処理できる
+CREATE INDEX IF NOT EXISTS idx_reminders_pending ON reminders (date_key, sent_at, notify_at);
 -- 端末の解除時に、その端末のリマインドをまとめて消すため
 CREATE INDEX IF NOT EXISTS idx_reminders_subscription ON reminders (subscription_id);
