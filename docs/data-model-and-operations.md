@@ -18,10 +18,13 @@ public/data/
     ├── timetable_vacation_SEASON_weekday.json
     ├── timetable_vacation_SEASON_holiday.json
     ├── timetable_event_YYYYMMDD.json
+    ├── timetable_event_example.json
     └── timetable_sample.json
 ```
 
-`_examples/` は新しいダイヤを作るためのテンプレートであり、アプリは読みません。`validate:data` の検証対象でもありません。ただし `public/` 配下なので、ビルド成果物にはコピーされます。
+`_examples/` は新しいダイヤを作るためのテンプレートであり、アプリは読みません。`validate:data` の検証対象でもありません（`id` がファイル名と対でなかったり、`SEASON` のような未解決のプレースホルダを含むため、実データと同じ不変条件を課せない）。ただし `public/` 配下なので、ビルド成果物にはコピーされます。
+
+ファイル名が `SEASON` / `YYYYMMDD` のものは、その部分を置き換えて使う骨組みです（時刻は最小限の 3 便だけ）。`timetable_event_example.json` と `timetable_sample.json` は、実際の運行に近い便数で「書き上がった状態」を見るための参考例です。どちらも配信対象に残しますが、アプリからは参照されません。
 
 ## `calendar_rules.json`
 

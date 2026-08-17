@@ -54,6 +54,24 @@ Cloudflare Pages の実デプロイ、HTTP ヘッダー、キャッシュ、Anal
 | `fetch-failed` | DevTools で `/data/*.json` を Block request URL に登録 → 更新ボタン |
 | `no-data` | Application → Clear storage の後、上記をブロックした状態で初回アクセス |
 | `stale` / `refetching-stale` | `/data/timetables/*.json` をブロックした状態で端末の日付を翌日へ進める。翌日分の先読みが成功していると昇格するので `stale` にならない |
+| `stale-data` | 一度読み込んでキャッシュを作る → `localStorage.campusBusNaviFetchedAt` を 24 時間以上前の値へ書き換えてリロード。または OS はオンラインのまま `/data/` の応答だけを 3 秒以上遅延させ、キャッシュへフォールバックさせる |
+
+### アクセシビリティ
+
+| 確認 | 方法 |
+|---|---|
+| キーボードのフォーカスが見える | マウスを使わず Tab だけで一巡し、すべての操作要素にリングが出るか。タップで開いたオーバーレイにリングが出ないことも合わせて確認する |
+| オーバーレイの隔離 | 初回のホーム画面追加案内（`MobilePwaGuide`）を出した状態で Tab を回し、背面のヘッダー・本文へ抜けないか。Escape で閉じて、元の位置へフォーカスが戻るか |
+| 色のコントラスト | DevTools の computed style で `--text-muted` / `--past-text` とダイヤ種別バッジを実測し、[design-decisions.md](design-decisions.md) の表と一致するか。ライト・ダークの両方 |
+| 更新の読み上げ | NVDA / VoiceOver で更新ボタンを押し、開始・成功・失敗が読み上げられるか。新しい Service Worker の検知バナーも同様 |
+
+### 通知（便の同定）
+
+| 確認 | 方法 |
+|---|---|
+| 予約した便と通知が一致する | 実機で便を予約し、届いた通知の時刻・方向が予約と一致するか。**逆方向や別時刻が出たら不具合** |
+| 同定できないときの挙動 | 予約が無い状態で `server/tools/send-test-push.ts` から 1 通送り、「まもなく発車です／アプリを開いて時刻表を確認してください」になるか |
+| 通知オフで写しが消える | オフにしたあと DevTools の Application → IndexedDB で `campusBusNaviPush` が空になっているか |
 
 ### 週間ダイヤの確認
 
@@ -93,6 +111,8 @@ npx tsx src/index.ts
 
 Bot は `DRY_RUN` と `SKIP_OCR` を付けた安全な確認から始めます。ローカル実行は commit も push もしません。
 
+**Bot のテストは実ネットワークへ出てはいけません。** 大学サイトへ無断でアクセスしないこと自体が Bot の要件です。同一 URL の再検証を扱うテスト（`bot/test/detectChanges.test.ts`）は `fetch` をスタブし、`bot/test/plan.test.ts` の state には `checked_at` を入れて再検証が走らないようにしてあります。`detectChanges` を呼ぶテストを足すときは、どちらかの手当てを必ず行ってください。
+
 ワークフローが適用前に通す検証器と同じものを、リポジトリ直下でも実行できます。
 
 ```powershell
@@ -131,8 +151,12 @@ npx wrangler deploy --dry-run --outdir .wrangler/dry
 | 確認 | 何を保証するか | 注意 |
 |---|---|---|
 | `npm run typecheck` | Worker（Cloudflare の型）と tools・test（Node の型）の両方 | 両ランタイムで動く共通モジュールは両方で検査される |
-| `npm test` | 送信の窓、当日限りの判定、運休日・特別ダイヤの除外、JWT の署名形式 | Cloudflare ランタイムには依存しない |
+| `npm test` | 送信の窓、当日限りの判定、運休日・特別ダイヤの除外、JWT の署名形式、endpoint の許可リスト、`push-sw.js` の便の同定 | Cloudflare ランタイムには依存しない |
 | `npx wrangler deploy --dry-run` | バンドルとバインディング定義が成立するか | 実際のデプロイ状態は保証しない |
+
+`server/test/pushSw.test.ts` は `public/push-sw.js` をテキストで読んで評価します。ルートにテストランナーが無いため、通知まわりのテストをここへ寄せています。`public/push-sw.js` の内部関数名（`selectReservations` / `buildNotifications`）を変えるとこのテストが落ちます。
+
+SQL 側の絞り込み（`notify_at <= now` と `ORDER BY notify_at`）は vitest では検証できません。`server/test/schedule.test.ts` は「`notify_at` と `selectDue` の窓の境界が一致すること」までを固定し、実際のクエリ計画と行数は `wrangler d1 execute --local` で別途確認します。
 
 `wrangler` のコマンドは必ず `server/` で実行します。リポジトリ直下の `wrangler.toml` は Pages の設定なので、直下で `wrangler deploy` を実行してはいけません。
 
@@ -154,6 +178,35 @@ npx wrangler deploy --dry-run --outdir .wrangler/dry
 | **Cron 経由での実地の通知到達** | **未確認。** 通常ダイヤの日での確認が必要 |
 | Android のメーカー独自省電力下での配送 | 未確認 |
 | 実運用規模での無料枠消費 | 未確認（見積もりのみ） |
+
+## 依存関係の既知脆弱性
+
+`npm audit` は 3 つのパッケージ（ルート / `bot` / `server`）で個別に実行します。
+
+```powershell
+npm audit                # 全依存
+npm audit --omit=dev     # 本番依存だけ
+```
+
+### 2026-08-18 時点の測定
+
+| 対象 | 全依存 | 本番依存（`--omit=dev`） |
+|---|---|---|
+| ルート | low 1 / moderate 4 / high 8 / critical 0 | **0** |
+| `bot` | high 1 / critical 0 | **0** |
+| `server` | moderate 2 / high 4 / critical 0 | **0** |
+
+**high はすべて開発・ビルド・デプロイ用のツールチェーン側です。** ブラウザへ配信されるコードの依存には既知の advisory がありません（3 領域とも `--omit=dev` が 0）。
+
+| 到達経路 | 該当 | 誰が処理する入力か |
+|---|---|---|
+| ルートのビルド（`vite` / `postcss` / `@babel/*` / `nanoid` / `brace-expansion` / `lodash` / `serialize-javascript`） | high 8 | 自分のソースと `public/` の内容 |
+| `bot` の実行（`nanoid`） | high 1 | 大学サイトの HTML・画像（境界は `bot/src/url.ts` と `fetchPage.ts`） |
+| `server` のデプロイ（`wrangler` → `esbuild` / `miniflare` / `sharp` / `undici` / `ws`） | high 4 | 自分のソースと Cloudflare API |
+
+いずれも「攻撃者が任意の入力を送り込める公開経路」ではありませんが、CI で外部由来のデータ（大学サイトの HTML・画像）を処理するのは `bot` なので、そこが最も注意すべき経路です。
+
+**依存の更新は行っていません。** major 更新を伴うものが含まれ、ビルド・デプロイの回帰確認とセットでないと判断できないためです。更新するときは、advisory ごとに上表の到達経路を確かめ、実施日とバージョンをここへ記録してください。
 
 ## 文書変更時の確認
 

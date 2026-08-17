@@ -77,22 +77,25 @@ flowchart TD
 1. `useJSTClock` が JST の `dayjs` オブジェクトを返します。次の分境界に同期し、その後 60 秒ごとに更新します。タブの表示復帰時にも再同期します。
 2. `useTimetable` が `/data/calendar_rules.json` を取得します。
 3. `resolveCalendar()` が `overrides[YYYY-MM-DD]` を曜日の `default_rules` より優先し、今日・明日の時刻表 ID を決めます。
-4. 今日と明日の時刻表を並列取得します。今日の取得失敗はエラー、明日の取得失敗は翌日始発が表示できない `null` として扱います。
-5. `normalizeTimetable()` が取得済みデータの最低限の構造を検査し、不正な発車時刻を除外して昇順に整列します。
+4. 今日と明日の時刻表を並列取得します。今日の取得失敗はエラー、明日の取得失敗は翌日始発が表示できない `null` として扱います。両日の時刻表 ID が同じなら 1 回だけ取得して使い回します。
+5. `normalizeTimetable()` が取得済みデータの最低限の構造を検査し、不正な発車時刻を除外して昇順に整列します。`closed` / `special` 以外で全便が落ちたら `throw` します（空 `schedule` は運休日・特別ダイヤ専用の表現なので、そのまま返すと破損を「運行なし」と誤案内する）。
 6. `App` が選択中路線の時刻表から表示用の情報を導出します。発車時刻が現在分と同じ便は既に通過したものとして扱い、次発には含めません。
 
 ビルド前の完全なデータ検証と、配信後の最低限の防御は別です。前者は [data-model-and-operations.md](data-model-and-operations.md) を参照してください。
 
 ## 週間ダイヤのデータフロー
 
-`useWeekTimetables`（`src/hooks/useWeekTimetables.ts`）は当日起点 7 日分を解決します。`useTimetable` とは独立していて、あちらの `stale` 判定・翌日昇格・世代管理には触れません。
+`useWeekTimetables`（`src/hooks/useWeekTimetables.ts`）は今日を含む 7 日分を解決します。`useTimetable` とは独立していて、あちらの `stale` 判定・翌日昇格・世代管理には触れません。
 
 1. `/data/calendar_rules.json` を取得します。キャッシュバスターは付けません。
 2. 各日に `resolveCalendar()` を適用し、日付・時刻表 ID・`resolveDiagramType()` の結果を先に返します。ダイヤ種別はカレンダーだけで決まるため、時刻表の取得を待たずに一覧が成立します。
-3. 時刻表 ID を一意化してから並列取得し、`normalizeTimetable()` を通します。7 日で参照されるユニークな ID は実測で 3 件程度に収束するため、日数分のリクエストにはなりません。
-4. 取得できなかった ID の日は `status: 'error'` になります。前後の日のダイヤで代用しません。
+3. **時刻表の本文は、週間ダイヤ画面が開いている間だけ**取得します。ホームの帯（`WeekStrip`）が使うのは種別だけなので、初回表示で 7 日分の本文まで先読みすると低速回線で無駄に待たせます。
+4. 本文は時刻表 ID を一意化してから並列取得し、`normalizeTimetable()` を通します。7 日で参照されるユニークな ID は実測で 3 件程度に収束するため、日数分のリクエストにはなりません。
+5. 取得できなかった ID の日は `status: 'error'` になります。前後の日のダイヤで代用しません。
 
 `App` がこのフックを 1 回だけ呼び、結果を `WeekStrip` と `WeeklyScreen` の両方へ渡します。画面ごとに呼ぶと同じ 7 日分を二重に取得します。`useTimetable` と同じくリクエスト世代で古い応答を破棄します。
+
+本文の取得は「`status: 'loading'` の日が残っているときだけ走る」effect が担います。取り終えると全日が `ok` / `error` になるので再入しません。`reload()` はカレンダーから読み直すので、全日が `loading` に戻り、本文も取り直されます。
 
 ## 日付跨ぎの安全境界
 
@@ -116,15 +119,18 @@ flowchart TD
 | 3 | `stale` | `stale` かつ再取得中でない | `StatusCard`（白地） | 出さない |
 | 4 | `offline` | オフラインかつデータあり | `StatusBand`（白地） | 出す |
 | 5 | `fetch-failed` | エラー・データあり・オンライン | `StatusBand`（赤地） | 出す |
+| 6 | `stale-data` | 上記に該当せず、`fetchedAt` が 24 時間以上前 | `StatusBand`（白地） | 出す |
 | — | `ok` | 上記以外（初回読み込み中を含む） | 描かない | 出す |
 
 `offline` を `fetch-failed` より先に判定します。端末がオフラインを認識できている場合はそちらの方が行動につながるためで、この順により `fetch-failed` は「オンラインなのに取得できなかった」だけを意味します。初回読み込み中は既存のスピナーが担当します。
+
+`stale-data` は「取得は成功したが、その本文が古い」状態です。SW の NetworkFirst は 3 秒でキャッシュへ**成功として**フォールバックするため、これが無いと最大 7 日前のダイヤを通常表示のまま最新として見せます。閾値の根拠は [design-decisions.md](design-decisions.md) を参照してください。
 
 表現を 2 種類に分けているのは、状態の重さが違うためです。時刻を出せない状態ではカードが画面の主役なので全幅のカードで伝えます。時刻を出せる状態では発車時刻が主役で状態は脇役なので、ヘッダー直下の帯にしてカードの積み重ねへ参加させません。
 
 ### 取得時刻
 
-`useTimetable` は当日分の本文が「サーバから返ってきた時刻」を `fetchedAt` として保持し、上表の異常系で表示します。正常時は表示しません。判定根拠は `Date` レスポンスヘッダで、詳細と理由は [design-decisions.md](design-decisions.md) を参照してください。
+`useTimetable` は当日分の本文が「サーバから返ってきた時刻」を `fetchedAt` として保持し、上表の異常系で表示します。判定根拠は `Date` レスポンスヘッダで、詳細と理由は [design-decisions.md](design-decisions.md) を参照してください。`fetchedAt` は `stale-data` の判定にも使います。
 
 ## 表示コンポーネント
 
@@ -135,7 +141,7 @@ flowchart TD
 | `FullTimetable` | 開閉式の全時刻表。空 `schedule` は描画しない |
 | `TimetableGrid` | 発車時刻のグリッド本体。`FullTimetable` と日別ビューが共用する。`nowMinutes` が `null` の日は過去便を灰色にしない |
 | `WeekStrip` | ホームの週間ダイヤ帯。曜日・日付・ダイヤ種別の色だけを出し、遷移は「すべて見る」チップのみが担う |
-| `WeeklyScreen` | 週間ダイヤ（当日起点 7 日）と、その入れ子の日別ビュー |
+| `WeeklyScreen` | 週間ダイヤ（今日を含む 7 日）と、その入れ子の日別ビュー |
 | `RouteSwitch` | ページ面に置くルート切替。ヘッダー用の `RouteToggle` とは面の作りが違う |
 | `EndOfServiceCard` | 終バス後または全便運休日と翌日始発 |
 | `SpecialScheduleCard` | 時刻を出さず大学公式ページの確認先を示す |
