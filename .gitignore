@@ -3,3 +3,7 @@ dist/
 .DS_Store
 *.local
 _codexReview/*
+
+# エージェント用のローカル設定（許可コマンドや作業パスが入る。端末ごとの設定で共有しない）。
+# ユーザーのグローバル ignore に頼らず、このリポジトリ単体で守る
+.claude/settings.local.json
