@@ -48,6 +48,75 @@ describe('テスト8: 祝日CSV（FR-10）', () => {
     expect(() => parseHolidayCsv(onlyHeader)).toThrow(/データ行がありません/)
   })
 
+  it('実在しない日付があれば例外を投げる（override の日付が壊れるため）', () => {
+    const text = iconv.decode(buffer, 'Shift_JIS').replace('2026/8/11,山の日', '2026/2/30,山の日')
+    expect(() => parseHolidayCsv(iconv.encode(text, 'Shift_JIS'))).toThrow(/実在しない日付/)
+  })
+
+  it('同じ日付が重複していれば例外を投げる', () => {
+    const text = iconv.decode(buffer, 'Shift_JIS').replace('2026/8/11,山の日', '2026/8/11,山の日\r\n2026/8/11,山の日')
+    expect(() => parseHolidayCsv(iconv.encode(text, 'Shift_JIS'))).toThrow(/同じ日付が複数/)
+  })
+
+  it('順序が入れ替わっていても昇順に整えて返す', () => {
+    const lines = iconv.decode(buffer, 'Shift_JIS').trim().split(/\r?\n/)
+    const shuffled = [lines[0], ...lines.slice(1).reverse()].join('\r\n')
+    const holidays = parseHolidayCsv(iconv.encode(shuffled, 'Shift_JIS'))
+    expect(holidays).toHaveLength(18)
+    expect(holidays.map((h) => h.date)).toEqual([...holidays.map((h) => h.date)].sort())
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 部分応答の不採用（Codex レビュー S2-BOT-03）
+// ---------------------------------------------------------------------------
+
+describe('痩せた祝日CSVを採用しない（S2-BOT-03）', () => {
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  /** 指定した行だけを持つ Shift_JIS の CSV を HTTP 200 で返す */
+  function stubCsv(rows: string[]) {
+    const csv = ['国民の祝日・休日月日,国民の祝日・休日名称', ...rows].join('\r\n') + '\r\n'
+    const body = iconv.encode(csv, 'Shift_JIS')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {
+      status: 200,
+      headers: { 'content-type': 'text/csv' },
+    })))
+  }
+
+  it('遠未来 1 行だけの応答は採用せず、既存キャッシュを維持して警告する', async () => {
+    stubCsv(['2030/1/1,元日'])
+    const result = await fetchHolidays('2026-08-01')
+    expect(result.cacheToWrite).toBeNull()
+    expect(result.warnings.map((w) => w.code)).toContain('holiday_csv_suspicious')
+    // 既存キャッシュ（1,000 件超）がそのまま使われること
+    expect(result.holidays.length).toBeGreaterThan(1000)
+    expect(result.holidays).toContainEqual({ date: '2026-08-11', name: '山の日' })
+  })
+
+  it('既存キャッシュ比で大きく減った応答も採用しない', async () => {
+    const rows = Array.from({ length: 50 }, (_, i) => `2026/1/${i + 1},テスト`).slice(0, 31)
+    stubCsv(rows)
+    const result = await fetchHolidays('2026-08-01')
+    expect(result.cacheToWrite).toBeNull()
+    expect(result.warnings.map((w) => w.code)).toContain('holiday_csv_suspicious')
+  })
+
+  it('十分な件数の応答は従来どおり採用する', async () => {
+    // 既存キャッシュ（同梱 holidays.json）と同じ内容を返せば、sha256 一致で採用経路に入る
+    const cache = JSON.parse(
+      readFileSync(path.resolve(FIXTURES, '..', 'holidays.json'), 'utf-8')
+    ) as { holidays: { date: string; name: string }[] }
+    const rows = cache.holidays.map((h) => {
+      const [y, m, d] = h.date.split('-')
+      return `${Number(y)}/${Number(m)}/${Number(d)},${h.name}`
+    })
+    stubCsv(rows)
+    const result = await fetchHolidays('2026-08-01')
+    expect(result.warnings.map((w) => w.code)).not.toContain('holiday_csv_suspicious')
+    expect(result.holidays.length).toBe(cache.holidays.length)
+  })
+
   it('同梱の holidays.json 初期キャッシュが CSV と同じ内容を持つ', () => {
     const cache = JSON.parse(readFileSync(path.resolve(FIXTURES, '..', 'holidays.json'), 'utf-8'))
     expect(cache.holidays.length).toBeGreaterThan(1000)
