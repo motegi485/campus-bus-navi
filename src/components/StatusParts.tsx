@@ -55,6 +55,17 @@ function IconCalendar(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/** 本文が古い: 時計に巻き戻しの矢印 */
+function IconClockRewind(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Glyph {...props}>
+      <path d="M3.2 10.2A9 9 0 1 1 3 12" />
+      <path d="M3 4v5h5" />
+      <path d="M12 7.5V12l3 1.8" />
+    </Glyph>
+  )
+}
+
 /** オフライン: 雲にスラッシュ */
 function IconCloudOff(props: SVGProps<SVGSVGElement>) {
   return (
@@ -95,6 +106,7 @@ export function StatusIcon({ status, size = 22 }: { status: DataStatus; size?: n
     'no-data': { Icon: IconAlert, color: '#ef4444' },
     'fetch-failed': { Icon: IconAlert, color: '#ef4444' },
     stale: { Icon: IconCalendar, color: 'var(--icon-amber-fg)' },
+    'stale-data': { Icon: IconClockRewind, color: 'var(--icon-amber-fg)' },
     offline: { Icon: IconCloudOff, color: 'var(--icon-slate-fg)' },
   }
   const entry = map[status]

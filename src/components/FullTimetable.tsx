@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ScheduleEntry, RouteKey } from '../types/timetable'
 import { usePressable } from '../hooks/usePressable'
 import { tapFeedback } from '../utils/haptics'
-import { LEAD_OPTIONS, type ReminderLead } from '../hooks/useDepartureReminders'
+import { LEAD_OPTIONS, type ReminderLead, type ReminderLoadState } from '../hooks/useDepartureReminders'
 import { TimetableGrid } from './TimetableGrid'
 
 interface Props {
@@ -14,6 +14,14 @@ interface Props {
   marked: ReadonlySet<string>
   /** 通知が使える状態か（設定画面のトグルがオン） */
   reminderReady: boolean
+  /**
+   * サーバの現在値を読めているか。
+   * 保存は「その日・そのルートの総入れ替え」なので、読めていない状態から保存させると
+   * 画面に出ていない既存の予約を消してしまう。'ok' 以外では選択モードへ入れない。
+   */
+  reminderLoadState: ReminderLoadState
+  /** 読み込みに失敗したときの再取得 */
+  onReloadReminders: () => void
   lead: ReminderLead
   onChangeLead: (value: ReminderLead) => void
   /** 選んだ便を保存する。成功したら true */
@@ -30,6 +38,8 @@ export function FullTimetable({
   nowMinutes,
   marked,
   reminderReady,
+  reminderLoadState,
+  onReloadReminders,
   lead,
   onChangeLead,
   onSave,
@@ -51,6 +61,8 @@ export function FullTimetable({
   if (schedule.length === 0) return null
 
   const enterSelectMode = () => {
+    // 現在の集合が既知でなければ入らない（保存が総入れ替えのため）
+    if (reminderLoadState !== 'ok') return
     tapFeedback(8)
     // 保存済みの指定を初期選択にする。解除もこの画面で行えるようにするため
     setSelected(new Set(marked))
@@ -196,19 +208,44 @@ export function FullTimetable({
                 </p>
               )}
             </>
+          ) : reminderReady && reminderLoadState === 'error' ? (
+            // 現在の設定を読めていない。ここで操作させると、画面に出ていない既存の
+            // 予約を総入れ替えで消してしまう（本人には消えたことも分からない）
+            <div className="mt-3">
+              <p className="text-[11.5px] text-center leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                設定済みの通知を読み込めませんでした。通信を確認して読み込み直してください。
+              </p>
+              <button
+                type="button"
+                onClick={() => { tapFeedback(8); onReloadReminders() }}
+                className="w-full mt-2 rounded-[12px] py-[10px] text-[12px] font-bold"
+                style={{
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  border: '1px dashed var(--chip-border)',
+                  cursor: 'pointer',
+                }}
+              >
+                ↻ 読み込み直す
+              </button>
+            </div>
           ) : reminderReady ? (
             <button
               type="button"
               onClick={enterSelectMode}
+              disabled={reminderLoadState !== 'ok'}
               className="w-full mt-3 rounded-[12px] py-[10px] text-[12px] font-bold flex items-center justify-center gap-1.5"
               style={{
                 background: 'transparent',
                 color: 'var(--text-secondary)',
                 border: '1px dashed var(--chip-border)',
-                cursor: 'pointer',
+                cursor: reminderLoadState === 'ok' ? 'pointer' : 'default',
+                opacity: reminderLoadState === 'ok' ? 1 : 0.6,
               }}
             >
-              🔔 {marked.size > 0 ? `通知を変更（${marked.size} 件設定中）` : '通知を設定'}
+              {reminderLoadState === 'loading'
+                ? '設定を読み込み中...'
+                : `🔔 ${marked.size > 0 ? `通知を変更（${marked.size} 件設定中）` : '通知を設定'}`}
             </button>
           ) : (
             // トグルがオフのときは操作させず、どこで有効化するかだけを伝える

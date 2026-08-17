@@ -1,15 +1,23 @@
 import type dayjs from 'dayjs'
-import type { DataStatus } from '../utils/deriveDataStatus'
+import type { BandStatus } from '../utils/deriveDataStatus'
 import { formatFetchedAt } from '../utils/formatFetchedAt'
 import { StatusIcon, RetryButton } from './StatusParts'
 
 interface Props {
-  /** 時刻を出せる 2 状態のみを受ける */
-  status: Extract<DataStatus, 'offline' | 'fetch-failed'>
+  /** 時刻を出せる 3 状態のみを受ける */
+  status: BandStatus
   fetchedAt: number | null
   now: dayjs.Dayjs
   refreshing: boolean
   onRetry: () => void
+}
+
+/** 見出しの文言。いずれも「取得できたか」ではなく「いま何が起きているか」を言う */
+const HEADLINE: Record<BandStatus, string> = {
+  'fetch-failed': '時刻表を取得できませんでした',
+  offline: 'オフラインです',
+  // 取得自体は成功しているので「失敗」とは言わない。古い可能性だけを伝える
+  'stale-data': '表示中の時刻表は最新ではない可能性があります',
 }
 
 /**
@@ -39,7 +47,7 @@ export function StatusBand({ status, fetchedAt, now, refreshing, onRetry }: Prop
 
       <p className="flex-1 min-w-[130px] text-[12px] leading-normal">
         <span className="font-bold" style={{ color: 'var(--text-primary)' }}>
-          {isError ? '時刻表を取得できませんでした' : 'オフラインです'}
+          {HEADLINE[status]}
         </span>
         {/* 取得時刻が不明なときは出さない（推測するより出さない）。
             赤地では --text-secondary が AA をわずかに割るため --chip-text を使う */}

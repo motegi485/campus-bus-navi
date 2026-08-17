@@ -14,7 +14,7 @@ import { setInert } from './hooks/useOverlayA11y'
 import { usePressable } from './hooks/usePressable'
 import { tapFeedback } from './utils/haptics'
 import { findNextBus, findUpcomingBuses, findFirstBus, countRemainingBuses } from './utils/findNextBus'
-import { deriveDataStatus, hidesTimes } from './utils/deriveDataStatus'
+import { deriveDataStatus, hidesTimes, showsBand } from './utils/deriveDataStatus'
 import { StatusCard } from './components/StatusCard'
 import { StatusBand } from './components/StatusBand'
 import { RouteToggle } from './components/RouteToggle'
@@ -32,7 +32,7 @@ import { HelpScreen } from './components/HelpScreen'
 import { Toast, useToast } from './components/Toast'
 import { UpdateBanner } from './components/UpdateBanner'
 import { DayBadge, resolveDiagramType } from './components/DayBadge'
-import { MobilePwaGuide } from './components/MobilePwaGuide'
+import { MobilePwaGuide, shouldShowMobilePwaGuide } from './components/MobilePwaGuide'
 
 // 地図は遅延ロード（Leaflet はSSRに非対応のため）
 const BusStopMap = lazy(() =>
@@ -61,10 +61,6 @@ export default function App() {
     route,
   })
 
-  // 週間ダイヤ（当日起点 7 日）。ホームの帯と全画面の両方がこの 1 つの結果を使う。
-  // 画面ごとにフックを呼ぶと、同じ 7 日分を二重に取りに行くことになる。
-  const week = useWeekTimetables(now, true)
-
   // お知らせ状態はここ（App）で一元管理し、NewsScreen へ受け渡す。
   // 本体UI（ハンバーガー・ドロワー）の未読インジケーターと NewsScreen の
   // 既読状態を同一ソースで同期させるため。hasUnread = 未読が1件以上あるか。
@@ -77,7 +73,15 @@ export default function App() {
   const [weeklyOpen, setWeeklyOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  // 初回表示時のチラつきを避けるため lazy initializer で判定。状態を App が持つのは、
+  // aria-modal を名乗る以上、背面を inert にする必要があるため（下の anyOverlayOpen）
+  const [pwaGuideOpen, setPwaGuideOpen] = useState<boolean>(shouldShowMobilePwaGuide)
   const [refreshing, setRefreshing] = useState(false)
+
+  // 週間ダイヤ（今日を含む 7 日）。ホームの帯と全画面の両方がこの 1 つの結果を使う。
+  // 画面ごとにフックを呼ぶと、同じ 7 日分を二重に取りに行くことになる。
+  // 本文の取得は週間ダイヤ画面を開いている間だけ（ホームの帯は種別しか使わない）。
+  const week = useWeekTimetables(now, true, 7, weeklyOpen)
 
   // ヘッダーのアイコンボタンの押下フィードバック
   // （index.css の -webkit-tap-highlight-color: transparent の代替）
@@ -86,7 +90,7 @@ export default function App() {
 
   // いずれかのオーバーレイが開いている間、背後（ヘッダー・本文・バナー）を
   // Tab 順とアクセシビリティツリーから外す。WAI-ARIA の modal dialog パターン。
-  const anyOverlayOpen = drawerOpen || newsOpen || weeklyOpen || settingsOpen || helpOpen
+  const anyOverlayOpen = drawerOpen || newsOpen || weeklyOpen || settingsOpen || helpOpen || pwaGuideOpen
   const backgroundRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     setInert(backgroundRef.current, anyOverlayOpen)
@@ -202,6 +206,10 @@ export default function App() {
     stale,
     hasTimetable: !!timetable,
     isOnline,
+    // 「取得できた」と「その本文が新しい」は別。SW の NetworkFirst は 3 秒で
+    // キャッシュへ成功フォールバックするため、成功のまま古い本文を出しうる
+    fetchedAt,
+    nowMs: now.valueOf(),
   })
 
   // フォントサイズクラス（CSS変数経由ではなくコンポーネントprops渡し）
@@ -481,7 +489,7 @@ export default function App() {
             ヘッダー直下の帯で伝える。main の外に置くので全幅になり、bp-active の
             2 カラムでもその上に載る。通常フローなので safe-area・header-cushion・
             iOS のネイティブバウンスとは干渉しない。 */}
-        {(dataStatus === 'offline' || dataStatus === 'fetch-failed') && (
+        {showsBand(dataStatus) && (
           <StatusBand
             status={dataStatus}
             fetchedAt={fetchedAt}
@@ -564,6 +572,8 @@ export default function App() {
                     nowMinutes={nowMinutes}
                     marked={reminders.marked}
                     reminderReady={push.status === 'subscribed'}
+                    reminderLoadState={reminders.loadState}
+                    onReloadReminders={reminders.reload}
                     lead={reminders.lead}
                     onChangeLead={reminders.changeLead}
                     onSave={reminders.save}
@@ -630,6 +640,8 @@ export default function App() {
                 nowMinutes={nowMinutes}
                 marked={reminders.marked}
                 reminderReady={push.status === 'subscribed'}
+                reminderLoadState={reminders.loadState}
+                onReloadReminders={reminders.reload}
                 lead={reminders.lead}
                 onChangeLead={reminders.changeLead}
                 onSave={reminders.save}
@@ -656,10 +668,12 @@ export default function App() {
           />
         )}
 
-        {/* モバイル端末向け：ホーム画面追加 / アプリインストール案内 */}
-        <MobilePwaGuide />
-
         </div>{/* 背面レイヤー */}
+
+        {/* モバイル端末向け：ホーム画面追加 / アプリインストール案内。
+            背面レイヤーの外に置く。中に置くと、自分自身も inert の対象になり、
+            aria-modal が求める「背面だけを隔離する」が成立しない */}
+        <MobilePwaGuide open={pwaGuideOpen} onClose={() => setPwaGuideOpen(false)} />
           </div>{/* phone-shell-inner */}
 
           {/* ホーム上端バウンスのグラデ継続クッション（iOS ネイティブバウンス専用、

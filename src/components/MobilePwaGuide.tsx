@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react'
 import { isIOS, isAndroid, isStandalone } from '../utils/platform'
+import { useOverlayA11y } from '../hooks/useOverlayA11y'
 
 const STORAGE_KEY = 'campusBusNaviMobilePwaDismissed'
 
-function shouldShow(): boolean {
+/**
+ * 初回に案内を出すべき端末か。
+ *
+ * 開閉状態は App が持つ。`aria-modal` を名乗る以上、背面を inert にする必要があり、
+ * それは App の共通オーバーレイ管理（backgroundRef）にしかできないため
+ * （自分の中に状態を閉じ込めると、背面へフォーカスが抜ける）。
+ */
+export function shouldShowMobilePwaGuide(): boolean {
   if (typeof window === 'undefined') return false
   if (!isIOS() && !isAndroid()) return false
   if (isStandalone()) return false
@@ -13,6 +20,15 @@ function shouldShow(): boolean {
     // localStorage が使えない場合も表示は試みる
   }
   return true
+}
+
+/** 「今後表示しない」を記録する。保存できなくても案内は閉じる */
+function rememberDismissed(): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, 'true')
+  } catch {
+    // 保存できなくてもモーダルは閉じる
+  }
 }
 
 // アイコン（プロジェクト既存スタイルに合わせインラインSVG）
@@ -76,40 +92,36 @@ function MoreHorizontalIcon() {
   )
 }
 
-export function MobilePwaGuide() {
-  // 初期表示時のチラつきを避けるため lazy initializer で判定
-  const [open, setOpen] = useState<boolean>(() => shouldShow())
+interface Props {
+  open: boolean
+  onClose: () => void
+}
 
-  // Esc キーで閉じる
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open])
-
-  if (!open) return null
+export function MobilePwaGuide({ open, onClose }: Props) {
+  /**
+   * 初期フォーカス・復帰・Escape・自身が閉じている間の inert は共通フックへ寄せる
+   * （他のオーバーレイと同じ契約にする）。背面を inert にするのは App の役目。
+   */
+  const rootRef = useOverlayA11y(open, { onEscape: onClose })
 
   const android = isAndroid()
   const ios = isIOS()
 
   const handleDismiss = () => {
-    try {
-      localStorage.setItem(STORAGE_KEY, 'true')
-    } catch {
-      // 保存できなくてもモーダルは閉じる
-    }
-    setOpen(false)
+    rememberDismissed()
+    onClose()
   }
+
+  // 閉じている間は DOM ごと外す。開閉アニメーションを持たないので残す必要がない
+  if (!open) return null
 
   return (
     <div
+      ref={rootRef}
       role="dialog"
       aria-modal="true"
       aria-label={android ? 'アプリをインストール' : 'ホーム画面に追加'}
-      onClick={() => setOpen(false)}
+      onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
         background: 'rgba(0,0,0,0.5)',
@@ -191,7 +203,7 @@ export function MobilePwaGuide() {
           </button>
           <button
             type="button"
-            onClick={() => setOpen(false)}
+            onClick={onClose}
             style={{
               padding: '9px 18px', borderRadius: 12, fontSize: 13, fontWeight: 700,
               background: 'linear-gradient(135deg,#0d9966,#34d399)', color: '#fff',
