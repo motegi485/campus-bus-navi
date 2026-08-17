@@ -28,6 +28,12 @@ interface ToastProps {
 export function Toast({ message, visible }: ToastProps) {
   return (
     <div
+      // 更新の開始・成功・失敗はここにしか出ない。live region が無いと
+      // 画面を見ていない利用者には結果が一切伝わらない。
+      // 本文は visible のときだけ入れる（消えるときに読み上げ直させない）
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       style={{
         position: 'absolute',
         top: '60px',
@@ -47,7 +53,7 @@ export function Toast({ message, visible }: ToastProps) {
         backdropFilter: 'blur(8px)',
       }}
     >
-      {message}
+      {visible ? message : ''}
     </div>
   )
 }

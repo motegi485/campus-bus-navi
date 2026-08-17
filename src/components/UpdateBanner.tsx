@@ -12,6 +12,10 @@ interface UpdateBannerProps {
 export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
   return (
     <div
+      // 新しいバージョンの検知は、画面を見ていないと分からない状態変化なので
+      // 支援技術へも通知する。操作を中断させたい性質ではないので polite
+      role="status"
+      aria-live="polite"
       style={{
         position: 'fixed',
         bottom: '32px',
