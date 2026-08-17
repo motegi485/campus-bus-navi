@@ -144,6 +144,46 @@ describe('テスト2: トリップワイヤー', () => {
     expect(warnings[0]!.code).toBe('possible_missed_link')
   })
 
+  // Codex レビュー S2-BOT-04: 拡張子の判定を URL 全体末尾で行っていたため、
+  // CMS がキャッシュバスターやアンカーを足しただけで無警告の取りこぼしになっていた
+  it('クエリ付きの画像 URL（.jpg?v=2）も画像リンクとして拾う', () => {
+    const html = `<html><body><div class="md-box">
+      <p>2026年4月4日（土）～　通常授業日／休業日　<a href="https://www.fukuyama-u.ac.jp/r8.jpg?v=2">時刻表はコチラ</a></p>
+    </div></body></html>`
+    const { links, warnings } = extractLinks(html)
+    expect(links).toHaveLength(1)
+    expect(links[0]!.url).toBe('https://www.fukuyama-u.ac.jp/r8.jpg?v=2')
+    expect(warnings).toHaveLength(0)
+  })
+
+  it('フラグメント付きの画像 URL（.png#x）も画像リンクとして拾う', () => {
+    const html = `<html><body><div class="md-box">
+      <p>2026年6月20日（土）　オープンキャンパス　<a href="https://www.fukuyama-u.ac.jp/b.png#x">時刻表はコチラ</a></p>
+    </div></body></html>`
+    const { links } = extractLinks(html)
+    expect(links).toHaveLength(1)
+    expect(links[0]!.url).toBe('https://www.fukuyama-u.ac.jp/b.png#x')
+  })
+
+  it('クエリ付きで『時刻表』文言が無い画像リンクは、取りこぼし警告の対象になる', () => {
+    const html = `<html><body><div class="md-box">
+      <p>2026年9月1日（火）　特別ダイヤ　<a href="https://www.fukuyama-u.ac.jp/2026.jpg?v=3">こちら</a></p>
+      <p>2026年4月4日（土）～　通常授業日／休業日　<a href="https://www.fukuyama-u.ac.jp/r8.jpg">時刻表はコチラ</a></p>
+    </div></body></html>`
+    const { links, warnings } = extractLinks(html)
+    expect(links).toHaveLength(1)
+    expect(warnings.map((w) => w.code)).toContain('possible_missed_link')
+  })
+
+  it('画像でない拡張子はクエリが付いていても拾わない', () => {
+    const html = `<html><body><div class="md-box">
+      <p>2026年4月4日（土）～　通常授業日／休業日　<a href="https://www.fukuyama-u.ac.jp/r8.pdf?v=2">時刻表はコチラ</a></p>
+      <p>2026年6月20日（土）　オープンキャンパス　<a href="https://www.fukuyama-u.ac.jp/b.jpg">時刻表はコチラ</a></p>
+    </div></body></html>`
+    const { links } = extractLinks(html)
+    expect(links.map((l) => l.url)).toEqual(['https://www.fukuyama-u.ac.jp/b.jpg'])
+  })
+
   it('同一ブロック内に複数リンクがある場合は <br> で行を分割する', () => {
     const html = `<html><body><div class="md-box"><p>
       2026年6月14日（日）　簿記検定　<a href="https://www.fukuyama-u.ac.jp/a.jpg">時刻表はコチラ</a><br>

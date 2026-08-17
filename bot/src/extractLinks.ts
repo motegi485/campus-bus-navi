@@ -49,6 +49,27 @@ function absolutize(href: string, baseUrl: string): string {
   }
 }
 
+/**
+ * 画像リンクかどうかを、URL の **パス部分**の拡張子で判定する。
+ *
+ * URL 全体の末尾へ拡張子パターンを当てると、`timetable.jpg?v=2` や `timetable.png#x`
+ * が画像として扱われない。CMS がキャッシュバスターやアンカーを付けただけで、
+ * その系列を無警告で取りこぼす（`possible_missed_link` にも入らない）。
+ *
+ * パースできない href はパターンを文字列にそのまま当てる従来動作へ落とす
+ * （相対 href や壊れたマークアップでも判定を諦めない）。
+ */
+function hasImageExtension(href: string, baseUrl: string): boolean {
+  const decoded = decodeHref(href)
+  try {
+    // decode してから解釈する。全角空白などを含むファイル名があるため
+    const pathname = decodeHref(new URL(href, baseUrl).pathname)
+    return CONFIG.imageExtPattern.test(pathname)
+  } catch {
+    return CONFIG.imageExtPattern.test(decoded)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // FR-2: 抽出
 // ---------------------------------------------------------------------------
@@ -101,8 +122,7 @@ export function extractLinks(html: string, baseUrl: string = CONFIG.pageUrl): Ex
   const matchCountByBlock = new Map<Element, number>()
   const isTarget = (a: Element): boolean => {
     const rawHref = $(a).attr('href') ?? ''
-    const decoded = decodeHref(rawHref)
-    const hasImageExt = CONFIG.imageExtPattern.test(decoded)
+    const hasImageExt = hasImageExtension(rawHref, baseUrl)
     const hasKeyword = $(a).text().includes(CONFIG.anchorKeyword)
     return hasImageExt && hasKeyword
   }
@@ -117,7 +137,7 @@ export function extractLinks(html: string, baseUrl: string = CONFIG.pageUrl): Ex
     if (!rawHref) continue
     const decoded = decodeHref(rawHref)
     const anchorText = $(a).text()
-    const hasImageExt = CONFIG.imageExtPattern.test(decoded)
+    const hasImageExt = hasImageExtension(rawHref, baseUrl)
     const hasKeyword = anchorText.includes(CONFIG.anchorKeyword)
 
     if (hasImageExt && hasKeyword) {
