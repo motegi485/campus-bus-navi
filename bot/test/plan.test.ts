@@ -58,6 +58,10 @@ function stateWithEvent(dates: string[], derived: string[], missingCount?: numbe
         dates,
         derived,
         processed_at: '2026-07-20T07:00:00+09:00',
+        // 【重要】今日の日付で「内容確認済み」にしておく。これが無いと detectChanges が
+        // 同一 URL の再検証（S2-BOT-01）で実ネットワークへ出てしまう。
+        // 再検証そのものの挙動は detectChanges.test.ts が fetch をスタブして検証する。
+        checked_at: TODAY,
         ...(missingCount === undefined ? {} : { missing_count: missingCount }),
       },
     },
