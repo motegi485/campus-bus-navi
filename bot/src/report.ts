@@ -29,6 +29,43 @@ export interface ReportInput {
 
 const OP_LABEL: Record<FilePlan['op'], string> = { create: '新規', update: '更新', delete: '削除' }
 
+// ---------------------------------------------------------------------------
+// Markdown のエスケープ
+//
+// レポートには外部由来の文字列（掲載ページの行テキスト、画像 URL、警告文）が入る。
+// 素のまま埋めると、`|` がテーブルの列を割り、改行が行を割り、`](` がリンクの
+// 表示先を差し替えられる。危険なスクリプトが動くわけではないが、**確認する人が
+// 見る表とリンクを改変できる**ので、用途ごとに逃がす。
+// ---------------------------------------------------------------------------
+
+/** 1 行に収める（改行はセル・箇条書きの構造を壊す） */
+function oneLine(value: string): string {
+  return String(value).replace(/\r?\n/g, ' ')
+}
+
+/** テーブルのセルへ入れる文字列 */
+function cell(value: string): string {
+  return oneLine(value).replace(/\|/g, '\\|')
+}
+
+/** リンクの表示テキストへ入れる文字列 */
+function linkText(value: string): string {
+  return oneLine(value).replace(/([[\]])/g, '\\$1')
+}
+
+/**
+ * リンク先 URL。空白と括弧・山括弧を percent encode して、
+ * `](` の閉じ位置を外部から動かせないようにする。
+ *
+ * ⚠️ `encodeURIComponent` は `!'()*-._~` を変換しない（RFC 3986 の unreserved mark）。
+ *    括弧はここで明示的に置き換える必要がある。
+ */
+const URL_ESCAPES: Record<string, string> = { '(': '%28', ')': '%29', '<': '%3C', '>': '%3E' }
+
+function linkUrl(value: string): string {
+  return oneLine(value).replace(/[\s<>()]/g, (c) => URL_ESCAPES[c] ?? encodeURIComponent(c))
+}
+
 function countCell(plan: FilePlan): string {
   if (!plan.counts) return '-'
   const { station, campus } = plan.counts
@@ -40,13 +77,14 @@ function countCell(plan: FilePlan): string {
 }
 
 function overrideLine(change: OverrideChange): string {
+  const reason = change.reason ? `（${oneLine(change.reason)}）` : ''
   if (change.op === 'add') {
-    return `- 追加: ${change.date} → ${change.id}${change.reason ? `（${change.reason}）` : ''}`
+    return `- 追加: ${change.date} → ${change.id}${reason}`
   }
   if (change.op === 'remove') {
-    return `- 削除: ${change.date}${change.reason ? `（${change.reason}）` : ''}`
+    return `- 削除: ${change.date}${reason}`
   }
-  return `- スキップ: ${change.date} → ${change.id}${change.reason ? `（${change.reason}）` : ''}`
+  return `- スキップ: ${change.date} → ${change.id}${reason}`
 }
 
 function departures(route: Route): string[] {
@@ -91,8 +129,8 @@ export function departureSection(files: FilePlan[]): string[] {
 
   for (const plan of writes) {
     const timetable = plan.timetable as Timetable
-    const image = plan.sourceUrl ? `　[元画像を開く](${plan.sourceUrl})` : ''
-    lines.push(`### ${plan.fileName}（${OP_LABEL[plan.op]}）${image}`)
+    const image = plan.sourceUrl ? `　[元画像を開く](${linkUrl(plan.sourceUrl)})` : ''
+    lines.push(`### ${linkText(plan.fileName)}（${OP_LABEL[plan.op]}）${image}`)
     lines.push('')
 
     for (const key of ['station_to_campus', 'campus_to_station'] as const) {
@@ -124,8 +162,10 @@ export function buildReport(input: ReportInput): string {
     lines.push('| 種別 | ファイル | 操作 | 便数(松永発/大学発) | 元画像 |')
     lines.push('|---|---|---|---|---|')
     for (const plan of writes) {
-      const image = plan.sourceUrl ? `[画像](${plan.sourceUrl})` : '-'
-      lines.push(`| ${plan.kind} | ${plan.fileName} | ${OP_LABEL[plan.op]} | ${countCell(plan)} | ${image} |`)
+      const image = plan.sourceUrl ? `[画像](${linkUrl(plan.sourceUrl)})` : '-'
+      lines.push(
+        `| ${cell(plan.kind)} | ${cell(plan.fileName)} | ${OP_LABEL[plan.op]} | ${countCell(plan)} | ${image} |`,
+      )
     }
   }
   lines.push('')
@@ -196,7 +236,7 @@ export function buildReport(input: ReportInput): string {
     lines.push('| 解決後 | 掲載原文 |')
     lines.push('|---|---|')
     for (const link of guessed) {
-      lines.push(`| ${linkDates(link).join(', ') || '-'} | ${link.normalizedLine} |`)
+      lines.push(`| ${cell(linkDates(link).join(', ') || '-')} | ${cell(link.normalizedLine)} |`)
     }
     lines.push('')
   }
@@ -222,23 +262,39 @@ export function buildReport(input: ReportInput): string {
 /**
  * 取り消し手順。自動適用では「気づいたときにはもう公開されている」ため、
  * 通知には必ず戻し方を添える。
+ *
+ * 【2026-08-18 修正】以前の文面は「revert だけでは再取得されないので state キーも消せ」
+ * としていたが、実装はその逆である。Bot は data と state を**同じコミット**で更新するので、
+ * revert すると state も一緒に戻り、Bot から見て「未処理」に戻る。つまり翌日の実行で
+ * 同じ画像を読み直して同じ誤りを再公開する。state キーの削除は「再取得を促す」操作であって
+ * 停止手段ではない。**再公開を止める手順と、読み直させる手順を混ぜてはいけない。**
  */
 export function rollbackSection(): string[] {
   return [
     '## 取り消したいとき',
     '',
     '1. GitHub の該当コミット画面で **Revert** して打ち消しコミットを作る。',
-    '2. 打ち消しだけでは Bot が「処理済み」と判断して再取得しないため、',
-    '   `bot/state.json` の該当キー（`regular` / `vacations.<season>` / `events.<日付>`）も',
-    '   削除して push する。次回実行で再度読み直される。',
-    '3. その期間の時刻を表示させたくない場合は、`public/data/calendar_rules.json` の',
-    '   `overrides` に手動で `timetable_special` を指定する（手動 override を Bot は書き換えない）。',
+    '   `public/data/` と `bot/state.json` が一緒に戻る。',
+    '2. **そのままだと翌日の実行で同じ画像を読み直し、同じ内容が再び反映される。**',
+    '   revert で state も戻り、Bot から見て「未処理」に戻るため。再公開を止めるには次のどちらかを行う。',
+    '   - `public/data/calendar_rules.json` の `overrides` に手動で `timetable_special` を',
+    '     指定する（手動 override を Bot は書き換えない）。時刻を出さず大学ホームページへ誘導する。',
+    '   - 急ぐ場合は GitHub の Actions 画面で `timetable-sync` を Disable する。',
+    '3. `bot/state.json` の該当キー（`regular` / `vacations.<season>` / `events.<日付>`）を',
+    '   削除するのは、**わざと読み直させたいとき**だけ。停止手段ではない。',
     '',
   ]
 }
 
+/**
+ * 警告 1 件を箇条書き 1 行にする。
+ *
+ * message は掲載ページ由来の文字列を含みうるので改行を畳む（改行は箇条書きを割る）。
+ * URL はリンクにせず素の文字列で出す（リンク表示先の改変余地を作らない）。
+ */
 export function formatWarning(warning: Warning): string {
-  return warning.url ? `${warning.message}（${warning.url}）` : warning.message
+  const message = oneLine(warning.message)
+  return warning.url ? `${message}（${oneLine(warning.url)}）` : message
 }
 
 /** 年を推定して日付を解決したリンク（FR-3） */
