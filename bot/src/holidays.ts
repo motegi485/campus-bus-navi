@@ -9,14 +9,21 @@ import { createHash } from 'node:crypto'
 import { CONFIG } from './config.js'
 import { fetchWithTimeout } from './fetchPage.js'
 import { readHolidaysCache } from './files.js'
-import { formatDate, nowIsoJst, parseDate, todayJst } from './time.js'
+import { formatDate, isRealDate, nowIsoJst, parseDate, todayJst } from './time.js'
 import type { Holiday, HolidaysCache, Warning } from './types.js'
 
-/** Shift_JIS の CSV バッファを Holiday[] にする。CRLF・最終行の改行欠落を許容する。 */
+/**
+ * Shift_JIS の CSV バッファを Holiday[] にする。CRLF・最終行の改行欠落を許容する。
+ *
+ * 構造の健全性（実在日・重複なし）はここで検査して throw する。呼び出し側は
+ * それを警告に落として既存キャッシュで続行するので、壊れた応答が正規のキャッシュへ
+ * 昇格することはない。件数の妥当性は既存キャッシュとの比較が要るので fetchHolidays 側。
+ */
 export function parseHolidayCsv(buffer: Buffer): Holiday[] {
   const text = iconv.decode(buffer, 'Shift_JIS')
   const lines = text.split(/\r?\n/)
   const holidays: Holiday[] = []
+  const seen = new Set<string>()
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!.trim()
@@ -26,14 +33,46 @@ export function parseHolidayCsv(buffer: Buffer): Holiday[] {
     if (!m) {
       throw new Error(`祝日CSVの行を解釈できません（${i + 1}行目）: ${line}`)
     }
-    holidays.push({
-      date: formatDate(Number(m[1]), Number(m[2]), Number(m[3])),
-      name: m[4]!.trim(),
-    })
+    const date = formatDate(Number(m[1]), Number(m[2]), Number(m[3]))
+    // 正規表現は 2026/13/45 のような値も通す。実在日でなければ override の日付が壊れる
+    if (!isRealDate(date)) {
+      throw new Error(`祝日CSVに実在しない日付があります（${i + 1}行目）: ${line}`)
+    }
+    if (seen.has(date)) {
+      throw new Error(`祝日CSVに同じ日付が複数あります（${i + 1}行目）: ${date}`)
+    }
+    seen.add(date)
+    holidays.push({ date, name: m[4]!.trim() })
   }
 
   if (holidays.length === 0) throw new Error('祝日CSVにデータ行がありません')
+  // 昇順に揃える（公式 CSV は昇順だが、順序に依存する下流を作らないため明示的に整える）
+  holidays.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
   return holidays
+}
+
+/**
+ * 取得した祝日が、正規のキャッシュとして採用してよい規模か。
+ * 採用できない理由があれば文字列で返す（呼び出し側が警告にして既存キャッシュを維持する）。
+ */
+function rejectionReason(holidays: Holiday[], cached: HolidaysCache | null): string | null {
+  if (cached && cached.holidays.length > 0) {
+    const floor = Math.ceil(cached.holidays.length * CONFIG.holidayMinRatioVsCache)
+    if (holidays.length < floor) {
+      return (
+        `取得できた祝日が ${holidays.length} 件で、既存キャッシュの ${cached.holidays.length} 件に対して` +
+        `少なすぎます（下限 ${floor} 件）。応答が途中で切れた可能性があります`
+      )
+    }
+    return null
+  }
+  if (holidays.length < CONFIG.holidayMinRowsWithoutCache) {
+    return (
+      `取得できた祝日が ${holidays.length} 件しかありません` +
+      `（既存キャッシュが無いときの下限 ${CONFIG.holidayMinRowsWithoutCache} 件）`
+    )
+  }
+  return null
 }
 
 export interface HolidaysResult {
@@ -114,9 +153,20 @@ export async function fetchHolidays(today: string = todayJst()): Promise<Holiday
         }
       }
 
-      checkCoverage(holidays, warnings, today)
-      const cache: HolidaysCache = { fetched_at: nowIsoJst(), source_sha256: sha256, holidays }
-      return { holidays, cacheToWrite: cache, source: { fetched_at: cache.fetched_at, sha256 }, warnings }
+      // 明らかに痩せた応答は採用しない。既存キャッシュで続行し、必ず警告を出す
+      const reason = rejectionReason(holidays, cached)
+      if (reason) {
+        warnings.push({
+          level: 'warn',
+          code: 'holiday_csv_suspicious',
+          message: `祝日CSVを採用しませんでした: ${reason}。既存のデータを維持します。`,
+          url: CONFIG.holidayCsvUrl,
+        })
+      } else {
+        checkCoverage(holidays, warnings, today)
+        const cache: HolidaysCache = { fetched_at: nowIsoJst(), source_sha256: sha256, holidays }
+        return { holidays, cacheToWrite: cache, source: { fetched_at: cache.fetched_at, sha256 }, warnings }
+      }
     } catch (e) {
       warnings.push({
         level: 'warn',
@@ -131,7 +181,8 @@ export async function fetchHolidays(today: string = todayJst()): Promise<Holiday
     warnings.push({
       level: 'warn',
       code: 'holiday_csv_cache_fallback',
-      message: `祝日CSVを取得できなかったため既存キャッシュ（${cached.fetched_at} 取得・${cached.holidays.length}件）を使用します。`,
+      // 取得失敗・HTTP エラー・解釈失敗・健全性検査での不採用のいずれもここへ来る
+      message: `祝日CSVを採用できなかったため既存キャッシュ（${cached.fetched_at} 取得・${cached.holidays.length}件）を使用します。`,
     })
     // 取得失敗が続いても `if (cached)` だけで無期限に古いキャッシュを使い続けてしまうため、
     // 経過日数と将来カバレッジの両方を見張る（取得経路の恒久障害を見落とさないため）。
