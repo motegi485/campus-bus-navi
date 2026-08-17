@@ -162,10 +162,10 @@ function isTransient(e: unknown): boolean {
   )
 }
 
-/** 無料枠 RPD を1実行で使い切った（呼び出し上限に達した）ことを示す */
+/** 無料枠 RPD を使い切った（呼び出し上限に達した）ことを示す */
 export class CallBudgetExhaustedError extends Error {
-  constructor(limit: number) {
-    super(`1実行あたりの Gemini 呼び出し上限（${limit}回）に達しました。`)
+  constructor(limit: number, scope: '1実行あたり' | '1日あたり' = '1実行あたり') {
+    super(`${scope}の Gemini 呼び出し上限（${limit}回）に達しました。`)
     this.name = 'CallBudgetExhaustedError'
   }
 }
@@ -193,15 +193,21 @@ export class OcrClient {
   private callCount = 0
   private deadlineAt: number
   private deadlineHit = false
+  /** この実行より前に、同じ日のうちに使った回数（state.ocr_usage 由来） */
+  private priorCalls: number
 
   /**
    * modelOverride は検証用（tools/ocr-check.ts の OCR_MODEL）。本番は CONFIG の既定を使う。
    * deadlineAt は実行全体の締切（epoch ミリ秒）。既定は生成時から CONFIG.runDeadlineMs。
+   * priorCalls は同じ日に既に使った回数。手動実行を繰り返して無料枠の RPD を
+   * 超えないよう、1 実行の上限とは別に日次の上限も守るために受け取る。
    */
-  constructor(apiKey: string, modelOverride?: string, deadlineAt?: number) {
+  constructor(apiKey: string, modelOverride?: string, deadlineAt?: number, priorCalls = 0) {
     this.ai = new GoogleGenAI({ apiKey })
     this.model = modelOverride || CONFIG.modelPrimary
     this.deadlineAt = deadlineAt ?? Date.now() + CONFIG.runDeadlineMs
+    this.priorCalls = Math.max(0, priorCalls)
+    this.callCount = this.priorCalls
   }
 
   /** 締切に達して OCR を打ち切ったか（PR・Step Summary への警告に使う） */
@@ -227,13 +233,19 @@ export class OcrClient {
     return this.fallbackUsed
   }
 
-  /** これまでに実行した Gemini 呼び出し回数（リトライを含む） */
+  /** この実行で行った Gemini 呼び出し回数（リトライを含む） */
   get calls(): number {
+    return this.callCount - this.priorCalls
+  }
+
+  /** 同じ日に行った累計の呼び出し回数（state.ocr_usage へ書き戻す値） */
+  get callsToday(): number {
     return this.callCount
   }
 
+  /** 1 実行の上限と 1 日の上限のどちらかに達したか */
   get budgetExhausted(): boolean {
-    return this.callCount >= CONFIG.geminiMaxCallsPerRun
+    return this.calls >= CONFIG.geminiMaxCallsPerRun || this.callCount >= CONFIG.geminiMaxCallsPerDay
   }
 
   /** 無料枠 RPM 対策: 呼び出し間隔の下限を守る */
@@ -244,7 +256,12 @@ export class OcrClient {
   }
 
   private async callOnce(buffer: Buffer, mimeType: string, model: string): Promise<Intermediate> {
-    if (this.budgetExhausted) throw new CallBudgetExhaustedError(CONFIG.geminiMaxCallsPerRun)
+    if (this.calls >= CONFIG.geminiMaxCallsPerRun) {
+      throw new CallBudgetExhaustedError(CONFIG.geminiMaxCallsPerRun, '1実行あたり')
+    }
+    if (this.callCount >= CONFIG.geminiMaxCallsPerDay) {
+      throw new CallBudgetExhaustedError(CONFIG.geminiMaxCallsPerDay, '1日あたり')
+    }
     // 呼び出し間隔（throttle）と1リクエストの下限時間ぶんも残っていなければ始めない
     if (this.remainingMs <= CONFIG.geminiMinIntervalMs) {
       this.deadlineHit = true
