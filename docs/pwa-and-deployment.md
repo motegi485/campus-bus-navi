@@ -32,7 +32,7 @@ Pages では **Functions が `_redirects` より先に評価される**ため、
 | 対象 | 方針 | 設定 |
 |---|---|---|
 | JS、CSS、HTML、アイコン等 | Workbox のプリキャッシュ | ビルド成果物 |
-| `/data/*.json` | NetworkFirst | ネットワーク 3 秒待機後に `timetable-data` キャッシュへフォールバック、最大 20 件・7 日 |
+| `/data/*.json` | NetworkFirst | ネットワーク 3 秒待機後に `timetable-data` キャッシュへフォールバック、最大 60 件・7 日 |
 | OSM タイル | CacheFirst | `osm-tiles`、最大 500 件・30 日 |
 
 ### データ JSON をプリキャッシュしない理由
@@ -63,6 +63,8 @@ URL にバージョンを含めているのは、SW の `updateViaCache` の既�
 
 `push-sw.js` は `timetable-data` キャッシュ名を参照します。`vite.config.ts` の `cacheName` と `src/hooks/useTimetable.ts` の `DATA_CACHE` に加えて、ここも結合先です。
 
+さらに `push-sw.js` は、通知に載せる便を決めるために IndexedDB の**予約の写し**を読みます。名前・キー・データの形は `src/utils/pushMirror.ts` と一組です。詳細は [backend-push.md](backend-push.md) の「ペイロードが無くても『どの便か』を間違えない」を参照してください。
+
 ## 時刻表の更新と正規 URL キャッシュ
 
 手動更新では `useTimetable` が `?t=<timestamp>` を付け、`cache: 'reload'` でデータを取得します。Workbox の `/data/.*\.json(\?.*)?$` はこのクエリ付き URL にもマッチする必要があります。
@@ -75,6 +77,10 @@ Cache API はクエリ文字列を既定では無視しません。したがっ�
 - `src/hooks/useTimetable.ts` の `DATA_CACHE = 'timetable-data'`
 
 どちらかの名前だけを変えてはいけません。
+
+書き戻したあとは `?t=` 側のエントリを削除します。更新ボタンを押すたびにクエリの違う一意のエントリが同じキャッシュへ増え、Workbox の `maxEntries` に達すると、**オフライン起動が頼りにしている素の URL のエントリが押し出される**ためです（更新直後にオフラインで開くと旧ダイヤに戻る）。
+
+削除は best-effort です。Workbox は応答をページへ返したあと非同期にキャッシュへ書くので、こちらの削除が先に走ると消し損ねます。そのため `maxEntries` を 60 件に広げ、消し損ねても枠を圧迫しないようにしてあります。**片方だけを元に戻さないでください**（削除だけ残して枠を 20 に戻すと、競合で消し損ねた分が効いてくる）。
 
 ## アプリ更新の挙動
 

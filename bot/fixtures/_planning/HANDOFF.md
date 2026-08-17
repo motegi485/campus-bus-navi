@@ -1,10 +1,12 @@
 # campus-bus-navi バックエンド — 引き継ぎ（HANDOFF）
 
-> **最終更新: 2026-08-16**
+> **最終更新: 2026-08-18**
 >
-> このファイルは「現在の確認境界」と「次に人間が行う作業」を記録する。Bot の要件・安全境界の正本は **`BACKEND_REQUIREMENTS.md`（v1.9）**、リポジトリ全体の案内は `docs/README.md`、Bot の入口は `docs/backend-bot.md` である。
+> このファイルは「現在の確認境界」と「次に人間が行う作業」を記録する。Bot の要件・安全境界の正本は **`BACKEND_REQUIREMENTS.md`（版番号は同ファイル冒頭で確認する）**、リポジトリ全体の案内は `docs/README.md`、Bot の入口は `docs/backend-bot.md` である。
 >
-> GitHub Actions の有効状態、Secrets、Workflow permissions、実際のコミット・メール送信・本番反映はリポジトリ外の状態である。過去の記録だけで現在値を断定せず、稼働前に GitHub UI で再確認する。
+> GitHub Actions の有効状態、Secrets、Workflow permissions、**`main` の実 SHA**、実際のコミット・メール送信・本番反映はリポジトリ外の状態である。過去の記録だけで現在値を断定せず、稼働前に GitHub UI で再確認する。
+>
+> ⚠️ **作業用チェックアウトの `main` は live の `main` と一致しているとは限らない。** 2026-08-17 時点で、ローカルの `main` は作業ブランチより 37 コミット古かった。「main 統合済み」と書かれた記録があっても、それはその時点の推定であって現在の事実ではない。
 
 ---
 
@@ -39,11 +41,21 @@
 | ワークフロー定義 | `.github/workflows/timetable-sync.yml` がある。Node.js 22、`npm ci`、full SHA 固定の action、資格情報を残さない checkout、適用前検証、対象パス限定の差分検出と commit/push、条件付きメール送信、失敗時の成果物保存を定義する |
 | 静的データ | `calendar_rules.json` と時刻表ファイルがある。`closed` / `special` は Bot の保護対象 |
 | Bot state | `regular`、`vacations.summer`、`events[2026-08-23]` などの管理情報を持つ |
-| テスト | ローカルで `npx vitest run` 156 件と `npx tsc --noEmit` が通ることを 2026-08-16 に確認した |
+| テスト | ローカルで `npx vitest run` 184 件と `npx tsc --noEmit` が通ることを 2026-08-18 に確認した |
+
+### 2026-08-18 の変更（公開前レビューの反映）
+
+要件定義 v1.10 の変更点を実装しました。運用に関わるのは次の 4 点です。
+
+- **`main` 以外の ref では実行できません**（`dry_run` を除く）。ブランチで試すときは `dry_run` を有効にしてください。
+- **毎月 1 日は変更が無くても稼働確認メールが届きます。** 2 か月続けて届かなければ Actions の有効状態を確認してください。
+- **通常ダイヤのリンクが消えた日は必ずメールが届きます**（以前は他に差分が無いと届きませんでした）。
+- **取り消し手順が変わりました。** revert だけでは翌日また同じ内容が反映されます（下の切り分け表を参照）。
 
 次はこの文書だけから**現在確認できない**状態です。
 
 - workflow が GitHub 上で有効か
+- **`main` の実 SHA と、そこにあるワークフローの内容**
 - `GEMINI_API_KEY` が GitHub Secrets に登録済みか
 - `MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_TO` が登録済みか
 - Workflow permissions が `main` への push を許可しているか
@@ -154,7 +166,10 @@ node scripts/validate-data.mjs
 | 変更したのにメールが来ない | 差分が `public/data/` ではなく `state.json` / `holidays.json` だけの可能性（設計どおり送らない）。`Detect diff` の出力を見る |
 | 長期間メールが来ない | 変更が無ければ正常。ただし **60 日コミットが無いと GitHub が cron を自動 Disable する**ので Actions 画面を確認する |
 | 便数が変わらないのに取り込まれない | 便数 ±50% ガード（FR-8）で止まっている可能性。メールの「要手動確認」を読む。正しい改正なら `bot/state.json` の該当キーを消して再実行 |
-| 反映された内容が間違っている | メール末尾の「取り消したいとき」。revert だけでは翌日また取得されるので `bot/state.json` の該当キーも消す |
+| 反映された内容が間違っている | メール末尾の「取り消したいとき」。**revert だけでは翌日また同じ内容が反映される**ので、止めるなら手動 `timetable_special` override を張るか Actions で Disable する。`bot/state.json` のキー削除は「読み直させる」操作であって停止手段ではない |
+| `fetch_budget_exhausted` | 取得の締切（8 分）か件数上限（24 件）に達した。既存データは維持され翌日再試行。連日続くなら掲載リンク数と配信ホストの応答を確認 |
+| `image_revalidate_failed` | 同一 URL の画像が差し替わっていないか確認できなかった。`info` のうちは一時障害、`warn`（21 日以上未確認）なら配信ホストの変更や恒久障害を疑う |
+| `holiday_csv_suspicious` | 祝日 CSV が痩せすぎていて採用しなかった（既存キャッシュを維持）。内閣府 CSV の配信状況を確認 |
 | `run_deadline_exceeded` | OCR が締切に達した。画像数・応答遅延・設定を要件に照らして確認 |
 | コミットが全行置換 | JSON ハウススタイルまたは `files.ts` の整形保持を確認 |
 
