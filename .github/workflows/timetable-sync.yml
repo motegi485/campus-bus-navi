@@ -3,7 +3,9 @@
 # 取得から本番反映までを自動で行い、変更があったときだけメールで通知する。
 # 人間の PR レビューは経由しない（2026-08-16 の方針転換。要件定義 §1.1 / FR-11 が正本）。
 #
-# 現状: このワークフローは main に統合済みだが、GitHub UI から【手動で Disable 中】。
+# 現状: このワークフローは GitHub UI から【手動で Disable 中】である想定。
+#   ※ GitHub 上の有効状態・main の実 SHA・Secrets はリポジトリ内からは確認できない。
+#     「main に統合済み」かどうかも含め、必ず GitHub UI で現物を確認すること。
 # 稼働させるには次の3つが必要（詳細は bot/fixtures/_planning/HANDOFF.md）:
 #   1. Settings → Secrets and variables → Actions に次を登録
 #        GEMINI_API_KEY  … OCR 用（H-2）
@@ -40,6 +42,13 @@ concurrency:
 # PR を作らなくなったので pull-requests は不要。
 # 解析ステップ自体は書き込み不要なので、checkout の資格情報を後続ステップへ残さず
 # （persist-credentials: false）、push するステップの中だけで remote に token を差す。
+#
+# 【残存リスクとして受容】permissions は job 単位でしか付けられないため、
+# contents: write はこの job の全ステップ・全 action に効く。push 専用の job へ
+# 分離すれば境界を狭められるが、作業ツリー（Bot が書いた public/data）を artifact
+# 経由で受け渡す必要があり、複雑さに見合わないと判断した。
+# 緩和として、外部 action は full SHA 固定、fork/PR からは起動しない、
+# checkout は資格情報を残さない、runner は実行ごとに破棄される。
 permissions:
   contents: write
 
@@ -50,6 +59,17 @@ jobs:
     env:
       TZ: Asia/Tokyo
     steps:
+      # 手動実行では ref を自由に選べる。このワークフローは `HEAD:main` を push するため、
+      # main 以外の ref で走らせると **Bot が作った差分だけでなく、その ref に既にある
+      # コミットまで main へ運んでしまう**。ドライラン（何も書かない）以外は明示的に止める。
+      - name: Guard ref
+        if: ${{ inputs.dry_run != true && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::main 以外の ref では実行できません（現在: ${{ github.ref }}）。"
+          echo "選んだ ref の既存コミットまで main へ運んでしまうためです。"
+          echo "ブランチで試すときは dry_run を有効にしてください。"
+          exit 1
+
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           # 既定の true は git の資格情報を .git/config に残し、後続ステップ（npm ci や
@@ -106,10 +126,37 @@ jobs:
 
       - name: Commit and push
         id: push
-        if: ${{ inputs.dry_run != true && steps.diff.outputs.changed == 'true' }}
+        # ref のガードは先頭ステップにもあるが、push だけは条件を二重に持つ
+        # （このステップだけが main を書き換える）
+        if: ${{ inputs.dry_run != true && steps.diff.outputs.changed == 'true' && github.ref == 'refs/heads/main' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+
+          # rebase 後の tree を検証し直すための共通処理。
+          # 個別に検証済みでも「Bot の差分 + main の新しい変更」の組合せは未検証なので、
+          # 同じ検証器と同じ範囲チェックをもう一度通してから push する。
+          verify_tree() {
+            local base="$1"
+            if ! node scripts/validate-data.mjs; then
+              echo "::error::rebase 後のデータ検証に失敗しました。push しません。"
+              return 1
+            fi
+            local changed
+            changed=$(git diff --name-only "$base" HEAD)
+            if [ -z "$changed" ]; then
+              echo "::error::rebase 後の変更が空です。push しません。"
+              return 1
+            fi
+            if printf '%s\n' "$changed" | grep -qvE '^(public/data/|bot/state\.json$|bot/holidays\.json$)'; then
+              echo "::error::rebase 後の変更範囲が想定外です。push しません。"
+              printf '%s\n' "$changed"
+              return 1
+            fi
+            return 0
+          }
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -128,6 +175,16 @@ jobs:
             # 変更で rebase が止まるのを防ぐための保険。
             echo "push が拒否されました。rebase して 1 回だけ再試行します。"
             git pull --rebase --autostash origin main
+
+            # rebase で自分のコミットが空になった（同じ変更が既に main にある）場合
+            if [ "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" ]; then
+              echo "rebase の結果 main と同一になりました。push は不要です。"
+              git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+              exit 0
+            fi
+
+            # FETCH_HEAD は rebase の土台になった main の先端
+            verify_tree FETCH_HEAD
             git push origin HEAD:main
           fi
           git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
@@ -190,6 +247,13 @@ jobs:
             send=yes
             subject="⚠ [campus-bus-navi] 要確認 (${short})"
             headline="時刻表そのものに変更はありませんでしたが、**確認が必要な項目があります**（読み取れない掲示が残っているなど）。"
+          elif [ "$(date '+%d')" = "01" ]; then
+            # 月次の稼働確認（heartbeat）。変更が無い日は何も残らないため、
+            # スケジュールが止まっていること（60 日コミットが無いと GitHub が
+            # 自動 Disable する等）を無期限に見逃してしまう。月 1 通だけ届かせる。
+            send=yes
+            subject="[campus-bus-navi] 稼働確認 (${short})"
+            headline="変更はありませんでした。これは**日次実行が動いていることを確かめるための月次の稼働確認**です。届かない月が続いたら、Actions で有効状態を確認してください。"
           else
             send=no
             subject=""
