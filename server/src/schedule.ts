@@ -81,6 +81,24 @@ export function parseHHmmToMinutes(value: string | null | undefined): number | n
   return h * 60 + m
 }
 
+/**
+ * 「その便の通知を送り始めてよい瞬間」を epoch ミリ秒で返す（= 発車時刻 − リード分）。
+ *
+ * reminders.notify_at として保存し、Cron が SQL 側で due を絞り込み・並べ替えるために使う。
+ * これが無いと「無順序で N 件に切ってから TypeScript で due 判定」になり、
+ * 上限内を未到来の行が占めると、上限外にある本当に送るべき行が読まれない。
+ *
+ * dateKey は JST の日付なので、その日の 00:00 JST（= UTC の 9 時間前）を基準にする。
+ */
+export function notifyAtEpochMs(dateKey: string, departure: string, leadMinutes: number): number | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey)
+  const minutes = parseHHmmToMinutes(departure)
+  if (!match || minutes === null || !Number.isFinite(leadMinutes)) return null
+  const jstMidnightUtc =
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) - 9 * 60 * 60 * 1000
+  return jstMidnightUtc + (minutes - leadMinutes) * 60 * 1000
+}
+
 /** 不正な departure を除いた発車分の昇順配列 */
 function departureMinutes(schedule: ScheduleEntry[] | undefined): number[] {
   if (!Array.isArray(schedule)) return []

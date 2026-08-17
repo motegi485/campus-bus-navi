@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Timetable } from '../../src/types/timetable'
 import {
+  notifyAtEpochMs,
   parseHHmmToMinutes,
   resolveTimetableId,
   selectDue,
@@ -171,6 +172,34 @@ describe('selectDue', () => {
     const b = reminder({ id: 'b', departure: '18:40', leadMinutes: 100 })
     // 17:00 時点で、17:10 は 10 分前、18:40 は 100 分前。どちらも窓の中
     expect(run([a, b]).due.map(d => d.id)).toEqual(['a', 'b'])
+  })
+})
+
+/**
+ * 送信対象の抽出は SQL と TypeScript で分担している。
+ *   SQL（server/src/index.ts）… 下端。`notify_at <= now` で絞り、`ORDER BY notify_at` で並べる
+ *   selectDue               … 上端（`now < 発車時刻`）、当日性、便の実在、運休日・特別ダイヤ
+ * 片方だけを変えると、送るべき時刻がずれるか、上限に当たったときに飢餓が戻る。
+ */
+describe('notify_at と selectDue の窓の境界が一致する', () => {
+  const weekday = timetable('timetable_weekday', ['17:10'])
+  const target = reminder({ departure: '17:10', leadMinutes: 10 })
+  const due = (now: ReturnType<typeof toJst>) =>
+    selectDue({ reminders: [target], timetable: weekday, timetableId: weekday.id, now }).due
+
+  it('notify_at ちょうどが窓の下端になる', () => {
+    const notifyAt = notifyAtEpochMs(TODAY, '17:10', 10)
+    expect(notifyAt).not.toBeNull()
+    // notify_at は 17:00 JST。SQL はこの瞬間から行を返す
+    expect(toJst(notifyAt!)).toEqual({ dateKey: TODAY, weekday: 5, minutes: 17 * 60 })
+    expect(due(toJst(notifyAt!))).toHaveLength(1)
+    expect(due(toJst(notifyAt! - 60_000))).toHaveLength(0)
+  })
+
+  it('上端は SQL では見ないので selectDue が持ち続ける', () => {
+    const departureMs = notifyAtEpochMs(TODAY, '17:10', 0)
+    // SQL の条件（notify_at <= now）は発車後も真のままなので、ここで落とす必要がある
+    expect(due(toJst(departureMs!))).toHaveLength(0)
   })
 })
 
