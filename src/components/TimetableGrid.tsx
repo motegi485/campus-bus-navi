@@ -78,10 +78,21 @@ export function TimetableGrid({
             <p className="text-[14px] font-bold" style={{ color }}>
               {bus.departure}
             </p>
+            {/*
+              備考（現状は「最終」のみ）。行として下に積むとそのマスだけ縦に伸び、
+              最下段だけ高さが違って見えるため、高さに影響しない小さなラベルとして
+              左上の角に重ねる。
+            */}
             {bus.note && (
-              <p className="text-[10px] mt-0.5" style={{ color: isSelected || isCurrent ? color : 'var(--text-muted)' }}>
+              <span
+                className="absolute top-[3px] left-[4px] px-[3px] py-[1px] rounded-[4px] text-[9px] font-bold leading-none"
+                style={{
+                  color: isSelected || isCurrent ? color : 'var(--text-muted)',
+                  background: isSelected || isCurrent ? 'transparent' : 'var(--bg-input)',
+                }}
+              >
                 {bus.note}
-              </p>
+              </span>
             )}
             {/* 通知を設定済みの印。選択モード中は選択状態のほうが情報として新しいので出さない */}
             {isMarked && !selectMode && (
