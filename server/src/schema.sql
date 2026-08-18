@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS reminders (
   FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE
 );
 
--- Cron は毎分「今日ぶんで未送信、かつ送信開始時刻を過ぎた行」を notify_at 順に引く。
+-- Cron は毎分「今日ぶんで未送信、かつ送信の窓
+-- （[notify_at, notify_at + lead_minutes × 60000)）の中にある行」を notify_at 順に引く。
 -- 全行スキャンを避けて D1 の行読み取り（無料枠 500 万行/日）を節約しつつ、
 -- 1 実行あたりの上限に当たっても「最も早く送るべき行」から処理できる
 CREATE INDEX IF NOT EXISTS idx_reminders_pending ON reminders (date_key, sent_at, notify_at);

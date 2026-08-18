@@ -125,6 +125,11 @@ export interface DueSelection {
  * 取りこぼす。窓にしておけば遅れても送れる（通知の文面は受信側の SW が
  * 実時刻から組み立てるので、遅れても「あと N 分」は正しいまま）。
  * 二重送信は reminders.sent_at が防ぐ（呼び出し側が未送信だけを渡す）。
+ *
+ * ⚠️ この窓は server/src/index.ts の WHERE 句
+ *    （`notify_at <= now AND now < notify_at + lead_minutes * 60000`）と対。
+ *    SQL 側は「引く行を減らす」ための同じ窓で、ここが最終的な判断。片方だけ変えてはいけない。
+ *    境界の一致は server/test/schedule.test.ts が固定している。
  */
 export function selectDue(params: {
   reminders: ReminderRow[]
