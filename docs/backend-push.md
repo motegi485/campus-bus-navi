@@ -204,6 +204,28 @@ npx wrangler deploy
 
 Pages 側のバインディングはリポジトリ直下の `wrangler.toml` に書いてあるので、push すれば反映されます。ダッシュボードでの設定は不要です。
 
+### 更新時（⚠️ Worker は自動では反映されません）
+
+**Pages は `git push` で自動反映されますが、配信 Worker は `npx wrangler deploy` を実行するまで古いままです。** 両者は別々のデプロイなので、片方だけが新しい状態を作れてしまいます。
+
+```powershell
+Set-Location server
+npx wrangler deploy
+```
+
+デプロイし直す必要があるのは次の場合です。
+
+- `server/` 配下を変更したとき
+- `src/utils/diagramType.ts` や `src/types/timetable.d.ts` を変更したとき（`server/src/schedule.ts` が直接 import しているため）
+- **D1 のスキーマを変更したとき。migration の適用と Worker のデプロイは必ず同じ作業でまとめること**
+
+最後の項目を分けると、Worker だけが古いスキーマを前提にしたクエリを毎分投げ続け、Cron が失敗し続けます。利用者からは「通知が来ない」だけに見えます（実例は [verification.md](verification.md) の「Cron 経由の通知が届かない」）。現在デプロイされている版は次で確認できます。
+
+```powershell
+Set-Location server
+npx wrangler deployments list
+```
+
 ### 単体での送信確認
 
 ```powershell
@@ -298,6 +320,7 @@ npx wrangler tail
 コードだけでは満たせない項目です。**実施日と方法を記録してください。**
 
 - [ ] D1 に `server/src/schema.sql`（新規）または `server/migrations/`（既存）を適用した
+- [ ] **その D1 スキーマを前提とする版の配信 Worker をデプロイした**（`npx wrangler deployments list` の最終デプロイ時刻と、`server/` の最終変更を突き合わせる）
 - [ ] `/api/vapid-key` の公開鍵と `server/wrangler.toml` の `VAPID_PUBLIC_KEY` が一致している
 - [ ] Cloudflare で `/api/*` にレート制限ルールを設定した（リポジトリ内では強制できない）
 - [ ] `/api/status` が期待どおりの件数を返し、`staleReminders` と `overdueReminders` が 0 である
@@ -308,6 +331,6 @@ npx wrangler tail
 
 - Android のメーカー独自の省電力（Xiaomi・Huawei・Oppo 等）による配送遅延・欠落。実機での確認が済んでいません
 - 実運用規模での日次消費。現時点では見積もりであり、実測値ではありません
-- 通常ダイヤの日での実地の通知到達。単体の送信確認（PC・iPhone）は済んでいますが、Cron 経由の一連の流れは未確認です（2026-08-16 時点）
+- 通常ダイヤの日での実地の通知到達。単体の送信確認（PC・iPhone）は済んでいますが、**Cron 経由の一連の流れは 2026-08-18 に試して届きませんでした**（`/api/status` は予約 3 件・送信 0 件・overdue 3 件）。切り分けの手順は [verification.md](verification.md) の「Cron 経由の通知が届かない」を参照してください
 - 予約の写しを使った便の同定は、単体テスト（`server/test/pushSw.test.ts`）でのみ確認しています。実機での push 受信を通した確認は未実施です（2026-08-18 時点）
 - 休眠端末の実数。保持期間（TTL）を入れるかどうかの判断材料が揃っていません
