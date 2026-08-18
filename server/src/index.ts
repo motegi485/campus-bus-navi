@@ -139,9 +139,12 @@ async function run(env: Env): Promise<void> {
           method: 'POST',
           body: JSON.stringify({ targets: batch.map(r => ({ id: r.id, endpoint: r.endpoint })) }),
         })
-        // DO 側が結果の記録に失敗すると 500 を返す。成功として数えない
+        // DO 側は、結果の記録に失敗したときと、鍵の設定が誤っていて署名が通らない
+        // ときに 500 を返す。成功として数えない。原因の判別は `wrangler tail` で
+        // 追うことになるので、DO が返した内訳もそのままログに載せる
         if (!response.ok) {
-          console.error(`バッチ ${index} が失敗を報告しました (HTTP ${response.status})`)
+          const detail = await response.text().catch(() => '')
+          console.error(`バッチ ${index} が失敗を報告しました (HTTP ${response.status}) ${detail}`)
           return false
         }
         return true

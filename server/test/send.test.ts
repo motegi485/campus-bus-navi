@@ -84,6 +84,37 @@ describe('sendPush', () => {
     expect(result).toEqual({ status: 'failed', code: 400, detail: 'InvalidTTL: value must be a number' })
   })
 
+  it('401 は「設定の誤り」として一時的な失敗と分ける（鍵の不一致）', async () => {
+    stubFetch(new Response('the vapid key in the authorization header does not match', { status: 401 }))
+    const result = await sendPush({ endpoint: ENDPOINT, signer, nowSeconds: NOW })
+    expect(result).toEqual({
+      status: 'rejected',
+      code: 401,
+      detail: 'the vapid key in the authorization header does not match',
+    })
+  })
+
+  it('403 も「設定の誤り」として扱う', async () => {
+    stubFetch(new Response('forbidden', { status: 403 }))
+    const result = await sendPush({ endpoint: ENDPOINT, signer, nowSeconds: NOW })
+    expect(result).toEqual({ status: 'rejected', code: 403, detail: 'forbidden' })
+  })
+
+  it('鍵を読めないときは失敗として返さず投げる（静かに止まらせない）', async () => {
+    // VAPID_PRIVATE_KEY が未登録・形式違いの状況。ここで failed に化けると、
+    // 呼び出し側は実行を成功として終え、Cron の実行結果も成功のまま通知だけが止まる
+    const broken = new VapidSigner({
+      publicKey: 'not-a-valid-public-point',
+      privateKey: 'not-a-valid-scalar',
+      subject: 'mailto:campus-bus-navi@example.ac.jp',
+    })
+    const calls = stubFetch(new Response(null, { status: 201 }))
+
+    await expect(sendPush({ endpoint: ENDPOINT, signer: broken, nowSeconds: NOW })).rejects.toThrow()
+    // 署名できていないので、送信そのものを試みてはいけない
+    expect(calls).toHaveLength(0)
+  })
+
   it('長すぎるエラー本文は切り詰める', async () => {
     stubFetch(new Response('x'.repeat(5000), { status: 500 }))
     const result = await sendPush({ endpoint: ENDPOINT, signer, nowSeconds: NOW })
