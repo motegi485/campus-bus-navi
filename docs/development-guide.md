@@ -100,7 +100,7 @@ npm run send-test                   # 購読情報を貼り付けると 1 通送
 | 地図、端末判定 | iOS / iPadOS / Android の URL とタイル表示を確認 |
 | オーバーレイ、設定、操作感 | キーボードフォーカス、Escape、背面操作不可、縮小モーションを確認 |
 | Bot | 要件正本、Bot テスト・型検査、書込ホワイトリスト、ドライランを確認 |
-| 通知、Web Push、配信 Worker、D1 | `server` の型検査・テスト、`--dry-run`、送信しない条件（運休日・特別ダイヤ・実在しない便）、鍵がコミットされていないことを確認 |
+| 通知、Web Push、配信 Worker、D1 | `server` の型検査・テスト、`--dry-run`、送信しない条件（運休日・特別ダイヤ・実在しない便）、鍵がコミットされていないことを確認。**配信 Worker は `git push` では反映されない**ので、`npx wrangler deploy` の要否も判断する（D1 のスキーマ変更は migration の適用と同じ作業でまとめる） |
 | 文書 | 影響する `docs/`、README、AGENTS.md、CLAUDE.md の更新要否を確認 |
 
 ## 文書の保守

@@ -167,17 +167,55 @@ SQL 側の絞り込み（送信の窓 `notify_at <= now AND now < notify_at + le
 - Cloudflare 側の設定（D1 の作成、バインディング、シークレット、デプロイ）
 - 無料枠の実消費
 
-### 現時点の確認状況（2026-08-16）
+### 現時点の確認状況（2026-08-18 更新）
 
 | 項目 | 状況 |
 |---|---|
-| VAPID 署名と単体送信（PC / Chrome / FCM） | 実機で確認済み |
-| ペイロードなし push の受信（iPhone ホーム画面 PWA / Safari / APNs） | 実機で確認済み |
-| `/api/*` が `_redirects` の SPA フォールバックに飲み込まれないこと | `/api/vapid-key` の応答で確認済み |
-| 購読 API と D1 の往復（登録・保存・削除） | 確認済み |
-| **Cron 経由での実地の通知到達** | **未確認。** 通常ダイヤの日での確認が必要 |
+| VAPID 署名と単体送信（PC / Chrome / FCM） | 実機で確認済み（2026-08-16） |
+| ペイロードなし push の受信（iPhone ホーム画面 PWA / Safari / APNs） | 実機で確認済み（2026-08-16） |
+| `/api/*` が `_redirects` の SPA フォールバックに飲み込まれないこと | `/api/vapid-key` の応答で確認済み（2026-08-16） |
+| 購読 API と D1 の往復（登録・保存・削除） | 確認済み（2026-08-16）。2026-08-18 に `/api/status` が `devices: 1` / `remindersToday: 3` を返すことで再確認 |
+| **Cron 経由での実地の通知到達** | **未達。原因は特定済み・対処は未実施。** 下記参照 |
 | Android のメーカー独自省電力下での配送 | 未確認 |
 | 実運用規模での無料枠消費 | 未確認（見積もりのみ） |
+
+#### Cron 経由の通知が届かない（2026-08-18 調査。原因特定済み、対処は未実施）
+
+2026-08-18（`timetable_vacation_summer_weekday`。運休日でも特別ダイヤでもない日）に iPhone のホーム画面 PWA から 3 便へ通知を設定したところ、**1 通も届きませんでした。** 同日 16:46 JST の `/api/status` は次を返しています。
+
+```json
+{ "devices": 1, "remindersToday": 3, "sentToday": 0, "pendingToday": 3,
+  "staleReminders": 0, "overdueReminders": 3 }
+```
+
+**原因: 配信 Worker がデプロイされたまま更新されておらず、現在の D1 スキーマと噛み合っていません。**
+
+`npx wrangler deployments list` で確認した最後のデプロイは 2026-08-15T18:51:05Z（= 2026-08-16 03:51 JST）で、これは `server/src` の変更履歴では commit `5867b85` の時点です。その約 1 時間後の `8b90b41` / `e7888d5`（2026-08-16 04:56）で、リマインドは「端末ごとに 1 件の常設予約」から「当日の便ごとの `reminders` 行」へ作り直されています。デプロイ済みの Worker が毎分実行しているのは変更前のクエリです。
+
+```sql
+SELECT * FROM subscriptions WHERE last_sent_on IS NULL OR last_sent_on != ? LIMIT ?
+```
+
+現在の `subscriptions` に `last_sent_on` 列は無いため、D1 が `no such column` を返し、`run()` が throw、`scheduled` が再 throw します。**2026-08-16 04:56 以降、Cron は毎分失敗し続けています。**（`VAPID_PRIVATE_KEY` は `npx wrangler secret list` で登録済みを確認。鍵は原因ではありません。）
+
+対処は Worker の再デプロイです。**人間が実行します。**
+
+```powershell
+Set-Location server
+npx wrangler deploy
+```
+
+デプロイ後の確認:
+
+1. `npx wrangler tail` を出したまま 10 分程度先の便へ通知を設定し、`送信対象 N 件 / M バッチ` のログと実機の受信を確認する
+2. `/api/status` の `sentToday` が増えることを確認する
+3. 翌日、`staleReminders` が 0 のままであることを確認する（毎時 00 分の掃除が動いている証拠）
+
+なお、発車時刻を過ぎた `overdueReminders` は `selectDue` の窓（`[発車 − リード分, 発車)`）を外れているため、デプロイしても遡って送信されることはありません。
+
+#### この乖離が起きる構造
+
+**Pages は `git push` で自動反映されますが、配信 Worker は `npx wrangler deploy` を人間が実行するまで古いままです。** `server/src/schedule.ts` は `src/utils/diagramType.ts` と `src/types/timetable.d.ts` を直接 import しているため、フロントエンド側の変更でも Worker の再デプロイが要る場合があります。D1 のスキーマを変えたときは、**migration の適用と Worker のデプロイを必ず同じ作業でまとめてください。**
 
 ## 依存関係の既知脆弱性
 
