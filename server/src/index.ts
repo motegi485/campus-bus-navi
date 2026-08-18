@@ -76,7 +76,9 @@ async function run(env: Env): Promise<void> {
   // 以前は「当日行が 0 件の 00:00 の回」でしか走らず、00:00 に当日行が 1 件でもあるか、
   // Cron が 00:01 以降にずれるか、削除が一度失敗するだけで前日ぶんが残り続けた。
   // 利用者へは「日付が変わると削除」と説明しているので、その保証を実装側に持たせる。
-  if (now.minutes === 0) await cleanupOldReminders(env, now.dateKey)
+  // ⚠️ JstMoment.minutes は「0 時からの通算分」。`=== 0` は JST 00:00 の回だけを指し、
+  //    毎時 00 分にはならない（1 日 1 回に戻ってしまう）。剰余で「毎時 00 分」を表す。
+  if (now.minutes % 60 === 0) await cleanupOldReminders(env, now.dateKey)
 
   // 今日ぶんで未送信、かつ送信開始時刻を過ぎた行だけを、早い順に引く。
   // 索引 idx_reminders_pending (date_key, sent_at, notify_at) が効く。
