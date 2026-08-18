@@ -187,19 +187,46 @@ describe('notify_at と selectDue の窓の境界が一致する', () => {
   const due = (now: ReturnType<typeof toJst>) =>
     selectDue({ reminders: [target], timetable: weekday, timetableId: weekday.id, now }).due
 
-  it('notify_at ちょうどが窓の下端になる', () => {
-    const notifyAt = notifyAtEpochMs(TODAY, '17:10', 10)
-    expect(notifyAt).not.toBeNull()
-    // notify_at は 17:00 JST。SQL はこの瞬間から行を返す
-    expect(toJst(notifyAt!)).toEqual({ dateKey: TODAY, weekday: 5, minutes: 17 * 60 })
-    expect(due(toJst(notifyAt!))).toHaveLength(1)
-    expect(due(toJst(notifyAt! - 60_000))).toHaveLength(0)
+  /**
+   * server/src/index.ts の WHERE 句と同じ式。
+   * ⚠️ 実際のクエリは vitest から実行できないので、SQL 側を変えたらここも直すこと。
+   */
+  const matchesSql = (nowMs: number) => {
+    const notifyAt = notifyAtEpochMs(TODAY, target.departure, target.leadMinutes)!
+    return notifyAt <= nowMs && nowMs < notifyAt + target.leadMinutes * 60_000
+  }
+
+  /** 送信を始めてよい瞬間（17:00 JST）= 窓の下端 */
+  const notifyAt = notifyAtEpochMs(TODAY, '17:10', 10)!
+  /** 発車時刻そのもの（17:10 JST）= 窓の上端 */
+  const departureMs = notifyAtEpochMs(TODAY, '17:10', 0)!
+
+  it('notify_at ちょうどが窓の下端で、SQL と selectDue が一致する', () => {
+    expect(toJst(notifyAt)).toEqual({ dateKey: TODAY, weekday: 5, minutes: 17 * 60 })
+    expect(matchesSql(notifyAt)).toBe(true)
+    expect(due(toJst(notifyAt))).toHaveLength(1)
+
+    expect(matchesSql(notifyAt - 60_000)).toBe(false)
+    expect(due(toJst(notifyAt - 60_000))).toHaveLength(0)
   })
 
-  it('上端は SQL では見ないので selectDue が持ち続ける', () => {
-    const departureMs = notifyAtEpochMs(TODAY, '17:10', 0)
-    // SQL の条件（notify_at <= now）は発車後も真のままなので、ここで落とす必要がある
-    expect(due(toJst(departureMs!))).toHaveLength(0)
+  it('発車時刻ちょうどが窓の上端で、SQL と selectDue が一致する', () => {
+    // 直前は窓の中（selectDue は分に丸めるので 17:09 として判定される）
+    expect(matchesSql(departureMs - 1)).toBe(true)
+    expect(due(toJst(departureMs - 1))).toHaveLength(1)
+
+    // 発車時刻そのものは窓に含めない（「あと 0 分」の通知を出さない）
+    expect(matchesSql(departureMs)).toBe(false)
+    expect(due(toJst(departureMs))).toHaveLength(0)
+  })
+
+  it('窓を過ぎた未送信の行は SQL 側で落ちる（当日のダイヤを取りに行かせない）', () => {
+    // 発車の 3 時間後。上限が無いと `notify_at <= now` は真のままで、
+    // 運休・ダイヤ差し替え・配信停止で残った行がその日ずっと引かれ続けた
+    const later = departureMs + 3 * 60 * 60 * 1000
+    expect(notifyAt <= later).toBe(true)
+    expect(matchesSql(later)).toBe(false)
+    expect(due(toJst(later))).toHaveLength(0)
   })
 })
 

@@ -156,7 +156,7 @@ npx wrangler deploy --dry-run --outdir .wrangler/dry
 
 `server/test/pushSw.test.ts` は `public/push-sw.js` をテキストで読んで評価します。ルートにテストランナーが無いため、通知まわりのテストをここへ寄せています。`public/push-sw.js` の内部関数名（`selectReservations` / `buildNotifications`）を変えるとこのテストが落ちます。
 
-SQL 側の絞り込み（`notify_at <= now` と `ORDER BY notify_at`）は vitest では検証できません。`server/test/schedule.test.ts` は「`notify_at` と `selectDue` の窓の境界が一致すること」までを固定し、実際のクエリ計画と行数は `wrangler d1 execute --local` で別途確認します。
+SQL 側の絞り込み（送信の窓 `notify_at <= now AND now < notify_at + lead_minutes × 60000` と `ORDER BY notify_at`）は vitest では検証できません。`server/test/schedule.test.ts` は「SQL と同じ式を書いた補助関数と `selectDue` が、窓の下端・上端・窓を過ぎた時刻のすべてで一致すること」までを固定し、実際のクエリ計画と行数は `wrangler d1 execute --local` で別途確認します。**SQL 側を変えたら、この補助関数（`matchesSql`）も必ず直してください。**
 
 `wrangler` のコマンドは必ず `server/` で実行します。リポジトリ直下の `wrangler.toml` は Pages の設定なので、直下で `wrangler deploy` を実行してはいけません。
 

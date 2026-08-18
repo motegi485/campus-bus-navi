@@ -121,6 +121,10 @@ push 送信 1 件が外部 fetch 1 件なので、**1 実行で送れるのは�
 
 送信判定は `[発車時刻 − リード分, 発車時刻)` の**窓**で行い、「ちょうど N 分前」の等号一致にはしていません。Cron は 1 分間隔ですが実行が遅れることがあり、等号一致だと遅延した回で取りこぼします。窓なら遅れても送れ、通知の文面は受信側が実時刻から組み立てるので「あと N 分」は正しいままです。二重送信は `reminders.sent_at` が防ぎます。
 
+**同じ窓を SQL 側でも掛けます**（`notify_at <= now AND now < notify_at + lead_minutes × 60000`）。下限だけだと、窓を過ぎても未送信のまま残った行（運休・ダイヤ差し替え・配信停止で生じる）が**その日の残り時間ずっと引かれ続け**、件数が 0 にならないので毎分ダイヤを取りに行くことになります。「対象 0 件ならダイヤの取得すらしない」という判断が効かなくなり、`LIMIT` の枠も過去の行に食われます。最終的な判断は `selectDue` が持ち、SQL 側は引く行を減らすためのものです。⚠️ 両者の窓は対なので、片方だけ変えてはいけません（境界の一致は `server/test/schedule.test.ts` が固定しています）。
+
+窓を過ぎた行は送信対象から外れるだけで、**削除はされません**。`/api/status` の `overdueReminders` がそれを数えて配信停止の兆候として見せ、行そのものは翌日の毎時 00 分の掃除で消えます。
+
 ### Service Worker を `injectManifest` へ移行していない
 
 `vite.config.ts` の `workbox.importScripts` で `public/push-sw.js` を生成 SW へ読み込ませています。既存のキャッシュ設定（`globIgnores` / NetworkFirst 3 秒 / `timetable-data` / OSM タイル）に一切触れずに push 対応を足すための構成です。詳細は [pwa-and-deployment.md](pwa-and-deployment.md) を参照してください。

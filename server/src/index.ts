@@ -80,17 +80,32 @@ async function run(env: Env): Promise<void> {
   //    毎時 00 分にはならない（1 日 1 回に戻ってしまう）。剰余で「毎時 00 分」を表す。
   if (now.minutes % 60 === 0) await cleanupOldReminders(env, now.dateKey)
 
-  // 今日ぶんで未送信、かつ送信開始時刻を過ぎた行だけを、早い順に引く。
-  // 索引 idx_reminders_pending (date_key, sent_at, notify_at) が効く。
+  // 今日ぶんで未送信、かつ**送信の窓の中にある**行だけを、早い順に引く。
+  // 窓は `[notify_at, notify_at + lead_minutes × 60000)`（= `[発車 − リード分, 発車)`）で、
+  // これは selectDue の判定とまったく同じもの。
+  // ⚠️ 下限と上限は selectDue の窓と対。片方だけ変えてはいけない。
+  //
+  // 上限（`?2 < notify_at + lead_minutes * 60000`）が要る理由は 2 つ:
+  //   - 窓を過ぎた未送信の行（運休・ダイヤ差し替え・配信停止で残ったもの）は、
+  //     下限だけだと**その日の残り時間ずっと引かれ続ける**。件数が 0 にならないので
+  //     毎分ダイヤを取りに行くことになり、「対象 0 件ならダイヤの取得すらしない」
+  //     という上の判断が効かなくなる
+  //   - LIMIT の枠を過去の行に食われる（本当に送るべき行が上限の外へ押し出される）
+  //
+  // 索引 idx_reminders_pending (date_key, sent_at, notify_at) が効く。上限は列そのもの
+  // ではなく式なので索引では絞れないが、絞り込み後の行にだけ掛かるので追加の走査は生まない。
   // ORDER BY が無いと、上限内を未到来の行が占めたときに本当に送るべき行を読まない。
   // 端末の鍵は要らない（ペイロードなし push なので endpoint だけで送れる）
   const query = await env.DB.prepare(
     `SELECT r.id, r.date_key, r.route, r.departure, r.lead_minutes, s.endpoint
        FROM reminders r
        JOIN subscriptions s ON s.id = r.subscription_id
-      WHERE r.date_key = ? AND r.sent_at IS NULL AND r.notify_at <= ?
+      WHERE r.date_key = ?1
+        AND r.sent_at IS NULL
+        AND r.notify_at <= ?2
+        AND ?2 < r.notify_at + r.lead_minutes * 60000
       ORDER BY r.notify_at
-      LIMIT ?`
+      LIMIT ?3`
   )
     .bind(now.dateKey, nowMs, MAX_REMINDERS_PER_RUN)
     .all()
