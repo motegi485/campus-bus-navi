@@ -6,6 +6,11 @@ interface Props {
   route: RouteKey
   nowMinutes: number
   fontSize: FontSize
+  /**
+   * 発車前の通知を設定済みの便（"HH:mm"）。ベル印を付ける。
+   * 未指定なら従来どおり印を出さない（週間ダイヤなど当日以外の文脈で使えるようにするため）。
+   */
+  marked?: ReadonlySet<string>
 }
 
 const FONT_SIZE_MAP: Record<FontSize, string> = {
@@ -23,7 +28,7 @@ function formatDiff(diff: number): string {
   return `${diff}分後`
 }
 
-export function UpcomingList({ buses, route, nowMinutes, fontSize }: Props) {
+export function UpcomingList({ buses, route, nowMinutes, fontSize, marked }: Props) {
   if (buses.length === 0) return null
 
   const isCampus = route === 'campus_to_station'
@@ -52,6 +57,12 @@ export function UpcomingList({ buses, route, nowMinutes, fontSize }: Props) {
                 <span className={`${fs} font-bold text-[var(--text-primary)] tracking-tight transition-[font-size] duration-200`}>
                   {bus.departure}
                 </span>
+                {/* 通知を設定済みの印。次のバスカード・全時刻表と同じベルで揃える */}
+                {marked?.has(bus.departure) && (
+                  <span role="img" aria-label="発車前の通知を設定済み" className="text-[12px] leading-none">
+                    🔔
+                  </span>
+                )}
                 {bus.note && (
                   <span className={`text-[11px] px-2 py-0.5 rounded-[7px] font-bold ${badgeClass}`}>
                     {bus.note}
