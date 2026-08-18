@@ -136,8 +136,8 @@ flowchart TD
 
 | コンポーネント | 主な責務 |
 |---|---|
-| `NextBusCard` | 次発、残り本数、分単位の案内 |
-| `UpcomingList` | 次発の後に続く最大 4 本 |
+| `NextBusCard` | 次発、残り本数、分単位の案内。通知を設定済みの便ならベルの印を出す |
+| `UpcomingList` | 次発の後に続く最大 4 本。通知を設定済みの便にベルの印を出す |
 | `FullTimetable` | 開閉式の全時刻表。空 `schedule` は描画しない |
 | `TimetableGrid` | 発車時刻のグリッド本体。`FullTimetable` と日別ビューが共用する。`nowMinutes` が `null` の日は過去便を灰色にしない |
 | `WeekStrip` | ホームの週間ダイヤ帯。曜日・日付・ダイヤ種別の色だけを出し、遷移は「すべて見る」チップのみが担う |

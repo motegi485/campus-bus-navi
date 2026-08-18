@@ -548,7 +548,16 @@ export default function App() {
                       tomorrowTimetableName={tomorrowTimetable?.name}
                     />
                   ) : (
-                    nextBus && <NextBusCard next={nextBus} route={route} fontSize={fontSize} remaining={remainingCount} />
+                    nextBus && (
+                      <NextBusCard
+                        next={nextBus}
+                        route={route}
+                        fontSize={fontSize}
+                        remaining={remainingCount}
+                        // reminders.marked は今選んでいるルートの当日ぶんなので、次発と直接突き合わせられる
+                        reminded={reminders.marked.has(nextBus.entry.departure)}
+                      />
+                    )
                   )}
 
                   {/* 直近4本 */}
@@ -558,6 +567,7 @@ export default function App() {
                       route={route}
                       nowMinutes={nowMinutes}
                       fontSize={fontSize}
+                      marked={reminders.marked}
                     />
                   )}
                 </>

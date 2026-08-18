@@ -7,6 +7,12 @@ interface Props {
   fontSize: FontSize
   /** 本日の残り運行本数（次発を含む） */
   remaining: number
+  /**
+   * この便に発車前の通知を設定済みか。
+   * 「本日の全時刻表」のベル印（TimetableGrid）と同じ情報を、次発にも出す。
+   * 設定した便が次発へ上がってきたときに、印だけが消えたように見えないようにするため。
+   */
+  reminded?: boolean
 }
 
 const FONT_SIZE_MAP: Record<FontSize, { time: string; text: string }> = {
@@ -15,7 +21,7 @@ const FONT_SIZE_MAP: Record<FontSize, { time: string; text: string }> = {
   large:  { time: 'text-7xl', text: 'text-[31px]' },
 }
 
-export function NextBusCard({ next, route, fontSize, remaining }: Props) {
+export function NextBusCard({ next, route, fontSize, remaining, reminded = false }: Props) {
   const isCampus = route === 'campus_to_station'
   const gradientClass = isCampus
     ? 'bg-gradient-to-br from-[#0d9966] to-[#34d399]'
@@ -35,11 +41,24 @@ export function NextBusCard({ next, route, fontSize, remaining }: Props) {
     >
       <Decoration />
 
-      {/* 見出し行: 左「次のバス」／右に本日の残数バッジ */}
-      <div className="flex items-center justify-between mb-[5px]">
-        <p className="text-[13px] font-bold tracking-widest uppercase text-white/75">
-          次のバス
-        </p>
+      {/* 見出し行: 左「次のバス」（＋通知の印）／右に本日の残数バッジ */}
+      <div className="flex items-center justify-between gap-2 mb-[5px]">
+        <div className="flex items-center gap-[7px] min-w-0">
+          <p className="text-[13px] font-bold tracking-widest uppercase text-white/75">
+            次のバス
+          </p>
+          {/* 通知を設定済みの印。role="img" + aria-label で読み上げも成立させる
+              （TimetableGrid の印は aria-hidden な装飾なので、こちらで補う） */}
+          {reminded && (
+            <span
+              role="img"
+              aria-label="この便は発車前の通知を設定済みです"
+              className="inline-flex items-center gap-1 bg-white/20 dark:bg-black/25 rounded-full px-[9px] py-[3px] text-[11px] font-bold whitespace-nowrap"
+            >
+              🔔 通知
+            </span>
+          )}
+        </div>
         <span className="inline-flex items-center gap-1.5 bg-white/20 dark:bg-black/25 rounded-full px-[13px] py-[5px] text-[14px] font-extrabold whitespace-nowrap">
           <BusIcon />
           {isLastBus ? '最終便' : `残り${remaining}本`}
