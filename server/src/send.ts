@@ -18,6 +18,12 @@ export type SendOutcome =
   | { status: 'expired'; code: number }
   /** push サービスに絞られた。この回は諦め、購読は残す */
   | { status: 'rate-limited' }
+  /**
+   * VAPID の署名が拒否された（401 / 403）。鍵の不一致や subject の誤りが原因で、
+   * **再試行しても同じ結果になる設定の誤り**。一時的な失敗と混ぜると、
+   * 「毎分静かに失敗し続ける」状態が誰にも見えなくなる
+   */
+  | { status: 'rejected'; code: number; detail: string }
   /** それ以外の失敗。購読は残し、ログに残して調べる */
   | { status: 'failed'; code: number; detail: string }
 
@@ -25,10 +31,14 @@ export type SendOutcome =
 const MAX_DETAIL_LENGTH = 200
 
 /**
- * 失効と一時的な失敗を区別する。
+ * 失効・設定の誤り・一時的な失敗を区別する。
  *
  * 404 / 410 は「その購読はもう存在しない」の意味で、RFC 8030 が定める終端状態。
  * ここで確実に削除しないと、失効した購読へ毎分送り続けてサブリクエストを浪費する。
+ *
+ * **署名の失敗はここで捕まえない。** 鍵が読めない（未登録・形式違い）のは設定の誤りで
+ * あって「1 件の送信失敗」ではない。捕まえて失敗として返すと、呼び出し側は実行を成功と
+ * して終え、Cron の実行結果も成功のまま、通知だけが静かに止まる。投げて上位に判断させる。
  */
 export async function sendPush(params: {
   endpoint: string
@@ -38,12 +48,12 @@ export async function sendPush(params: {
 }): Promise<SendOutcome> {
   const { endpoint, signer, nowSeconds, ttlSeconds = DEFAULT_TTL_SECONDS } = params
 
+  // ⚠️ try の外で作ること。中に入れると鍵の設定不備が code: 0 の送信失敗に化ける
+  const headers = await signer.headersFor(endpoint, nowSeconds, ttlSeconds)
+
   let response: Response
   try {
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers: await signer.headersFor(endpoint, nowSeconds, ttlSeconds),
-    })
+    response = await fetch(endpoint, { method: 'POST', headers })
   } catch (e) {
     // ネットワーク層の失敗（DNS・TLS・タイムアウト）。購読は消さない
     return { status: 'failed', code: 0, detail: e instanceof Error ? e.message : String(e) }
@@ -64,6 +74,11 @@ export async function sendPush(params: {
     detail = (await response.text()).slice(0, MAX_DETAIL_LENGTH)
   } catch {
     // 本文が読めなくてもステータスだけで十分に判断できる
+  }
+  // 401 / 403 は「この署名は受け付けない」の意味。鍵を直すまで永久に失敗し続けるので、
+  // 待てば直るかもしれない失敗（5xx・ネットワーク）とは別扱いにする
+  if (response.status === 401 || response.status === 403) {
+    return { status: 'rejected', code: response.status, detail }
   }
   return { status: 'failed', code: response.status, detail }
 }

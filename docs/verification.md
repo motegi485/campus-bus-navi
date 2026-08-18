@@ -151,7 +151,7 @@ npx wrangler deploy --dry-run --outdir .wrangler/dry
 | 確認 | 何を保証するか | 注意 |
 |---|---|---|
 | `npm run typecheck` | Worker（Cloudflare の型）と tools・test（Node の型）の両方 | 両ランタイムで動く共通モジュールは両方で検査される |
-| `npm test` | 送信の窓、当日限りの判定、運休日・特別ダイヤの除外、JWT の署名形式、endpoint の許可リスト、`push-sw.js` の便の同定 | Cloudflare ランタイムには依存しない |
+| `npm test` | 送信の窓、当日限りの判定、運休日・特別ダイヤの除外、JWT の署名形式、endpoint の許可リスト、`push-sw.js` の便の同定、送信結果の分類（失効・絞り込み・**署名の拒否**・鍵の設定不備） | Cloudflare ランタイムには依存しない |
 | `npx wrangler deploy --dry-run` | バンドルとバインディング定義が成立するか | 実際のデプロイ状態は保証しない |
 
 `server/test/pushSw.test.ts` は `public/push-sw.js` をテキストで読んで評価します。ルートにテストランナーが無いため、通知まわりのテストをここへ寄せています。`public/push-sw.js` の内部関数名（`selectReservations` / `buildNotifications`）を変えるとこのテストが落ちます。
