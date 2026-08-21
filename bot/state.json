@@ -25,7 +25,7 @@
       "processed_at": "2026-08-01T06:49:28+09:00",
       "etag": "\"68f85-657bb10cfefe6\"",
       "last_modified": "Wed, 29 Jul 2026 07:40:12 GMT",
-      "checked_at": "2026-08-21"
+      "checked_at": "2026-08-22"
     }
   },
   "events": {
@@ -42,7 +42,7 @@
       "processed_at": "2026-08-01T06:49:28+09:00",
       "etag": "\"5c5d7-657bb1111bbc9\"",
       "last_modified": "Wed, 29 Jul 2026 07:40:17 GMT",
-      "checked_at": "2026-08-21"
+      "checked_at": "2026-08-22"
     }
   },
   "managed_overrides": {
@@ -51,7 +51,6 @@
       "2026-08-23": "timetable_event_20260823"
     },
     "vacation": {
-      "2026-08-21": "timetable_vacation_summer_weekday",
       "2026-08-22": "timetable_vacation_summer_holiday",
       "2026-08-24": "timetable_vacation_summer_weekday",
       "2026-08-25": "timetable_vacation_summer_weekday",
