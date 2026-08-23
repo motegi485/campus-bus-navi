@@ -25,31 +25,13 @@
       "processed_at": "2026-08-01T06:49:28+09:00",
       "etag": "\"68f85-657bb10cfefe6\"",
       "last_modified": "Wed, 29 Jul 2026 07:40:12 GMT",
-      "checked_at": "2026-08-23"
+      "checked_at": "2026-08-24"
     }
   },
-  "events": {
-    "2026-08-23": {
-      "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/07/0823-724x1024.jpg",
-      "sha256": "fd77e745d99427139e1eba0c3a257a578ef425e587e5e23461c789078f72ba29",
-      "label": "オープンキャンパス",
-      "dates": [
-        "2026-08-23"
-      ],
-      "derived": [
-        "timetable_event_20260823"
-      ],
-      "processed_at": "2026-08-01T06:49:28+09:00",
-      "etag": "\"5c5d7-657bb1111bbc9\"",
-      "last_modified": "Wed, 29 Jul 2026 07:40:17 GMT",
-      "checked_at": "2026-08-23"
-    }
-  },
+  "events": {},
   "managed_overrides": {
     "special": {},
-    "event": {
-      "2026-08-23": "timetable_event_20260823"
-    },
+    "event": {},
     "vacation": {
       "2026-08-24": "timetable_vacation_summer_weekday",
       "2026-08-25": "timetable_vacation_summer_weekday",
