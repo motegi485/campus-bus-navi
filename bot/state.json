@@ -25,15 +25,51 @@
       "processed_at": "2026-08-01T06:49:28+09:00",
       "etag": "\"68f85-657bb10cfefe6\"",
       "last_modified": "Wed, 29 Jul 2026 07:40:12 GMT",
-      "checked_at": "2026-08-27"
+      "checked_at": "2026-08-28"
     }
   },
-  "events": {},
+  "events": {
+    "2026-09-05": {
+      "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/08/0905-724x1024.jpg",
+      "sha256": "98586a7b75e55308080c8662216a110b3ec8b689ab56cd3a2731b2f14a854f3e",
+      "label": "オープンキャンパス",
+      "dates": [
+        "2026-09-05"
+      ],
+      "derived": [
+        "timetable_event_20260905"
+      ],
+      "processed_at": "2026-08-28T15:03:46+09:00",
+      "etag": "\"58933-65a11d38e5680\"",
+      "last_modified": "Fri, 28 Aug 2026 02:01:10 GMT",
+      "checked_at": "2026-08-28"
+    },
+    "2026-09-12": {
+      "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/08/09120913-724x1024.jpg",
+      "sha256": "7eb3286e9980de3d2ca02e3a8fc6799831d4f60b685b5097d9c43791a2cf4914",
+      "label": "教育懇談会",
+      "dates": [
+        "2026-09-12",
+        "2026-09-13"
+      ],
+      "derived": [
+        "timetable_event_20260912",
+        "timetable_event_20260913"
+      ],
+      "processed_at": "2026-08-28T15:03:46+09:00",
+      "etag": "\"62ccf-65a11d34beec2\"",
+      "last_modified": "Fri, 28 Aug 2026 02:01:06 GMT",
+      "checked_at": "2026-08-28"
+    }
+  },
   "managed_overrides": {
     "special": {},
-    "event": {},
+    "event": {
+      "2026-09-05": "timetable_event_20260905",
+      "2026-09-12": "timetable_event_20260912",
+      "2026-09-13": "timetable_event_20260913"
+    },
     "vacation": {
-      "2026-08-27": "timetable_vacation_summer_weekday",
       "2026-08-28": "timetable_vacation_summer_weekday",
       "2026-08-29": "timetable_vacation_summer_holiday",
       "2026-08-30": "timetable_vacation_summer_holiday",
@@ -42,15 +78,12 @@
       "2026-09-02": "timetable_vacation_summer_weekday",
       "2026-09-03": "timetable_vacation_summer_weekday",
       "2026-09-04": "timetable_vacation_summer_weekday",
-      "2026-09-05": "timetable_vacation_summer_holiday",
       "2026-09-06": "timetable_vacation_summer_holiday",
       "2026-09-07": "timetable_vacation_summer_weekday",
       "2026-09-08": "timetable_vacation_summer_weekday",
       "2026-09-09": "timetable_vacation_summer_weekday",
       "2026-09-10": "timetable_vacation_summer_weekday",
       "2026-09-11": "timetable_vacation_summer_weekday",
-      "2026-09-12": "timetable_vacation_summer_holiday",
-      "2026-09-13": "timetable_vacation_summer_holiday",
       "2026-09-14": "timetable_vacation_summer_weekday",
       "2026-09-15": "timetable_vacation_summer_weekday",
       "2026-09-16": "timetable_vacation_summer_weekday",
@@ -87,5 +120,9 @@
   "holidays_source": {
     "fetched_at": "2026-08-01T00:00:00+09:00",
     "sha256": "cec37a743c96995cdb9cb52b685c9003634682a9b0e1a640a6b9b96881fe964a"
+  },
+  "ocr_usage": {
+    "date": "2026-08-28",
+    "calls": 5
   }
 }
