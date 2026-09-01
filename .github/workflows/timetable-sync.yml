@@ -3,10 +3,11 @@
 # 取得から本番反映までを自動で行い、変更があったときだけメールで通知する。
 # 人間の PR レビューは経由しない（2026-08-16 の方針転換。要件定義 §1.1 / FR-11 が正本）。
 #
-# 現状: このワークフローは GitHub UI から【手動で Disable 中】である想定。
-#   ※ GitHub 上の有効状態・main の実 SHA・Secrets はリポジトリ内からは確認できない。
-#     「main に統合済み」かどうかも含め、必ず GitHub UI で現物を確認すること。
-# 稼働させるには次の3つが必要（詳細は bot/fixtures/_planning/HANDOFF.md）:
+# 現状: このワークフローは GitHub UI で【有効化済み・稼働中】（2026-09-01 に確認）。
+#   毎日 07:00 JST の自動実行で main へ直接コミットが積まれている。
+#   ※ とはいえ GitHub 上の有効状態・main の実 SHA・Secrets はリポジトリ内の
+#     コメントだけでは断定できない外部状態。疑わしいときは必ず GitHub UI で現物を確認すること。
+# 稼働させた際の手順（すでに完了済み。再設定が必要になった場合の参考。詳細は bot/fixtures/_planning/HANDOFF.md）:
 #   1. Settings → Secrets and variables → Actions に次を登録
 #        GEMINI_API_KEY  … OCR 用（H-2）
 #        MAIL_USERNAME   … 送信元 Gmail アドレス
