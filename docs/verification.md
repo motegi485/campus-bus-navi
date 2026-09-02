@@ -111,6 +111,14 @@ npx tsx src/index.ts
 
 Bot は `DRY_RUN` と `SKIP_OCR` を付けた安全な確認から始めます。ローカル実行は commit も push もしません。
 
+通知条件を変更した場合は、少なくとも次の境界をユニットテストで固定します。
+
+- 過去日の管理 override 削除だけなら `calendar_cleanup_only=true` 相当になる
+- 変更なし、今日・未来の削除、未来の追加、過去削除と未来変更の混在は cleanup-only にならない
+- 実際の `public/data` に `calendar_rules.json` 以外の差分があれば、Bot のフラグにかかわらず通知対象になる
+
+最後の条件は `.github/workflows/timetable-sync.yml` の二重確認です。ローカルのユニットテストだけでは GitHub Actions の step output とメール action の配線までは保証できないため、`main` 反映後の実走で確認します。
+
 **Bot のテストは実ネットワークへ出てはいけません。** 大学サイトへ無断でアクセスしないこと自体が Bot の要件です。同一 URL の再検証を扱うテスト（`bot/test/detectChanges.test.ts`）は `fetch` をスタブし、`bot/test/plan.test.ts` の state には `checked_at` を入れて再検証が走らないようにしてあります。`detectChanges` を呼ぶテストを足すときは、どちらかの手当てを必ず行ってください。
 
 ワークフローが適用前に通す検証器と同じものを、リポジトリ直下でも実行できます。
@@ -133,7 +141,14 @@ OCR、実ファイル書込、GitHub Actions での自動適用とメール送�
 - 実 API の現時点の応答、利用枠、画像品質
 - 本番での自動コミット、メール到達（迷惑メール判定を含む）、Pages 反映
 
-**自動適用とメール通知は GitHub 上で 1 度も実行していません。** 未検証の受け入れ基準は AC-4（変更が無い日に何も起きない）、AC-7（イベントのライフサイクル）、AC-8（通知）です。
+**2026-09-01 時点で、自動適用、メール到達、Cloudflare Pages 反映、AC-7 のイベント自動撤去は運用者またはコミット履歴で確認済みです。** 一方、2026-09-02 に修正した「過去日の override 剪定だけなら更新メールを送らない」配線は、ローカルの変更分類テストまでが確認済みで、GitHub Actions 上では未確認です。
+
+`main` 反映後、時刻表の実変更も警告もない日について次を確認します。
+
+1. `Detect diff` が過去日の override 剪定だけだと記録する。
+2. `Compose notification` が `send=no` を出し、`Send notification` が skipped になる。
+3. 更新メールが届かない（月初1日の heartbeat は例外）。
+4. 後日、実際に時刻表ファイルまたは今日以降の override が変わった実行では、従来どおり更新メールが届く。
 
 Bot の受け入れ基準と人間が行う確認は `BACKEND_REQUIREMENTS.md` と `HANDOFF.md` を正とします。
 

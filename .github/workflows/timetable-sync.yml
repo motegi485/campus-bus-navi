@@ -1,6 +1,7 @@
 # スクールバス時刻表の自動取り込み（要件定義 §10 の確定 YAML）
 #
-# 取得から本番反映までを自動で行い、変更があったときだけメールで通知する。
+# 取得から本番反映までを自動で行い、利用者に影響する変更があったときだけメールで通知する。
+# 過去日の管理 override 剪定だけの定期保守は、更新メールの対象に含めない。
 # 人間の PR レビューは経由しない（2026-08-16 の方針転換。要件定義 §1.1 / FR-11 が正本）。
 #
 # 現状: このワークフローは GitHub UI で【有効化済み・稼働中】（2026-09-01 に確認）。
@@ -104,11 +105,18 @@ jobs:
         if: ${{ inputs.dry_run != true }}
         run: node scripts/validate-data.mjs
 
-      # 通知するかの判断材料。対象パスを限定するのが要点で、
+      # commit と通知の判断材料。対象パスを限定するのが要点で、
       # gitignore 下の bot/.out や無関係な変更を巻き込まない。
+      #
+      # 前日までの override を calendar_rules.json から落とすだけの差分は、
+      # 今日以降にアプリが選ぶ時刻表を変えない定期保守なので更新メールを送らない。
+      # ただし Bot 側の判定だけを信用せず、実際の public/data 差分が calendar_rules.json
+      # だけであることも確認する。他のファイルが1件でも変われば通知対象に倒す。
       - name: Detect diff
         id: diff
         if: ${{ inputs.dry_run != true }}
+        env:
+          CALENDAR_CLEANUP_ONLY: ${{ steps.sync.outputs.calendar_cleanup_only }}
         run: |
           status=$(git -c core.quotepath=false status --porcelain -- public/data bot/state.json bot/holidays.json)
           if [ -z "$status" ]; then
@@ -119,7 +127,13 @@ jobs:
           fi
           echo "$status"
           echo "changed=true" >> "$GITHUB_OUTPUT"
-          if printf '%s\n' "$status" | cut -c4- | grep -q '^public/data/'; then
+
+          data_status=$(git -c core.quotepath=false status --porcelain -- public/data)
+          non_calendar_data=$(printf '%s\n' "$data_status" | cut -c4- | grep -v '^public/data/calendar_rules\.json$' || true)
+          if [ "$CALENDAR_CLEANUP_ONLY" = "true" ] && [ -z "$non_calendar_data" ]; then
+            echo "data_changed=false" >> "$GITHUB_OUTPUT"
+            echo "public/data の差分は過去日の override 剪定だけです。更新メールの対象外とします。"
+          elif [ -n "$data_status" ]; then
             echo "data_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "data_changed=false" >> "$GITHUB_OUTPUT"

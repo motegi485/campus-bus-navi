@@ -22,6 +22,7 @@ import { fetchHolidays } from './holidays.js'
 import { detectChanges } from './detectChanges.js'
 import { OcrClient } from './ocr.js'
 import { buildPlan } from './plan.js'
+import { isPastOverrideCleanupOnly } from './calendar.js'
 import { buildReport, formatWarning, linkDates } from './report.js'
 import {
   readState,
@@ -259,6 +260,14 @@ async function main(): Promise<void> {
    */
   const hasWarn = warnings.some((w) => w.level === 'warn') || planned.validationFailures.length > 0
   output('has_warn', hasWarn ? 'true' : 'false')
+
+  /**
+   * 前日までの override を calendar_rules.json から落とすだけの定期的な保守差分は、
+   * アプリが今日以降に選ぶ時刻表を変えない。ワークフローは実際の git 差分も併せて確認し、
+   * calendar_rules.json 以外に変更が無い場合だけ更新メールを抑止する。
+   */
+  const calendarCleanupOnly = isPastOverrideCleanupOnly(planned.calendar.changes, today)
+  output('calendar_cleanup_only', calendarCleanupOnly ? 'true' : 'false')
 
   // ---- FR-12: ドライランはここで計画を出力して終了 ----------------------
   if (isDryRun) {
