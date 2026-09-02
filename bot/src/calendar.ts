@@ -57,6 +57,23 @@ export function eventIdForDate(date: string): string {
   return `timetable_event_${date.replace(/-/g, '')}`
 }
 
+/**
+ * calendar_rules.json の実変更が、過去日の override 剪定だけかを判定する。
+ *
+ * `skip` は手動 override を優先したという計画上の記録で、ファイル自体は変更しないため
+ * 判定対象から外す。空配列を true にすると、想定外の calendar 差分まで通知対象外に
+ * してしまうので、実変更が 1 件以上ある場合に限って true を返す。
+ *
+ * この値は通知判定にだけ使う。剪定自体と、その差分の commit は従来どおり行う。
+ */
+export function isPastOverrideCleanupOnly(changes: OverrideChange[], today: string): boolean {
+  const mutations = changes.filter((change) => change.op !== 'skip')
+  return (
+    mutations.length > 0 &&
+    mutations.every((change) => change.op === 'remove' && isBefore(change.date, today))
+  )
+}
+
 export function calculateOverrides(input: CalendarInput): CalendarResult {
   const today = input.today ?? todayJst()
   const O = input.liveOverrides

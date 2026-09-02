@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { calculateOverrides, type CalendarInput } from '../src/calendar.js'
+import { calculateOverrides, isPastOverrideCleanupOnly, type CalendarInput } from '../src/calendar.js'
 import type { CalendarRules, Holiday, ManagedOverrides, State } from '../src/types.js'
 
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures')
@@ -39,6 +39,73 @@ function run(overrides: Partial<CalendarInput> = {}) {
   }
   return calculateOverrides(input)
 }
+
+describe('通知用のカレンダー変更分類', () => {
+  it('過去日の削除だけなら定期剪定として扱う', () => {
+    expect(
+      isPastOverrideCleanupOnly(
+        [
+          { date: '2026-07-31', op: 'remove', id: 'timetable_vacation_summer_weekday' },
+          // skip は calendar_rules.json の実変更ではない
+          { date: '2026-08-11', op: 'skip', id: 'timetable_holiday' },
+        ],
+        TODAY,
+      ),
+    ).toBe(true)
+  })
+
+  it.each([
+    ['変更なし', []],
+    ['skip のみ', [{ date: '2026-08-11', op: 'skip' as const, id: 'timetable_holiday' }]],
+    ['今日の削除', [{ date: TODAY, op: 'remove' as const, id: 'timetable_special' }]],
+    ['未来日の削除', [{ date: '2026-08-02', op: 'remove' as const, id: 'timetable_special' }]],
+    ['未来日の追加', [{ date: '2026-08-02', op: 'add' as const, id: 'timetable_holiday' }]],
+    [
+      '過去日の削除と未来日の追加の混在',
+      [
+        { date: '2026-07-31', op: 'remove' as const, id: 'timetable_holiday' },
+        { date: '2026-08-02', op: 'add' as const, id: 'timetable_holiday' },
+      ],
+    ],
+  ])('%s は通知対象外の定期剪定だけとは扱わない', (_label, changes) => {
+    expect(isPastOverrideCleanupOnly(changes, TODAY)).toBe(false)
+  })
+
+  it('日付が進んで前日分だけ消える実運用ケースを定期剪定と判定する', () => {
+    const timetableId = 'timetable_vacation_summer_weekday'
+    const liveOverrides = {
+      '2026-09-01': timetableId,
+      '2026-09-02': timetableId,
+    }
+    const prevManaged = managed({ vacation: { ...liveOverrides } })
+    const state: State = {
+      version: 1,
+      vacations: {
+        summer: {
+          url: 'u',
+          sha256: 's',
+          period: { start: '2026-09-01', end: '2026-09-02' },
+          derived: [timetableId],
+          processed_at: 'x',
+        },
+      },
+    }
+
+    const result = run({
+      liveOverrides,
+      prevManaged,
+      state,
+      holidays: [],
+      today: '2026-09-02',
+    })
+
+    expect(result.nextOverrides).toEqual({ '2026-09-02': timetableId })
+    expect(result.changes).toEqual([
+      { date: '2026-09-01', op: 'remove', id: timetableId, reason: '過去日付の管理キー' },
+    ])
+    expect(isPastOverrideCleanupOnly(result.changes, '2026-09-02')).toBe(true)
+  })
+})
 
 describe('テスト6: calendar（FR-9）', () => {
   it('(a) 手動キーは不可侵（過去日でも保持し、値も変えない）', () => {
