@@ -57,24 +57,20 @@ export const CONFIG = {
   /**
    * OCR モデル。
    *
-   * 【要件定義 v1.4（primary=gemini-3.5-flash / fallback=gemini-3.1-flash-lite）からの変更・
-   *   2026-08-01 の実測にもとづきユーザー承認済み】
+   * 【2026-09-03 ユーザー承認】
+   * primary は最新の GA モデル gemini-3.8-flash、fallback は同じ OCR リクエスト
+   * （画像入力・構造化 JSON・low thinking）に対応する gemini-3.7-flash とする。
    *
-   * primary を gemini-3.6-flash にした理由:
-   *   - GA（2026-07 リリース）で 3.5-flash より新しい
-   *   - 無料枠あり。有料時の入力単価は同額（$1.50/1M）で出力はむしろ安い（$7.50 vs $9.00）
-   *   - 実測で通常ダイヤ画像（JR 列同居）・夏季休業画像（左右2表・共有「時」列）とも
-   *     正解 fixture と完全一致。3.5-flash と同等以上だった
-   *   - RPD はモデル別。3.5-flash は当日 503（高負荷）を頻発させていた
-   *
-   * fallback を gemini-3.5-flash にした理由:
-   *   旧 fallback の gemini-3.1-flash-lite は、実測で夏季休業画像を3回読んでも
-   *   結果が一致せず needs_review に落ちた（＝フォールバックとして機能しない）。
-   *   フォールバックの目的は「primary が使えないときにジョブを完走させる」ことなので、
-   *   別の枠を持つ同格モデルを充てる。Bot の消費量は微小なのでコスト差は問題にならない。
+   * fallback の目的は、primary 固有のモデル利用不可・RPD 枯渇・一時障害時に
+   * ジョブを安全に完走させること。1 リクエストが時間切れ（AbortError / TimeoutError）なら
+   * primary を再試行せず直ちに fallback へ切り替える。通常の RPM 429 と 503 等の
+   * 一時障害は既存どおりバックオフ再試行を優先する。Google API 全体の障害に対する
+   * 保証ではない。
+   * 無料枠の実値はプロジェクト・モデルごとに AI Studio で確認し、呼び出し上限は
+   * 確認できるまで既存の保守的な値を維持する。
    */
-  modelPrimary: 'gemini-3.6-flash',
-  modelFallback: 'gemini-3.5-flash',
+  modelPrimary: 'gemini-3.8-flash',
+  modelFallback: 'gemini-3.7-flash',
   geminiMinIntervalMs: 6000, // 無料枠 RPM 対策: 呼び出し間隔の下限
   geminiMaxRetries429: 3, // 429: 30s/60s/120s 指数バックオフ
   geminiBackoffMs: [30_000, 60_000, 120_000],
