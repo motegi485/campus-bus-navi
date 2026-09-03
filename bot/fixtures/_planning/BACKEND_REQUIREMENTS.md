@@ -2,7 +2,10 @@
 
 | 項目 | 内容 |
 |---|---|
-| 文書バージョン | 1.11（期限切れ override 剪定による日次メールの抑止） |
+| 文書バージョン | 1.14（OCR 未実行時の通知モデル表示を省略） |
+| v1.14 変更点 | 2026-09-04、通知メールへ連結する実行レポートのモデル行は **実際に Gemini を 1 回以上呼んだときだけ**出力するよう更新。`OcrClient` を生成しただけ、`SKIP_OCR=1`、予算・締切により API を呼ばなかった場合は、設定上の primary を「使用した」と誤表示しない。呼び出しを試みた実行は、成功・失敗を問わず最終使用モデルと fallback 注記を従来どおり出力する。 |
+| v1.13 変更点 | 2026-09-04、`gemini-3.8-flash` の実 OCR が 180 秒で 2 回連続タイムアウトしたことを受け、**primary の `AbortError` / `TimeoutError` は再試行せず、直ちに `gemini-3.7-flash` へ切り替える**よう更新。同一実行中は fallback を固定し、従来の 2 回読み照合・3 回目多数決・`needs_review` は省略しない。通常の RPM 429 と 503 等の一時障害は既存どおりバックオフ再試行を優先する。モデル利用不可・RPD 枯渇・早期タイムアウト・503 の切替経路をモックする回帰テストで固定する。 |
+| v1.12 変更点 | 2026-09-03、OCR の primary を **`gemini-3.8-flash`**、障害時の fallback を **`gemini-3.7-flash`** へ更新。既存の 2 回読み照合・不一致時の 3 回目多数決・`needs_review`・呼び出し上限は維持する。fallback は primary 固有の 403/404、RPD 枯渇と判定した 429、再試行後も続く一時障害でのみ使用し、通常の RPM 429 は従来どおりバックオフ再試行後に失敗とする。モデル切替をモックする回帰テストを追加し、切替前後に代表画像 2 枚で両モデルの OCR 結果を正解 fixture と照合する。3.8 / 3.7 の実 RPM・RPD はプロジェクトの AI Studio で確認できるまで、既存の保守的な 18 回/実行・日を維持する。 |
 | v1.11 変更点 | 2026-09-02、本番稼働後に、発車時刻ファイルが変わっていない日も毎日「時刻表を更新しました」メールが届く問題を修正。**原因**は、FR-9 に従う過去日の管理 override 剪定で `calendar_rules.json` に毎日差分が生じ、FR-11 のワークフローが `public/data/**` の全差分を通知対象としていたこと。**FR-11**: `calendar.ts` が「計画上の実変更が過去日の override 削除だけ」であることを判定し、`index.ts` が `calendar_cleanup_only` を出力する。ワークフローはこの値に加えて、実際の `public/data` 差分が `calendar_rules.json` だけであることも確認できた場合に限り、更新メールを送らない。時刻表ファイル・他の public データ・今日以降の override に差分が1件でもあれば通知側へ倒す。警告・失敗・月初 heartbeat は従来どおり。剪定と state の鮮度情報は commit してよいため、通知対象外の日にも運用メタデータの commit は生じ得る。**§12**: 2026-09-01 の実差分（前日 override 1件の削除だけ）を再現する回帰テストと、今日・未来の変更を抑止しない境界テストを追加。 |
 | v1.10 変更点 | 2026-08-18、Codex による公開前システムレビュー（`_codexReview/CODEX_REVIEW_2026-08-17.md`）で妥当と判定した指摘を実装に反映。**FR-2**: 画像拡張子の判定を URL 全体末尾から **URL の `pathname`** へ（`.jpg?v=2` / `.png#x` の無警告の取りこぼしを解消）／6(b) の `regular_link_missing` を **`info` から `warn` へ格上げ**（他に差分が無い日でも必ずメールに載る。「書かなかった判断も通知」との整合）。**FR-4**: 「URL 同一 → スキップ」を **「URL 同一 → 条件付き再検証つきスキップ」** へ変更。`ETag` / `Last-Modified` があれば毎回の条件付き GET、無ければ最後に内容確認できた日から `imageRevalidateIntervalDays`（7 日）以上経過したときに再取得して SHA-256 比較。確認できなかった実行は「変化なし」と断定せず記録し、`imageRecheckStaleDays`（21 日）を超えたら warn へ格上げ。これで「同一 URL のまま画像が差し替わる」見逃し期間の上限が無限から有限になる。**FR-5**: 原寸 URL の判定も `pathname` に対して行う。**FR-10**: 祝日 CSV に健全性検査（実在日・日付重複なし・昇順整列）と、既存キャッシュ比の急減ガード（`holidayMinRatioVsCache` = 0.7、キャッシュが無いときは `holidayMinRowsWithoutCache` = 100 件）を追加。途中で切れた HTTP 200 応答を正規のキャッシュとして採用しない。**FR-11**: 取り消し手順の自己矛盾を解消（後述）。レポートの Markdown を用途別にエスケープ（テーブルセルの `|`、リンクテキストの `[]`、リンク URL の括弧・空白）。**§7.2**: `fetchDeadlineMs`（8 分）・`maxImageFetchesPerRun`（24）・`geminiMaxCallsPerDay`（18）・`imageRevalidateIntervalDays`・`imageRecheckStaleDays`・祝日しきい値を追加。取得フェーズにも締切と件数上限を課し、超えた分は黙って切らず warn に落として翌日再試行する。**§9**: state の各エントリに `etag` / `last_modified` / `checked_at`（いずれも任意）、ルートに `ocr_usage`（日次の Gemini 呼び出し回数）を追加。**§10**: `main` 以外の ref での実行を先頭ステップで fail-closed に拒否（`HEAD:main` を push するため、別 ref だとその ref の既存コミットまで運んでしまう）／rebase 後は組み合わせ後のツリーでデータ検証と変更範囲検査をやり直してから push ／毎月 1 日は変更が無くても稼働確認メールを送る（`heartbeat`）。**§14**: 誤反映の巻き戻し手順を「再公開を止める手順」と「読み直させる手順」に分離 |
 | v1.9 変更点 | 2026-08-16、**「Bot が PR を作り人間がレビューしてマージする」という人間ゲートを廃止し、取得から本番反映までを自動化した**（ユーザー決定）。反映の遅れと「PR を放置すると古いダイヤが出続ける」状態を解消するのが目的。**§1.1 / §1.3 / §1.4-3**: 反映は `main` への直接コミットになり、人間の役割は「事後にメールを見る」へ移る。**FR-11**: 「PR 作成」を「自動適用と通知」へ全面改稿。`bot/src/report.ts` は `report.ts` に改名し、出力は `bot/.out/report.md`。PR の diff が無くなるため、**レポートに発車時刻そのもの（旧→新の追加・削除）を載せる**。**FR-8**: 便数 ±50% 超の変化を SHOULD 警告から **MUST エラー（そのファイルを書かない）** へ格上げ（PR レビューという第 3 層の代替）。**§10**: `create-pull-request` を廃し、適用前の `node scripts/validate-data.mjs`・対象パス限定の差分検出・`main` への push・条件付きメール送信に置き換え。`permissions` は `contents: write` のみ。**index.ts**: 「警告あり かつ 差分ゼロで `exitCode = 1`」を廃止（通知メールが入り前提が消えたため）。**§12.3**: AC-4 を「既存 PR の更新」から「差分ゼロの日に何も起きない」へ差し替え、通知の AC-8 を追加。**§16.3**: H-3 の PR 作成許可は不要になり、H-5 は「PR レビュー」から「メール確認」へ。メール用 Secrets（`MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_TO`）を H-9 として追加 |
@@ -20,6 +23,9 @@
 | 確認境界（v1.9） | v1.9 のコード変更は 2026-08-16 にローカルでテスト 156 件・`tsc --noEmit` の合格を確認した。**GitHub Actions 上での実走は未検証**（自動適用・メール送信とも 1 度も動かしていない）。workflow の有効状態、Secrets、Workflow permissions、Cloudflare Pages の反映は外部状態であり、稼働前に GitHub UI で再確認する。**未検証の受け入れ基準は AC-4 / AC-7 / AC-8。** |
 | 確認境界（v1.10） | v1.10 のコード変更は 2026-08-18 にローカルで確認した。Bot のテスト 184 件・`tsc --noEmit`・`node scripts/validate-data.mjs`・ルートの `npm run build`・`server` のテストと typecheck がすべて合格。**GitHub Actions 上での実走は引き続き未検証。** |
 | 確認境界（v1.11） | v1.11 のコード変更は 2026-09-02 にローカルで確認した。Bot のテスト 193 件・Bot の `tsc --noEmit`・`node scripts/validate-data.mjs`・ルートの `npm run build` がすべて合格。実ネットワーク・OCR・秘密情報は使っていない。**GitHub Actions 上での剪定のみ通知抑止は `main` 反映後の無変更日まで未確認。** |
+| 確認境界（v1.12） | v1.12 のコード変更は 2026-09-03〜04 にローカルで確認した。Bot のテスト 196 件・Bot の `tsc --noEmit`・`node scripts/validate-data.mjs`・ルートの `npm run build` がすべて合格。`gemini-3.8-flash` による公開 fixture の実 OCR は、既存の 180 秒リクエストタイムアウトが 2 回連続で発生したため、無料枠を過剰に消費しないよう中止した。**3.8 / 3.7 の実 API 互換性・精度・RPM/RPD と GitHub Actions 上の実走は未確認。** |
+| 確認境界（v1.13） | v1.13 の早期 fallback は 2026-09-04 にローカルで確認した。Bot のテスト 197 件・Bot の `tsc --noEmit`・`node scripts/validate-data.mjs`・ルートの `npm run build` がすべて合格。`AbortError` 時に primary を再試行せず fallback へ切り替え、同一実行の 2 回読みが fallback を使い続けることをモックで確認した。**実 API における 3.8 / 3.7 の互換性・精度・RPM/RPD と GitHub Actions 上の実走は引き続き未確認。** |
+| 確認境界（v1.14） | v1.14 の OCR 未実行時のモデル行省略は 2026-09-04 にローカルで確認した。Bot のテスト 198 件・Bot の `tsc --noEmit`・`node scripts/validate-data.mjs`・ルートの `npm run build` がすべて合格。Gemini 呼び出し 0 回のレポートに `モデル:` と fallback 注記が出ないことをテストした。**実 API における 3.8 / 3.7 の互換性・精度・RPM/RPD と GitHub Actions 上の実走は引き続き未確認。** |
 | 実装状況（2026-08-18） | **ワークフローは Disable 中である想定。** v1.9 / v1.10 の改修はこのチェックアウト上で完了し、テストは緑。⚠️ **「main に統合済み」かどうかは、このリポジトリの中からは確認できない。** 作業用チェックアウトの追跡 ref は live の `main` と一致しているとは限らない（実際、2026-08-17 時点のローカル `main` は作業ブランチより 37 コミット古かった）。**公開・稼働の前に、GitHub UI か API で `main` の実 SHA とワークフローの内容・有効状態を確認すること。** **未了は人間側の外部設定（§16.3 の H-2 / H-3' / H-9）と初回実走**（§17.4・手順は `HANDOFF.md`）。 |
 | 実装状況（2026-09-01・上記を更新） | **§17.4 の人間側設定は完了し、ワークフローは有効化・稼働中。** `main` への `bot: 時刻表データの自動更新` コミットが 2026-08-19 以降、日次で継続していることをコミット履歴で確認した。メール到達・Cloudflare Pages への実反映は運用者が確認済み。**AC-7（イベント自動撤去）は確認済み**（`2026-08-24` のコミットで期限切れの `timetable_event_20260823.json` と override が自動撤去されていることを `git show` で確認した）。**AC-4（無変更日にコミットもメールも発生しないこと）は既知の問題として未達。** 2026-08-19〜2026-09-01 の13日間、無変更の日が1日も無く、`calendar_rules.json` の override 剪定だけの日でも「時刻表を更新しました」メールが送られていると見られる。この問題は本更新では対処せず、別途対応する。 |
 | 実装状況（2026-09-02・上記を更新） | AC-4 の原因を実コミット差分とコードから確定し、v1.11 の通知抑止を実装済み。過去日の override 剪定と state 更新は従来どおり commit し得るが、それだけでは更新メールを送らない。時刻表ファイル、他の public データ、今日以降の override の変更は通知側へ倒す。**未了は、この変更の `main` 反映と、その後の GitHub Actions 実走確認。Secrets・Workflow permissions の変更は不要。** |
@@ -202,7 +208,7 @@ Bot はフロントを変更しない。以下はリポジトリの現状から�
 | ランタイム | **Node.js 22 (LTS)** | Node 20 は 2026-04 EOL のため不可 |
 | 言語 | TypeScript 5（`strict: true`） | 実行は `tsx`（ビルドステップ不要） |
 | Gemini SDK | **`@google/genai` ^2**（npm） | 統一SDK。**`@google/generative-ai` はレガシーで使用禁止**（公式明記）。`generateContent` API を使用（Interactions API はベータのため不使用） |
-| OCR モデル | **【v1.5 変更】** 既定 **`gemini-3.6-flash`**（2026-07 GA）／フォールバック **`gemini-3.5-flash`** | config で差し替え可能。§8.5.5。旧: primary `gemini-3.5-flash` / fallback `gemini-3.1-flash-lite`。変更理由は下記 |
+| OCR モデル | **【v1.12】** 既定 **`gemini-3.8-flash`**／フォールバック **`gemini-3.7-flash`** | 通常は primary のみを使う。primary 固有の利用不可・RPD 枯渇・再試行後の一時障害時だけ fallback へ切り替える。§5.2 / §8.5.5 |
 | 生成設定 | `responseMimeType: 'application/json'` + `responseSchema`、`thinkingConfig: { thinkingLevel: 'low' }`、画像 Part に `media_resolution_high` | **temperature / top_p / top_k は設定しない**（Gemini 3 公式推奨: 既定 1.0 のまま。低温指定はループ・劣化要因）。決定性は「2回読み照合」(§8.5.4) で担保 |
 | HTML パース | `cheerio` ^1 | |
 | 検証 | `zod` ^4 | |
@@ -229,6 +235,20 @@ Bot はフロントを変更しない。以下はリポジトリの現状から�
 - fallback を `gemini-3.5-flash` にした理由: 旧 fallback の `gemini-3.1-flash-lite` は実測で読みが安定せずフォールバックとして機能しなかった。**フォールバックの目的は「primary が使えないときにジョブを完走させる」ことなので、同格モデルを充てる**。RPD はモデル別に管理されるため、別モデルへの切り替えは枠の面でも有効。Bot の消費量は微小なのでコスト差は問題にならない。
 
 ---
+
+#### 5.2 OCR モデル選定の根拠（v1.12・2026-09-03）
+
+- primary は `gemini-3.8-flash` とする。Gemini 3.8 Flash は画像入力、構造化出力、`thinkingLevel: 'low'` に対応する GA モデルで、既存の `generateContent` リクエストを変えずに指定できる。
+- fallback は `gemini-3.7-flash` とする。同じ OCR リクエストに対応する別モデルであり、primary 固有のモデル利用不可・モデル別クォータ枯渇・一時障害からの回復を狙う。**同じ Google API・同一プロジェクトを使うため、認証障害・ネットワーク障害・サービス全体の容量不足への冗長化を保証するものではない。**
+- 通常の RPM 429 はモデルを替えず、30 / 60 / 120 秒のバックオフを優先する。RPD と通常の RPM を同じ 429 として扱わない。
+- 新しいモデル番号だけで OCR 精度や無料枠が向上すると判断しない。代表画像（JR 列同居の通常ダイヤ、共有「時」列の夏季休暇ダイヤ）を両モデルで正解 fixture と照合し、対象プロジェクトの RPM / RPD を AI Studio で確認してから運用する。
+
+#### 5.3 リクエストタイムアウト時の早期 fallback（v1.13・2026-09-04）
+
+- `abortSignal` による 180 秒の上限で `AbortError` / `TimeoutError` になった primary は、3 回の一時障害リトライを行わず直ちに `gemini-3.7-flash` へ切り替える。`180 秒 × 4 回 + 5 / 15 / 45 秒` を primary に費やすと 15 分の OCR 締切内に fallback の時間がほとんど残らないためである。
+- 切替後は同一実行の後続読取りも `gemini-3.7-flash` を使う。次回の独立した日次実行では再び primary から開始する。
+- 3.7 でも 2 回読み照合・不一致時の 3 回目多数決・`needs_review` を維持する。fallback 側もタイムアウトした場合に単一読取りを採用しない。
+- 503 / 500、通常の RPM 429、その他のネットワーク断は、従来どおり短いバックオフ再試行を優先する。180 秒を短縮する判断は、両モデルの実レイテンシを確認してから別途行う。
 
 ## 6. 全体ワークフロー
 
@@ -317,8 +337,8 @@ export const CONFIG = {
   imageExtPattern: /\.(jpe?g|png)$/i,
   resizedSuffixPattern: /-\d+x\d+(?=\.(jpe?g|png)$)/i,
 
-  modelPrimary: 'gemini-3.6-flash',    // v1.5 変更（§5.1）
-  modelFallback: 'gemini-3.5-flash',   // v1.5 変更（§5.1）
+  modelPrimary: 'gemini-3.8-flash',    // v1.12 変更（§5.2）
+  modelFallback: 'gemini-3.7-flash',   // v1.12 変更（§5.2）
   geminiMinIntervalMs: 6000,          // 無料枠RPM対策: 呼び出し間隔の下限
   geminiMaxRetries429: 3,             // 429: 30s/60s/120s 指数バックオフ
 
@@ -499,7 +519,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const res = await ai.models.generateContent({
-  model: CONFIG.modelPrimary,            // 'gemini-3.5-flash'
+  model: CONFIG.modelPrimary,            // 'gemini-3.8-flash'
   contents: [{
     role: 'user',
     parts: [
@@ -596,6 +616,9 @@ const json = JSON.parse(res.text);
 **実測結果（2026-08-01 / `gemini-3.6-flash` / 2回読み一致）**: 通常ダイヤ画像（JR 列同居・2種別上下配置・専用「時」列）と
 夏季休暇画像（JR 列なし・2種別左右配置・共有「時」列）の両方で、正解 fixture と**完全一致**した。
 
+**v1.12 の受入条件**: `gemini-3.8-flash` と `gemini-3.7-flash` のそれぞれで、上記 2 枚を
+`npm run ocr:check -- <画像> <正解fixture>` により 2 回読み照合し、正解 fixture と完全一致すること。
+
 > **注（SDK 仕様）**: `responseSchema` の `minItems` / `maxItems` は int64 を表す**文字列**（`'1'` / `'2'`）。
 > 数値を渡すと API エラーになる。`@google/genai` の `Schema` 型で注釈しておくとコンパイル時に検出できる。
 
@@ -612,17 +635,19 @@ const json = JSON.parse(res.text);
 | 失敗モード | 検出 | 対応 |
 |---|---|---|
 | **429（RPM 超過）** | `429` / `RESOURCE_EXHAUSTED` かつ RPD 表記なし | 30s → 60s → 120s の指数バックオフで最大 3 リトライ |
-| **429（RPD 枯渇）** | エラー本文に `PerDay` / `RequestsPerDayPerProject` | **バックオフしない**（待っても当日は回復しない）。即座に `modelFallback`（別の RPD 枠）へ切り替え、それも駄目なら失敗 |
+| **429（RPD 枯渇）** | エラー本文に `PerDay` / `RequestsPerDayPerProject` | **バックオフしない**（待っても当日は回復しない）。即座に `modelFallback` へ切り替え、それも駄目なら失敗。モデル間で実際に別枠になるかは対象プロジェクトの AI Studio で確認する |
 | **503 / 500（過負荷・内部エラー）** | `503` / `UNAVAILABLE` / `high demand` / `INTERNAL` 等 | 5s → 15s → 45s の短いバックオフで最大 3 リトライ。解消しなければ `modelFallback` へ |
-| **ネットワーク断・タイムアウト** | `fetch failed` / `ECONNRESET` / `ETIMEDOUT` / `AbortError` 等 | 上と同じ扱い。加えて 1 リクエストに `abortSignal`（既定 180 秒）を付け、接続が張り付いたまま戻らない事態を防ぐ |
+| **リクエストタイムアウト** | `abortSignal` の `AbortError` / `TimeoutError` | primary では再試行せず、直ちに `modelFallback` へ切り替える。fallback 側の失敗は単一読取りを採用せず安全に失敗させる |
+| **その他のネットワーク断** | `fetch failed` / `ECONNRESET` / `ETIMEDOUT` 等 | 503 / 500 と同じ短いバックオフ再試行。解消しなければ `modelFallback` へ |
 | **モデル不存在/権限エラー** | `404` / `403` / `NOT_FOUND` / `PERMISSION_DENIED` | `modelFallback` で再試行 |
 
-- フォールback使用時は レポートに「⚠ フォールバックモデル使用」を明記する。フォールバックでも失敗ならジョブ失敗（**黙って成功扱いにしない**）。
+- Gemini を 1 回以上呼んだ実行では、最終使用モデルをレポートに記載する。フォールバック使用時は「⚠ フォールバックモデル使用」を明記する。Gemini を一度も呼ばなかった実行では、設定上のモデルを使用済みと誤認させないためモデル行を省略する。フォールバックでも失敗ならジョブ失敗（**黙って成功扱いにしない**）。v1.13 では primary のリクエストタイムアウト時も `gemini-3.8-flash` から `gemini-3.7-flash` へ一度だけ切り替える。
 - **1実行あたりの呼び出し上限 `geminiMaxCallsPerRun`（既定 18）**: リトライも無料枠を消費するため、1枚の画像で 503/429 が重なると後続画像の分まで枯渇する。上限に達したら残りの画像は OCR せず needs_review として 通知/ログに顕在化させる（既存データは触らない）。翌日の実行で自然に再試行される。
 - **無料枠の実測値（2026-08-01・H-8 の答え）**: `gemini-3.5-flash` の Free Tier は
-  **RPD（1日あたりリクエスト数）= 20**（エラー本文の `quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier` / `quotaValue: 20` より）。
-  **RPD は太平洋時間の深夜（＝日本時間 16:00）にリセット**され、**モデルごとに独立**して管理される。
-- 想定呼び出し回数: 更新なし日 **0 回**／更新日 = 変更画像数 × 2〜3 回（典型 2〜9 回）。RPD=20 に対して通常運用は収まるが**開発中の検証には窮屈**なので、枠を消費せず計画だけ見たいときは `SKIP_OCR=1` を使う。
+   **RPD（1日あたりリクエスト数）= 20**（エラー本文の `quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier` / `quotaValue: 20` より）。
+   **RPD は太平洋時間の深夜（＝日本時間 16:00）にリセット**され、**モデルごとに独立**して管理される。
+- この 3.5 の実測は、現在の 3.8 / 3.7 の RPD を示すものではない。v1.12 では実値を確認するまで既存の 18 回/実行・日を保守的に維持する。
+- 想定呼び出し回数: 更新なし日 **0 回**／更新日 = 変更画像数 × 2〜3 回（典型 2〜9 回）。開発中に枠を消費せず計画だけ見たいときは `SKIP_OCR=1` を使う。
 - 無料枠の数値は変動するため、**実値は AI Studio のレート制限画面で確認**して運用する。
 
 ### FR-7: 組み立て（assemble）
@@ -938,7 +963,7 @@ const json = JSON.parse(res.text);
    - **【v1.9】「Allow GitHub Actions to create and approve pull requests」は不要になった**（PR を作らない）。
    - なお、リポジトリ既定が読み取り専用のときにワークフローの `permissions:` 宣言が昇格として
      効くかは公式文書で確認できなかった（未確認）。確実な「Read and write permissions」を設定する。
-3. AI Studio のプロジェクト画面で `gemini-3.6-flash` の無料枠レート（RPM/RPD）を確認し、必要なら `geminiMinIntervalMs` を調整。
+3. AI Studio のプロジェクト画面で `gemini-3.8-flash` と `gemini-3.7-flash` の無料枠レート（RPM/RPD）を確認し、必要なら `geminiMinIntervalMs` と呼び出し上限を調整。
 4. 運用注意: スケジュールワークフローは**リポジトリに 60 日コミットがないと自動無効化**される。
    Bot は変更があった日しかコミットしないため、**掲載が長期間動かない時期は Bot だけでは無効化を防げない**
    （フロント開発のコミットがあれば防げる）。無効化時は GitHub から通知が届くので、
@@ -1090,8 +1115,8 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
   ① 該当コミットを revert（data と state が一緒に戻る）② **そのままでは翌日また同じ内容が反映される**ので、
   止めるなら手動で `timetable_special` の override を張るか、Actions でワークフローを Disable する
   ③ `bot/state.json` の該当キー削除は「わざと読み直させたいとき」だけ（停止手段ではない）。
-- **モデル変更**: `config.ts` の `modelPrimary` を書き換えるだけ。切り替え前に
-  `npm run ocr:check -- <画像> <正解fixture>`（`OCR_MODEL` で一時的にモデルを上書き可）で読み取り精度を確かめること。
+- **モデル変更**: `config.ts` の `modelPrimary` と `modelFallback` を組で書き換える。切り替え前に
+  `npm run ocr:check -- <画像> <正解fixture>`（`OCR_MODEL` で一時的にモデルを上書き可）で primary / fallback の両方の読み取り精度を確かめ、AI Studio で各モデルの RPM / RPD を確認すること。
 - **【v1.5】無料枠を使い切った / 使いたくないとき**: `SKIP_OCR=1` を付けると OCR を通さずに
   抽出・分類・カレンダー計算だけ実行できる。RPD は太平洋時間の深夜（日本時間 16:00）にリセットされる。
 - **【v1.5 / v1.10】通知メールに「呼び出し上限に達したためスキップ」が出た**: その画像は翌日の実行で自動的に再試行される。
@@ -1128,7 +1153,7 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
    気づいた場合の復旧は §14 の巻き戻し手順による。これは 2026-08-16 に「反映の遅れ」と
    「誤りの公開」を天秤にかけたうえでユーザーが受容した残存リスクである。
 2. **分類キーワード依存**（通常/休暇/イベントの判定は `lineText` の語彙に依存）→ 不能時は needs_review に落ちる設計で安全側。
-3. **Gemini 3.5 Flash の無料枠数値は非公表・変動** → フォールバック＋429 顕在化で対応。実値は導入時に確認。
+3. **Gemini の無料枠数値はモデル・プロジェクトごとに変動** → フォールバック＋429 顕在化で対応。実値は導入時に AI Studio で確認。
 4. **cron 遅延・60 日無効化・祝日 CSV の URL 変更歴** → 各所に注意として明記済み（§5, §10.1, FR-10）。
 5. 本書の確認済みスナップショット（ページ構造・ライブ calendar_rules・テンプレファイル名）が実装時点で変わっている可能性 → 実装着手時に §7.4 と §3.3 の「実体確認」を必ず行う。
 7. **【v1.5 追加】無料枠の RPD が小さい**（`gemini-3.5-flash` で実測 20/日）。通常運用（更新なし日 0 回・更新日 6〜9 回）には足りるが、
@@ -1188,7 +1213,7 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
 | H-5 | **【v1.9 で変更】通知メールを読む**（元画像と発車時刻を突き合わせる。問題なければ何もしない） | メール本文の「発車時刻」節と元画像リンク | 誤ったダイヤが公開されたまま残る | 運用時 |
 | H-6 | **Cloudflare Pages デプロイ反映を確認** | Pages のデプロイ履歴／実機 | — | 運用時（初回のみ必須。以降は随時） |
 | H-7 | （C-5 が不可だった場合のみ）祝日 CSV 取得・初期キャッシュの手当て | 手動 DL → 配置 | 祝日 baseline 不可 | ✅ 不要（C-5 完了） |
-| H-8 | AI Studio で**無料枠 RPM/RPD を確認**し必要なら `geminiMinIntervalMs` 調整 | AI Studio のレート制限画面 | 429 のリスク評価 | ✅ 一部判明: `gemini-3.5-flash` は **RPD=20**（§8.5.5）。新 primary `gemini-3.6-flash` の実値は要確認 |
+| H-8 | AI Studio で**無料枠 RPM/RPD を確認**し必要なら `geminiMinIntervalMs` / 呼び出し上限を調整 | AI Studio のレート制限画面 | 429 のリスク評価 | ⚠️ `gemini-3.5-flash` の旧実測は **RPD=20**（§8.5.5）。current の `gemini-3.8-flash` / `gemini-3.7-flash` の実値は要確認 |
 | H-9 | **【v1.9 追加】Gmail のアプリパスワードを発行し、`MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_TO` を Secrets に登録** | Google アカウント（2 段階認証が前提）→ `Settings → Secrets and variables → Actions` | **通知が一切届かない**＝自動適用の内容を誰も確認できない | ⏸ 未了 |
 
 > H-2 / H-3' / H-9 は `gh` CLI が admin 権限で認証済みなら Claude Code に代行させることも技術的には可能。ただし秘密情報の取り扱いとリポジトリ権限変更は**人間が明示実施するのが安全**なので、本書では人間タスクとする。
@@ -1281,7 +1306,7 @@ npm run ocr:check -- fixtures/images/R8スクールバス時刻表.jpg fixtures/
        更新メールが届かないこと。運用メタデータの commit は作られてよい）
 [人間] AC-7 の確認（2026-08-23 オープンキャンパスの override とファイルが
        適用日経過後に削除されること。8/24 以降の実行で観測できる）
-[人間] H-8 新 primary（gemini-3.6-flash）の無料枠実値を確認・必要なら間隔/上限を調整
+[人間] H-8 current の `gemini-3.8-flash` / `gemini-3.7-flash` の無料枠実値を確認・必要なら間隔/上限を調整
 ```
 
 - **依存の急所**:

@@ -15,7 +15,8 @@ import type { ClassifiedLink, FilePlan, OverrideChange, Route, Timetable, Warnin
 
 export interface ReportInput {
   runAt: string
-  modelUsed: string
+  /** この実行で Gemini を1回以上呼んだときだけ設定する */
+  modelUsed?: string
   fallbackUsed: boolean
   files: FilePlan[]
   overrideChanges: OverrideChange[]
@@ -149,8 +150,10 @@ export function buildReport(input: ReportInput): string {
   const lines: string[] = []
 
   lines.push('## 概要')
-  const fallbackNote = input.fallbackUsed ? '（⚠ フォールバックモデル使用）' : ''
-  lines.push(`実行: ${input.runAt} / モデル: ${input.modelUsed}${fallbackNote}`)
+  const modelLine = input.modelUsed
+    ? ` / モデル: ${input.modelUsed}${input.fallbackUsed ? '（⚠ フォールバックモデル使用）' : ''}`
+    : ''
+  lines.push(`実行: ${input.runAt}${modelLine}`)
   lines.push('')
 
   lines.push('## 変更')
