@@ -142,7 +142,7 @@ function isRateLimit(e: unknown): boolean {
 /**
  * 1日あたりのリクエスト上限（RPD）を使い切った 429。
  * RPM の 429 と違い**待っても当日は回復しない**ので、バックオフせずに
- * フォールバックモデル（別の枠を持つ）へ切り替えるか、即座に失敗させる。
+ * フォールバックモデルへ切り替えるか、即座に失敗させる。
  */
 function isDailyQuotaExhausted(e: unknown): boolean {
   return /PerDay|per day|RequestsPerDayPerProject/i.test(errorText(e))
@@ -151,6 +151,14 @@ function isDailyQuotaExhausted(e: unknown): boolean {
 /** モデル自体が使えない（無料枠から外れた・権限が無い等）→ フォールバックモデルへ */
 function isModelUnavailable(e: unknown): boolean {
   return /\b(404|403)\b|NOT_FOUND|PERMISSION_DENIED|is not found|not supported/i.test(errorText(e))
+}
+
+/**
+ * callOnce が渡す abortSignal は時間制限だけなので、AbortError / TimeoutError は
+ * 1 リクエストの上限時間に達したものとして扱う。
+ */
+function isRequestTimeout(e: unknown): boolean {
+  return /AbortError|TimeoutError/i.test(errorText(e))
 }
 
 /** 一時障害（数分で解消し得るもの）→ 短いバックオフでリトライ */
@@ -311,6 +319,19 @@ export class OcrClient {
           console.warn(`[ocr] モデル ${this.model} の当日分の無料枠（RPD）を使い切りました。`)
         }
 
+        // primary が 1 リクエストの上限時間まで応答しないときは、15 分の実行予算を
+        // 同じモデルの再試行で使い切らないよう直ちに fallback へ切り替える。
+        const canFallback = !this.fallbackUsed && this.model === CONFIG.modelPrimary
+        if (canFallback && isRequestTimeout(e)) {
+          console.warn(
+            `[ocr] モデル ${this.model} が ${CONFIG.geminiRequestTimeoutMs / 1000}秒以内に応答しませんでした。${CONFIG.modelFallback} で再試行します。`,
+          )
+          this.model = CONFIG.modelFallback
+          this.fallbackUsed = true
+          transientRetries = 0
+          continue
+        }
+
         if (isRateLimit(e) && !dailyExhausted && rateLimitRetries < CONFIG.geminiMaxRetries429) {
           const wait = CONFIG.geminiBackoffMs[Math.min(rateLimitRetries, CONFIG.geminiBackoffMs.length - 1)]!
           if (!this.canRetryAfter(wait)) {
@@ -341,8 +362,7 @@ export class OcrClient {
         }
 
         // モデルが使えない / 一時障害が解消しない / 当日枠を使い切った
-        // → フォールバックモデル（別の枠を持つ）へ1度だけ切り替える
-        const canFallback = !this.fallbackUsed && this.model === CONFIG.modelPrimary
+        // → フォールバックモデルへ1度だけ切り替える
         if (canFallback && (isModelUnavailable(e) || isTransient(e) || dailyExhausted)) {
           console.warn(
             `[ocr] モデル ${this.model} を使用できません（${errorText(e).slice(0, 120)}）。${CONFIG.modelFallback} で再試行します。`,
