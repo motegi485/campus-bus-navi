@@ -299,10 +299,13 @@ async function main(): Promise<void> {
   if (holidaysResult.cacheToWrite) writeHolidaysCache(holidaysResult.cacheToWrite)
 
   // ---- 14. 実行レポート（通知メールの本文になる） -------------------------
+  // OCR クライアントを生成しただけでは「モデルを使用した」とは扱わない。
+  // 予算・締切・SKIP_OCR 等で API を一度も呼ばなかった実行ではモデル行を省略する。
+  const reportOcrClient = ocrClient && ocrClient.calls > 0 ? ocrClient : null
   const body = buildReport({
     runAt,
-    modelUsed: ocrClient?.modelUsed ?? CONFIG.modelPrimary,
-    fallbackUsed: ocrClient?.usedFallback ?? false,
+    modelUsed: reportOcrClient?.modelUsed,
+    fallbackUsed: reportOcrClient?.usedFallback ?? false,
     files: planned.filePlans,
     overrideChanges: planned.calendar.changes,
     deletions: planned.calendar.deletions,

@@ -34,7 +34,7 @@ function timetable(id: string): Timetable {
 function report(overrides: Partial<Parameters<typeof buildReport>[0]> = {}): string {
   return buildReport({
     runAt: RUN_AT,
-    modelUsed: 'gemini-3.6-flash',
+    modelUsed: 'gemini-3.8-flash',
     fallbackUsed: false,
     files: [],
     overrideChanges: [],
@@ -46,7 +46,28 @@ function report(overrides: Partial<Parameters<typeof buildReport>[0]> = {}): str
   })
 }
 
+function reportWithoutOcr(): string {
+  return buildReport({
+    runAt: RUN_AT,
+    fallbackUsed: false,
+    files: [],
+    overrideChanges: [],
+    deletions: [],
+    warnings: [],
+    ocrStats: { matched: 0, total: 0, majority: 0 },
+    validationFailures: [],
+  })
+}
+
 describe('レポートのエスケープ（S3-BOT-08）', () => {
+  it('OCR を一度も呼ばなかったときはモデル行を出さない', () => {
+    const body = reportWithoutOcr()
+
+    expect(body).toContain(`実行: ${RUN_AT}`)
+    expect(body).not.toContain('モデル:')
+    expect(body).not.toContain('フォールバックモデル使用')
+  })
+
   it('画像 URL の括弧を percent encode して、リンクの閉じ位置を外から動かせないようにする', () => {
     const plan: FilePlan = {
       op: 'create',
