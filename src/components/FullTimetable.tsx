@@ -4,6 +4,8 @@ import { usePressable } from '../hooks/usePressable'
 import { tapFeedback } from '../utils/haptics'
 import { LEAD_OPTIONS, type ReminderLead, type ReminderLoadState } from '../hooks/useDepartureReminders'
 import { TimetableGrid } from './TimetableGrid'
+import { Spinner } from './StatusParts'
+import { BellIcon } from './BellIcon'
 
 interface Props {
   schedule: ScheduleEntry[]
@@ -85,7 +87,7 @@ export function FullTimetable({
   }
 
   return (
-    <div className="section-card rounded-[20px] p-[18px]">
+    <div className="section-card rounded-[20px]" style={{ padding: 'var(--card-pad-list)' }}>
       <button
         onClick={() => { tapFeedback(8); setOpen(v => !v) }}
         {...pressHandlers}
@@ -123,14 +125,14 @@ export function FullTimetable({
           {selectMode && (
             <div className="mb-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[12.5px] font-bold" style={{ color: 'var(--text-primary)' }}>
-                  🔔 通知する便を選ぶ
+                <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold" style={{ color: 'var(--text-primary)' }}>
+                  <BellIcon width={13} height={13} /> 通知する便を選ぶ
                 </span>
                 <button
                   type="button"
                   onClick={() => { tapFeedback(8); setSelectMode(false) }}
                   className="text-[12px] font-bold"
-                  style={{ color: '#10b981', background: 'none', border: 'none', cursor: 'pointer' }}
+                  style={{ color: 'var(--accent-fg)', background: 'none', border: 'none', cursor: 'pointer' }}
                 >
                   キャンセル
                 </button>
@@ -189,13 +191,13 @@ export function FullTimetable({
                 type="button"
                 onClick={commit}
                 disabled={saving}
-                className="w-full mt-3 rounded-[12px] py-[11px] text-[13px] font-extrabold"
+                className="w-full mt-3 rounded-[12px] py-[11px] text-[13px] font-extrabold flex items-center justify-center gap-2"
                 style={{
-                  background: 'linear-gradient(135deg,#0d9966,#34d399)',
-                  color: '#fff', border: 'none', cursor: 'pointer',
-                  opacity: saving ? 0.6 : 1,
+                  background: 'linear-gradient(135deg,#065f46,#047857)',
+                  color: '#fff', border: 'none', cursor: saving ? 'default' : 'pointer',
                 }}
               >
+                {saving && <Spinner size={13} />}
                 {saving
                   ? '保存中...'
                   : selected.size === 0
@@ -243,9 +245,14 @@ export function FullTimetable({
                 opacity: reminderLoadState === 'ok' ? 1 : 0.6,
               }}
             >
-              {reminderLoadState === 'loading'
-                ? '設定を読み込み中...'
-                : `🔔 ${marked.size > 0 ? `通知を変更（${marked.size} 件設定中）` : '通知を設定'}`}
+              {reminderLoadState === 'loading' ? (
+                '設定を読み込み中...'
+              ) : (
+                <>
+                  <BellIcon width={13} height={13} />
+                  {marked.size > 0 ? `通知を変更（${marked.size} 件設定中）` : '通知を設定'}
+                </>
+              )}
             </button>
           ) : (
             // トグルがオフのときは操作させず、どこで有効化するかだけを伝える

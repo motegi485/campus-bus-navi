@@ -1,5 +1,6 @@
 import type { ScheduleEntry, RouteKey, FontSize } from '../types/timetable'
 import { parseHHmmToMinutes } from '../utils/parseTime'
+import { BellIcon } from './BellIcon'
 
 interface Props {
   buses: ScheduleEntry[]
@@ -41,7 +42,7 @@ export function UpcomingList({ buses, route, nowMinutes, fontSize, marked }: Pro
   const fs = FONT_SIZE_MAP[fontSize]
 
   return (
-    <div className="section-card rounded-[20px] p-[18px]">
+    <div className="section-card rounded-[20px]" style={{ padding: 'var(--card-pad-list)' }}>
       <p className="text-[11px] text-[var(--text-muted)] font-bold mb-3 tracking-widest uppercase">
         今後の発車時刻
       </p>
@@ -61,8 +62,8 @@ export function UpcomingList({ buses, route, nowMinutes, fontSize, marked }: Pro
                 </span>
                 {/* 通知を設定済みの印。次のバスカード・全時刻表と同じベルで揃える */}
                 {marked?.has(bus.departure) && (
-                  <span role="img" aria-label="発車前の通知を設定済み" className="text-[12px] leading-none">
-                    🔔
+                  <span role="img" aria-label="発車前の通知を設定済み" className="leading-none" style={{ color: 'var(--accent-fg)' }}>
+                    <BellIcon width={12} height={12} />
                   </span>
                 )}
                 {bus.note && (
