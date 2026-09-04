@@ -27,6 +27,8 @@ interface Props {
     enable: () => void
     disable: () => void
   }
+  /** 更新バナー（UpdateBanner）が実際に表示されているか。バージョン行の文言と矛盾させないため */
+  updateAvailable: boolean
 }
 
 type SelectKey = 'route' | 'theme' | 'font'
@@ -119,6 +121,7 @@ export function SettingsScreen({
   onSetTheme,
   onSetFontSize,
   push,
+  updateAvailable,
 }: Props) {
   const [selKey, setSelKey] = useState<SelectKey | null>(null)
 
@@ -220,7 +223,9 @@ export function SettingsScreen({
             <IconTile icon={IconInfo} tone="indigo" />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>バージョン</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>最新の状態です</div>
+              <div style={{ fontSize: 12, color: updateAvailable ? 'var(--icon-amber-fg)' : 'var(--text-muted)', marginTop: 2 }}>
+                {updateAvailable ? '新しいバージョンがあります' : '最新の状態です'}
+              </div>
             </div>
             <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 500 }}>{__APP_VERSION__}</span>
           </div>
