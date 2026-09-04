@@ -14,9 +14,6 @@ import { StatusIcon, RetryButton } from './StatusParts'
 
 const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
-/** 当日を示す線・戻るボタンに使う色。既存画面の BackButton と同じ値 */
-const ACCENT = '#10b981'
-
 interface Props {
   open: boolean
   onClose: () => void
@@ -132,7 +129,7 @@ function WeekRow({
         background: pressed ? 'var(--row-active)' : sunken ? 'var(--bg-card2)' : 'var(--bg-card)',
         // 当日は行全体を細く囲う。border ではなく inset の影にすることで、
         // 他の行と内側の余白・行高が 1px も変わらない
-        boxShadow: isToday ? `inset 0 0 0 1.5px ${ACCENT}` : 'none',
+        boxShadow: isToday ? 'inset 0 0 0 1.5px var(--accent-fg)' : 'none',
         transition: pressed ? 'none' : 'background 0.3s',
       }}
     >
@@ -147,8 +144,12 @@ function WeekRow({
 
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 5 }}>
         <DayBadge type={day.diagramType} />
+        {/* 背景は var(--accent-fg) にしない: ダークではこのトークンが明るいミント
+            (#6ee7b7) に変わり、白文字が読めなくなるため。白文字の上に敷く塗りは
+            TimetableGrid の選択セルと同じ考え方でテーマに関わらず固定値にする
+            （#047857 は --accent-fg のライト値と同一、実測 5.48:1）。 */}
         {isToday && (
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: ACCENT, color: '#fff' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: '#047857', color: '#fff' }}>
             今日
           </span>
         )}
@@ -175,6 +176,8 @@ function DayStats({ first, last, count }: { first: string; last: string; count: 
     </div>
   )
   return (
+    // padding は --card-pad-list/-message のスケールに含めない。WeekStrip と同じ理由で
+    // 3分割の密なストリップ型のため個別の値のまま。
     <div className="section-card rounded-[20px] p-[14px_12px]">
       <div style={{ display: 'flex', alignItems: 'center' }}>
         {cell('始発', first)}
@@ -232,11 +235,11 @@ function DayDetailView({
   if (day.status === 'error') {
     body = (
       <div
-        className="rounded-[20px] p-5 text-center"
+        className="section-card rounded-[20px] text-center"
         style={{
+          padding: 'var(--card-pad-message)',
           background: 'rgba(239,68,68,0.1)',
           border: '1px solid rgba(239,68,68,0.3)',
-          boxShadow: 'var(--card-shadow)',
         }}
       >
         <div className="flex flex-col items-center gap-2">
@@ -274,7 +277,7 @@ function DayDetailView({
     body = (
       <>
         <DayStats first={schedule[0].departure} last={schedule[schedule.length - 1].departure} count={schedule.length} />
-        <div className="section-card rounded-[20px] p-[18px]">
+        <div className="section-card rounded-[20px]" style={{ padding: 'var(--card-pad-list)' }}>
           <div className="flex items-baseline justify-between mb-[14px]">
             <span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>
               {day.timetable?.routes[route]?.origin} → {day.timetable?.routes[route]?.destination}
@@ -450,8 +453,8 @@ export function WeeklyScreen({
 
           {error && days.length === 0 && !loading && (
             <div
-              className="rounded-[20px] p-5 text-center"
-              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', boxShadow: 'var(--card-shadow)' }}
+              className="section-card rounded-[20px] text-center"
+              style={{ padding: 'var(--card-pad-message)', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}
             >
               <div className="flex flex-col items-center gap-2">
                 <div className="mb-0.5"><StatusIcon status="no-data" /></div>
