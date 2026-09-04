@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { setInert, useOverlayA11y } from '../hooks/useOverlayA11y'
+import { RetryButton, StatusIcon } from './StatusParts'
 import type { NewsItem } from '../types/timetable'
 
 // news.json は Git 管理の信頼できる静的ソース前提。CMS 等の動的ソースに切り替える場合は body のサニタイズ（DOMPurify 等）を必須にすること。
 
-const TAG_STYLES: Record<string, { bg: string; color: string }> = {
-  important: { bg: '#fee2e2', color: '#dc2626' },
-  info:      { bg: '#dbeafe', color: '#2563eb' },
-  change:    { bg: '#fef3c7', color: '#d97706' },
-  event:     { bg: '#ede9fe', color: '#7c3aed' },
+// bg は正しくは background（旧実装は誤ったキー名のため背景が一度も描画されていなかった）。
+// 値は index.css の --icon-*-bg/-fg（ライト/ダーク両対応済み）に揃える。
+const TAG_STYLES: Record<string, { background: string; color: string }> = {
+  important: { background: 'var(--icon-red-bg)', color: 'var(--icon-red-fg)' },
+  info:      { background: 'var(--icon-blue-bg)', color: 'var(--icon-blue-fg)' },
+  change:    { background: 'var(--icon-amber-bg)', color: 'var(--icon-amber-fg)' },
+  event:     { background: 'var(--icon-violet-bg)', color: 'var(--icon-violet-fg)' },
 }
 
 interface Props {
@@ -20,6 +23,8 @@ interface Props {
   error: string | null
   readIds: Set<number>
   markAsRead: (id: number) => void
+  /** 取得に失敗したときの再取得 */
+  reload: () => Promise<void>
 }
 
 function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -80,8 +85,15 @@ function NewsDetail({ item, onBack }: { item: NewsItem; onBack: () => void }) {
   )
 }
 
-export function NewsScreen({ open, onClose, news, loading, error, readIds, markAsRead }: Props) {
+export function NewsScreen({ open, onClose, news, loading, error, readIds, markAsRead, reload }: Props) {
   const [selected, setSelected] = useState<NewsItem | null>(null)
+  const [reloading, setReloading] = useState(false)
+
+  const handleRetry = () => {
+    if (reloading) return
+    setReloading(true)
+    void reload().finally(() => setReloading(false))
+  }
 
   // 閉時の inert 化、開いた直後の初期フォーカス、閉時のフォーカス復帰。
   // Escape は詳細を開いていれば詳細を、そうでなければ画面を閉じる。
@@ -140,7 +152,23 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
       <div ref={listRef} style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
         <div style={{ minHeight: 'calc(100% + 1px)', padding: '16px 14px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {loading && <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '32px 0' }}>読み込み中...</p>}
-        {error && <p style={{ textAlign: 'center', color: '#ef4444', fontSize: 13, padding: '32px 0' }}>{error}</p>}
+        {error && !loading && (
+          <div
+            className="section-card rounded-[20px] text-center"
+            style={{ padding: 'var(--card-pad-message)', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}
+          >
+            <div className="flex flex-col items-center gap-2">
+              <div className="mb-0.5"><StatusIcon status="no-data" /></div>
+              <p className="text-[14px] font-bold leading-normal" style={{ color: 'var(--text-primary)' }}>
+                お知らせを取得できませんでした
+              </p>
+              <p className="text-[12px] leading-relaxed" style={{ color: 'var(--chip-text)' }}>
+                {error}
+              </p>
+              <RetryButton size="lg" refreshing={reloading} onRetry={handleRetry} />
+            </div>
+          </div>
+        )}
         {!loading && news.map(item => {
           const isUnread = !readIds.has(item.id) && item.unread
           return (
