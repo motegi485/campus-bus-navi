@@ -1,5 +1,6 @@
 import type { NextBusInfo, RouteKey } from '../types/timetable'
 import type { FontSize } from '../types/timetable'
+import { BellIcon } from './BellIcon'
 
 interface Props {
   next: NextBusInfo
@@ -55,7 +56,7 @@ export function NextBusCard({ next, route, fontSize, remaining, reminded = false
               aria-label="この便は発車前の通知を設定済みです"
               className="inline-flex items-center gap-1 bg-white/20 dark:bg-black/25 rounded-full px-[9px] py-[3px] text-[11px] font-bold whitespace-nowrap"
             >
-              🔔 通知
+              <BellIcon width={11} height={11} /> 通知
             </span>
           )}
         </div>

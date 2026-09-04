@@ -1,5 +1,6 @@
 import type { ScheduleEntry, RouteKey } from '../types/timetable'
 import { parseHHmmToMinutes } from '../utils/parseTime'
+import { BellIcon } from './BellIcon'
 
 interface Props {
   schedule: ScheduleEntry[]
@@ -45,6 +46,12 @@ export function TimetableGrid({
   const isCampus = route === 'campus_to_station'
   const activeBg = isCampus ? 'var(--route-tint-campus-bg)' : 'var(--route-tint-station-bg)'
   const activeText = isCampus ? 'var(--route-tint-campus-fg)' : 'var(--route-tint-station-fg)'
+  // 選択モードの塗り。次発ハイライト（activeBg/activeText の淡い塗り）より強い単色塗りで
+  // 「選択済み」を表すための専用色。値は --route-tint-campus-fg / --route-tint-station-fg の
+  // ライト値と同一（白文字でそれぞれ 7.68:1 / 6.29:1、実測済み）を流用しており、
+  // テーマに関わらず一定にする（ヘッダーのルートグラデーションと同じ方針）。
+  const selectedBg = isCampus ? '#065f46' : '#4f46e5'
+  const selectedRing = isCampus ? 'rgba(6,95,70,.35)' : 'rgba(79,70,229,.35)'
 
   return (
     <div className="grid grid-cols-3 bp:grid-cols-6 gap-[7px]">
@@ -59,7 +66,7 @@ export function TimetableGrid({
         const selectable = selectMode && !isPast && depMin !== null
 
         const background = isSelected
-          ? '#0d9966'
+          ? selectedBg
           : isCurrent
           ? activeBg
           : isPast
@@ -98,16 +105,19 @@ export function TimetableGrid({
             {isMarked && !selectMode && (
               <span
                 aria-hidden="true"
-                className="absolute text-[10px]"
-                style={{ top: -4, right: -2 }}
+                className="absolute"
+                style={{ top: -3, right: -2, color: 'var(--accent-fg)' }}
               >
-                🔔
+                <BellIcon width={10} height={10} />
               </span>
             )}
           </>
         )
 
         const boxClass = 'relative py-2 px-1 rounded-[10px] text-center'
+        // 選択モードのマスはタップ操作なので高さ44px以上を確保する（備考ラベル・ベル印は
+        // 絶対配置のためフレックスの外に出て、この変更の影響を受けない）
+        const selectableBoxClass = 'relative min-h-[44px] px-1 rounded-[10px] text-center flex flex-col items-center justify-center'
 
         // 選択モードのときだけボタンにする。通常時は従来どおり div のままで、
         // 時刻表を読むだけの指が誤って予定を作らないようにする
@@ -120,14 +130,14 @@ export function TimetableGrid({
               onClick={() => selectable && onToggle?.(bus.departure)}
               aria-pressed={isSelected}
               aria-label={`${bus.departure} 発${isSelected ? '（通知を設定）' : ''}`}
-              className={boxClass}
+              className={selectableBoxClass}
               style={{
                 background,
                 border: 'none',
                 font: 'inherit',
                 cursor: selectable ? 'pointer' : 'default',
                 opacity: selectable ? 1 : 0.45,
-                boxShadow: isSelected ? '0 0 0 2px rgba(13,153,102,.35)' : 'none',
+                boxShadow: isSelected ? `0 0 0 2px ${selectedRing}` : 'none',
               }}
             >
               {content}
