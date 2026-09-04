@@ -1,3 +1,6 @@
+import { usePressable } from '../hooks/usePressable'
+import { tapFeedback } from '../utils/haptics'
+
 interface UpdateBannerProps {
   onUpdate: () => void
   onDismiss: () => void
@@ -10,6 +13,9 @@ interface UpdateBannerProps {
  * 「あとで」タップ時は onDismiss でバナーを閉じる（セッション中は再表示しない）
  */
 export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
+  const dismissPress = usePressable()
+  const updatePress = usePressable()
+
   return (
     <div
       // 新しいバージョンの検知は、画面を見ていないと分からない状態変化なので
@@ -38,7 +44,8 @@ export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
     >
       <span>更新データがあります</span>
       <button
-        onClick={onDismiss}
+        onClick={() => { tapFeedback(8); onDismiss() }}
+        {...dismissPress.pressHandlers}
         style={{
           color: 'rgba(255,255,255,0.7)',
           fontWeight: 600,
@@ -46,13 +53,16 @@ export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
           background: 'none',
           border: 'none',
           cursor: 'pointer',
-          padding: 0,
+          padding: '12px 8px',
+          transform: dismissPress.pressed ? 'scale(.93)' : 'scale(1)',
+          transition: 'transform .12s ease-out',
         }}
       >
         あとで
       </button>
       <button
-        onClick={onUpdate}
+        onClick={() => { tapFeedback(10); onUpdate() }}
+        {...updatePress.pressHandlers}
         style={{
           color: '#34d399',
           fontWeight: 800,
@@ -60,7 +70,9 @@ export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
           background: 'none',
           border: 'none',
           cursor: 'pointer',
-          padding: 0,
+          padding: '12px 8px',
+          transform: updatePress.pressed ? 'scale(.93)' : 'scale(1)',
+          transition: 'transform .12s ease-out',
         }}
       >
         更新
