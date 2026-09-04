@@ -434,6 +434,18 @@ html.bounce-native .header-cushion {
    より手前に来る ::after の inset シャドウで描く。border を持たせないので
    ::after の inset: 0 と border-radius: inherit が要素の外形とぴったり一致する。
    ============================================================ */
+
+/* .section-card の内側余白のスケール。
+   list … 行が並ぶカード（本日の全時刻表・今後の発車時刻・週間ダイヤの日別グリッド）
+   message … 中央寄せの状態メッセージカード（取得失敗などのエラーカード）
+   元々ここに実装ごとに書かれていた 18px / 20px を集約したもの。
+   WeekStrip・週間ダイヤの始発/最終/本数カードのような密なストリップ型は、内容の密度が
+   異なるためこのスケールに合わせず個別の値のままにしてある。 */
+:root {
+  --card-pad-list: 18px;
+  --card-pad-message: 20px;
+}
+
 .section-card {
   position: relative;
   background: var(--bg-card);

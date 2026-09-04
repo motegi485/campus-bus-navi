@@ -34,6 +34,8 @@ export function WeekStrip({ days, todayKey, onOpen }: Props) {
   if (days.length === 0) return null
 
   return (
+    // padding は --card-pad-list/-message のスケールに含めない。7日分のチップを
+    // 横に詰めた密なストリップ型で、内容の密度がリスト/メッセージ系カードと違うため。
     <div className="section-card rounded-[20px] p-[16px_14px]">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>

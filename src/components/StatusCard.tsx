@@ -38,17 +38,14 @@ export function StatusCard({
 
   return (
     <div
-      className={isError ? 'rounded-[20px] p-5 text-center' : 'section-card rounded-[20px] p-5 text-center'}
-      style={
-        isError
-          ? {
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              // 縁は専用の赤を保ちつつ、浮き方だけ他のカードと揃える
-              boxShadow: 'var(--card-shadow)',
-            }
-          : undefined
-      }
+      className="section-card rounded-[20px] text-center"
+      style={{
+        padding: 'var(--card-pad-message)',
+        // エラー時も .section-card の縁・影・position はそのまま使い、地の色だけ赤で上乗せする
+        ...(isError
+          ? { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }
+          : {}),
+      }}
     >
       <div className="flex flex-col items-center gap-2">
         <div className="mb-0.5">
