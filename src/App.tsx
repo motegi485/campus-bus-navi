@@ -11,7 +11,6 @@ import { useDepartureReminders } from './hooks/useDepartureReminders'
 import { useNews } from './hooks/useNews'
 import { useNativeBounce } from './hooks/useNativeBounce'
 import { setInert } from './hooks/useOverlayA11y'
-import { useOverlayBackGesture } from './hooks/useOverlayBackGesture'
 import { usePressable } from './hooks/usePressable'
 import { tapFeedback } from './utils/haptics'
 import { findNextBus, findUpcomingBuses, findFirstBus, countRemainingBuses } from './utils/findNextBus'
@@ -97,16 +96,10 @@ export default function App() {
     setInert(backgroundRef.current, anyOverlayOpen)
   }, [anyOverlayOpen])
 
-  // Android等の戻るジェスチャー/ハードウェア戻るボタンでオーバーレイを閉じられるようにする。
-  // 最前面から順（実際の z-index の高い順: ドロワー30 < 各画面50 < PWA案内100）に渡す。
-  useOverlayBackGesture([
-    { open: pwaGuideOpen, close: () => setPwaGuideOpen(false) },
-    { open: helpOpen, close: () => setHelpOpen(false) },
-    { open: settingsOpen, close: () => setSettingsOpen(false) },
-    { open: weeklyOpen, close: () => setWeeklyOpen(false) },
-    { open: newsOpen, close: () => setNewsOpen(false) },
-    { open: drawerOpen, close: () => setDrawerOpen(false) },
-  ])
+  // オーバーレイの開閉に history entry を積まない（意図的）。積むと、その履歴を
+  // 端末側のブラウザ戻る/進むジェスチャー（iOS の画面端スワイプなど）が拾い、
+  // ページがめくれる Web ページ然とした挙動になってネイティブ感を損なう。
+  // オーバーレイを閉じる手段は ×ボタン・背面タップ・Escape（各画面の useOverlayA11y）。
 
   // PWA更新検知（registerType: 'prompt'）
   // コールドスタート時(=起動から COLD_START_GRACE_MS 以内)に新SWを検知した場合は
