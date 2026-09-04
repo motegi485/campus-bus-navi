@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { NewsItem } from '../types/timetable'
 
 const READ_IDS_KEY = 'campusBusNaviNewsReadIds'
@@ -9,6 +9,8 @@ interface UseNewsResult {
   error: string | null
   readIds: Set<number>
   markAsRead: (id: number) => void
+  /** 取得に失敗したときの再取得（useWeekTimetables の reload と同じ形） */
+  reload: () => Promise<void>
 }
 
 function loadReadIds(): Set<number> {
@@ -40,28 +42,28 @@ export function useNews(): UseNewsResult {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [readIds, setReadIds] = useState<Set<number>>(loadReadIds)
+  const cancelledRef = useRef(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/data/news.json')
+      if (!res.ok) throw new Error('news.json の取得に失敗しました')
+      const data: NewsItem[] = await res.json()
+      if (!cancelledRef.current) setNews(data)
+    } catch (e) {
+      if (!cancelledRef.current) setError(e instanceof Error ? e.message : 'エラーが発生しました')
+    } finally {
+      if (!cancelledRef.current) setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    let cancelled = false
-
-    async function load() {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await fetch('/data/news.json')
-        if (!res.ok) throw new Error('news.json の取得に失敗しました')
-        const data: NewsItem[] = await res.json()
-        if (!cancelled) setNews(data)
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'エラーが発生しました')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
+    cancelledRef.current = false
     void load()
-    return () => { cancelled = true }
-  }, [])
+    return () => { cancelledRef.current = true }
+  }, [load])
 
   const markAsRead = useCallback((id: number) => {
     setReadIds(prev => {
@@ -73,5 +75,5 @@ export function useNews(): UseNewsResult {
     })
   }, [])
 
-  return { news, loading, error, readIds, markAsRead }
+  return { news, loading, error, readIds, markAsRead, reload: load }
 }
