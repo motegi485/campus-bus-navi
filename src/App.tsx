@@ -669,21 +669,25 @@ export default function App() {
 
         </main>
 
-        {/* PWA更新通知バナー（registerType: 'prompt'） */}
-        {/* コールドスタート時は自動適用されるため、セッション中の更新検知時のみ表示 */}
-        {showUpdateBanner && (
-          <UpdateBanner
-            onUpdate={() => updateServiceWorker(true)}
-            onDismiss={() => setShowUpdateBanner(false)}
-          />
-        )}
-
         </div>{/* 背面レイヤー */}
 
         {/* モバイル端末向け：ホーム画面追加 / アプリインストール案内。
             背面レイヤーの外に置く。中に置くと、自分自身も inert の対象になり、
             aria-modal が求める「背面だけを隔離する」が成立しない */}
         <MobilePwaGuide open={pwaGuideOpen} onClose={() => setPwaGuideOpen(false)} />
+
+        {/* PWA更新通知バナー（registerType: 'prompt'）。
+            コールドスタート時は自動適用されるため、セッション中の更新検知時のみ表示する。
+            MobilePwaGuide と同じ理由で背面レイヤーの外に置く: ドロワー・お知らせ・週間ダイヤ・
+            設定・ヘルプのいずれかが開いている間も、UpdateBanner はそれらより手前に出る設計
+            （重なり順は index.css のヘッダーコメント、DrawerMenu 30・各画面 50・PWA案内 100・
+            バナー 110・Toast 200 のとおり）なので、backgroundRef の inert に巻き込まれてはいけない。 */}
+        {showUpdateBanner && (
+          <UpdateBanner
+            onUpdate={() => updateServiceWorker(true)}
+            onDismiss={() => setShowUpdateBanner(false)}
+          />
+        )}
           </div>{/* phone-shell-inner */}
 
           {/* ホーム上端バウンスのグラデ継続クッション（iOS ネイティブバウンス専用、
