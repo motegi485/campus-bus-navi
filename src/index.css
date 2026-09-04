@@ -115,6 +115,18 @@
   --icon-slate-bg:  #f4f4f8;  --icon-slate-fg:  #64748b;
   --icon-red-bg:    #fef2f2;  --icon-red-fg:    #ef4444;
   --icon-pink-bg:   #fce7f3;  --icon-pink-fg:   #db2777;
+
+  /* ルート強調色（今後の発車バッジ・現在便ハイライト共通）。
+     campus側は既存の activeText と同値、station側は --toggle-on-station と同値に統一。
+     実測: campus 6.78:1(自bg) / 7.68:1(--bg-card)、station 5.30:1(自bg) / 6.29:1(--bg-card)。 */
+  --route-tint-campus-bg:  #d1fae5;  --route-tint-campus-fg:  #065f46;
+  --route-tint-station-bg: #ede9fe; --route-tint-station-fg: #4f46e5;
+
+  /* 戻るボタン等、route と無関係な文脈でも使う単色アクセント緑。
+     #10b981 は白地で 2.54:1 と AA 未達のため。--toggle-on-campus と同値だが、
+     Settings/Help など route に紐づかない文脈でも使うため独立トークンとして持つ。
+     実測: 白地 5.48:1。 */
+  --accent-fg: #047857;
 }
 
 /* ── ダークテーマ ── */
@@ -188,6 +200,17 @@
   --icon-slate-bg:  rgba(148, 163, 184, 0.16);  --icon-slate-fg:  #94a3b8;
   --icon-red-bg:    rgba(248, 113, 113, 0.16);  --icon-red-fg:    #f87171;
   --icon-pink-bg:   rgba(244, 114, 182, 0.16);  --icon-pink-fg:   #f472b6;
+
+  /* ルート強調色（ダーク）。fg は --toggle-on-campus/station のダーク値と同値。
+     bg は --icon-*-bg のような rgba(16%) 方式ではなく不透明値にしてある。
+     route-tint は11px/14pxの太字テキストを直接載せるため、背後の合成色に依存しない
+     opaque な値でないと 4.5:1 を保証できない（アイコンタイルは非文字3:1要件のみで済むため方式が異なる）。
+     実測: campus 7.98:1(自bg) / 9.63:1(--bg-card)、station 6.58:1(自bg) / 7.36:1(--bg-card)。 */
+  --route-tint-campus-bg:  #0f3d2e;  --route-tint-campus-fg:  #6ee7b7;
+  --route-tint-station-bg: #2e2a5c; --route-tint-station-fg: #a5b4fc;
+
+  /* 戻るボタン等のアクセント（ダーク）。--toggle-on-campus dark と同値。実測: --bg-card 上 9.63:1。 */
+  --accent-fg: #6ee7b7;
 }
 
 /* ============================================================
