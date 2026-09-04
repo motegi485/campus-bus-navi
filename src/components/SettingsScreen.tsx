@@ -33,8 +33,8 @@ type SelectKey = 'route' | 'theme' | 'font'
 
 function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#10b981', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
-      <svg width="10" height="16" viewBox="0 0 10 16" fill="none"><path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
+      <svg width="10" height="16" viewBox="0 0 10 16" fill="none"><path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="var(--accent-fg)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
       {label}
     </button>
   )
@@ -253,8 +253,8 @@ export function SettingsScreen({
                       cursor: 'pointer',
                     }}
                   >
-                    <span style={{ fontSize: 15, fontWeight: isSelected ? 700 : 500, color: isSelected ? '#10b981' : 'var(--text-primary)' }}>{opt}</span>
-                    <span aria-hidden="true" style={{ fontSize: 17, color: '#10b981', opacity: isSelected ? 1 : 0, transition: 'opacity 0.15s' }}>✓</span>
+                    <span style={{ fontSize: 15, fontWeight: isSelected ? 700 : 500, color: isSelected ? 'var(--accent-fg)' : 'var(--text-primary)' }}>{opt}</span>
+                    <span aria-hidden="true" style={{ fontSize: 17, color: 'var(--accent-fg)', opacity: isSelected ? 1 : 0, transition: 'opacity 0.15s' }}>✓</span>
                   </button>
                 )
               })}

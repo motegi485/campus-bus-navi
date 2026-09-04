@@ -90,7 +90,7 @@ interface Props {
 export function BusStopMap({ coords, stopName, route }: Props) {
   const mapUrl = buildMapUrl(coords)
   const isCampus = route === 'campus_to_station'
-  const btnColor = isCampus ? '#10b981' : '#6c63d5'
+  const btnColor = isCampus ? 'var(--accent-fg)' : '#6c63d5'
 
   return (
     // bp 時は縦フレックス。余った高さを地図エリアへ配分し、左カラムと下端を揃える

@@ -43,8 +43,8 @@ export function TimetableGrid({
   onToggle,
 }: Props) {
   const isCampus = route === 'campus_to_station'
-  const activeBg = isCampus ? '#d1fae5' : '#ede9fe'
-  const activeText = isCampus ? '#065f46' : '#4f46e5'
+  const activeBg = isCampus ? 'var(--route-tint-campus-bg)' : 'var(--route-tint-station-bg)'
+  const activeText = isCampus ? 'var(--route-tint-campus-fg)' : 'var(--route-tint-station-fg)'
 
   return (
     <div className="grid grid-cols-3 bp:grid-cols-6 gap-[7px]">

@@ -33,9 +33,11 @@ export function UpcomingList({ buses, route, nowMinutes, fontSize, marked }: Pro
 
   const isCampus = route === 'campus_to_station'
   const badgeClass = isCampus
-    ? 'bg-emerald-100 text-emerald-800'
-    : 'bg-violet-100 text-violet-800'
-  const diffColor = isCampus ? 'text-emerald-500' : 'text-violet-500'
+    ? 'bg-[var(--route-tint-campus-bg)] text-[var(--route-tint-campus-fg)]'
+    : 'bg-[var(--route-tint-station-bg)] text-[var(--route-tint-station-fg)]'
+  const diffColor = isCampus
+    ? 'text-[var(--route-tint-campus-fg)]'
+    : 'text-[var(--route-tint-station-fg)]'
   const fs = FONT_SIZE_MAP[fontSize]
 
   return (
