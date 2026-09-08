@@ -53,11 +53,11 @@ const STATUS_TEXT: Record<PushStatus, { label: string; detail: string; tone: 'ok
   },
 }
 
-/** 文字色。ライト・ダーク双方で本文面に対し AA を満たす値を使う */
+/** 本文用の状態色。アイコン用の --icon-*-fg はここで使わない。 */
 const TONE_COLOR: Record<'ok' | 'warn' | 'ng', string> = {
-  ok: 'var(--icon-green-fg)',
+  ok: 'var(--status-success-fg)',
   warn: 'var(--text-secondary)',
-  ng: 'var(--icon-red-fg)',
+  ng: 'var(--status-danger-fg)',
 }
 
 function Switch({ on, disabled }: { on: boolean; disabled: boolean }) {
@@ -126,7 +126,7 @@ export function ReminderSection({ status, busy, error, onEnable, onDisable }: Pr
       </button>
 
       {error && (
-        <p role="alert" style={{ fontSize: 12, color: 'var(--icon-red-fg)', lineHeight: 1.6, margin: 0, padding: '0 16px 14px' }}>
+        <p role="alert" style={{ fontSize: 12, color: 'var(--status-danger-fg)', lineHeight: 1.6, margin: 0, padding: '0 16px 14px' }}>
           {error}
         </p>
       )}

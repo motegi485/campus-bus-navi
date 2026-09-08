@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useOverlayA11y } from '../hooks/useOverlayA11y'
+import { usePressable } from '../hooks/usePressable'
 import { FEEDBACK_URL } from '../constants/links'
 
 interface Props {
@@ -41,6 +42,43 @@ const FAQ = [
     a: '「現在地からのルートを見る」ボタンはお使いのスマホの標準マップアプリ（Google マップ / Apple マップ）を起動します。マップアプリがインストールされていない場合はインストールしてください。',
   },
 ]
+
+interface FaqRowProps {
+  faq: (typeof FAQ)[number]
+  isOpen: boolean
+  isLast: boolean
+  onToggle: () => void
+}
+
+function FaqRow({ faq, isOpen, isLast, onToggle }: FaqRowProps) {
+  const { pressed, pressHandlers } = usePressable()
+
+  return (
+    <div style={{ borderBottom: isLast ? 'none' : '.5px solid var(--border)' }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        {...pressHandlers}
+        aria-expanded={isOpen}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          padding: '15px 16px', width: '100%', textAlign: 'left',
+          background: pressed ? 'var(--row-active)' : 'transparent',
+          border: 'none', font: 'inherit', cursor: 'pointer',
+          transition: pressed ? 'none' : 'background 0.3s',
+        }}
+      >
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>{faq.q}</span>
+        <span aria-hidden="true" style={{ fontSize: 10, color: 'var(--text-muted)', transition: 'transform 0.22s', transform: isOpen ? 'rotate(180deg)' : '' }}>▼</span>
+      </button>
+      {isOpen && (
+        <div style={{ padding: '0 16px 14px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+          {faq.a}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function HelpScreen({ open, onClose }: Props) {
   const [openFaqs, setOpenFaqs] = useState<Set<number>>(new Set())
@@ -92,20 +130,13 @@ export function HelpScreen({ open, onClose }: Props) {
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>よくある質問</div>
           <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>
             {FAQ.map((faq, i) => (
-              <div
-                key={i}
-                style={{ borderBottom: i < FAQ.length - 1 ? '.5px solid var(--border)' : 'none' }}
-              >
-                <button type="button" onClick={() => toggleFaq(i)} aria-expanded={openFaqs.has(i)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '15px 16px', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', font: 'inherit', cursor: 'pointer' }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>{faq.q}</span>
-                  <span aria-hidden="true" style={{ fontSize: 10, color: 'var(--text-muted)', transition: 'transform 0.22s', transform: openFaqs.has(i) ? 'rotate(180deg)' : '' }}>▼</span>
-                </button>
-                {openFaqs.has(i) && (
-                  <div style={{ padding: '0 16px 14px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap'}}>
-                    {faq.a}
-                  </div>
-                )}
-              </div>
+              <FaqRow
+                key={faq.q}
+                faq={faq}
+                isOpen={openFaqs.has(i)}
+                isLast={i === FAQ.length - 1}
+                onToggle={() => toggleFaq(i)}
+              />
             ))}
           </div>
         </div>

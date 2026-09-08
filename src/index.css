@@ -3,6 +3,12 @@
 /* Leaflet CSS */
 @import "leaflet/dist/leaflet.css";
 
+/*
+   Hallmark UI 指針
+   ジャンル: 落ち着いた実用ユーティリティ / トーン: 爽やか・控えめ・視認性重視
+   基調色: キャンパスグリーン / 構造: ヘッダー、時刻表カード、地図パネルを核にした導線
+*/
+
 /* ============================================================
    Tailwind CSS v4 カスタムテーマ
    tailwind.config.js は使用しない。
@@ -127,6 +133,16 @@
      Settings/Help など route に紐づかない文脈でも使うため独立トークンとして持つ。
      実測: 白地 5.48:1。 */
   --accent-fg: #047857;
+
+  /* 状態を本文で伝えるときの色。--icon-*-fg は線アイコン用で、本文には使わない。 */
+  --status-success-fg: #047857;
+  --status-danger-fg:  #c81e1e;
+
+  /* 未読は左の太線ではなく、面の差と「未読」ラベルで伝える。
+     accent はピルとドロワーの未読ドットで共有し、どちらも同じ状態を示す。 */
+  --news-unread-bg:        #eef6ff;
+  --news-unread-accent:    #0369a1;
+  --news-unread-on-accent: #f8fafc;
 }
 
 /* ── ダークテーマ ── */
@@ -211,6 +227,15 @@
 
   /* 戻るボタン等のアクセント（ダーク）。--toggle-on-campus dark と同値。実測: --bg-card 上 9.63:1。 */
   --accent-fg: #6ee7b7;
+
+  /* 状態を本文で伝えるときの色。アイコン用の --icon-*-fg と用途を分ける。 */
+  --status-success-fg: #6ee7b7;
+  --status-danger-fg:  #f87171;
+
+  /* 未読カード・ピル・ドロワーの未読ドット。ライトと同じ意味を保つ。 */
+  --news-unread-bg:        #1a2d40;
+  --news-unread-accent:    #0c4a6e;
+  --news-unread-on-accent: #f8fafc;
 }
 
 /* ============================================================

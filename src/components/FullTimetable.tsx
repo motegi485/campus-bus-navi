@@ -156,7 +156,7 @@ export function FullTimetable({
                       className="flex-1 rounded-[18px] py-[5px] text-[11.5px] font-bold tabular-nums"
                       style={{
                         background: active ? 'var(--bg-card)' : 'transparent',
-                        color: active ? '#047857' : 'var(--chip-text)',
+                        color: active ? 'var(--accent-fg)' : 'var(--chip-text)',
                         border: 'none',
                         boxShadow: active ? '0 1px 2px rgba(15,23,42,.14)' : 'none',
                         cursor: 'pointer',
@@ -205,7 +205,7 @@ export function FullTimetable({
                   : `${selected.size} 件の通知を設定`}
               </button>
               {reminderError && (
-                <p role="alert" className="text-[11.5px] mt-2 leading-relaxed" style={{ color: 'var(--icon-red-fg)' }}>
+                <p role="alert" className="text-[11.5px] mt-2 leading-relaxed" style={{ color: 'var(--status-danger-fg)' }}>
                   {reminderError}
                 </p>
               )}

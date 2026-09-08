@@ -65,6 +65,13 @@ Cloudflare Pages の実デプロイ、HTTP ヘッダー、キャッシュ、Anal
 | 色のコントラスト | DevTools の computed style で `--text-muted` / `--past-text` とダイヤ種別バッジを実測し、[design-decisions.md](design-decisions.md) の表と一致するか。ライト・ダークの両方 |
 | 更新の読み上げ | NVDA / VoiceOver で更新ボタンを押し、開始・成功・失敗が読み上げられるか。新しい Service Worker の検知バナーも同様 |
 
+### テーマトークンと押下状態
+
+- ライト／ダークの両方で、通知時刻の選択文字、地図リンク、通知状態・エラー本文が `--accent-fg`、`--route-tint-*-fg`、`--status-*-fg` に追従すること。アイコン用 `--icon-*-fg` を本文へ戻さない。
+- お知らせは未読／既読／押下でそれぞれ `--news-unread-bg`／`--bg-card`／`--row-active` になり、未読が太い片側線ではなく「未読」ラベルでも伝わること。
+- Drawer のリンク・ボタン、ニュースカード、FAQ 行を pointer down／up／leave／cancel で確認する。押下が他の行へ連動せず、スクロール開始やキャンセルで残らないこと。
+- Tab、Enter、Space で既存のフォーカスリング・操作・ニュース詳細からのフォーカス復帰が保たれること。外部リンクは `<a>` のままであること。
+
 ### 通知（便の同定）
 
 | 確認 | 方法 |
