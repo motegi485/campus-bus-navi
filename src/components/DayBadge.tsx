@@ -20,9 +20,15 @@ interface Props {
  * バッジが載る面はべた塗りの単色なので、`backdrop-filter: blur()` を掛けても
  * 視覚的には何も変わらない。だから意図的に使っていない（合成レイヤだけが増える）。
  *
+ * vacation_weekday / vacation_holiday だけは合成由来ではなく、直接選んだ不透明色。
+ * 長期休暇のダイヤは中身が平日・休日と同じ運行なので、色も weekday / holiday の
+ * 同系に寄せ、色相をずらして別種と分かるようにしている（ΔE*ab で weekday から 33、
+ * holiday から 27。同系の deep blue / deep rose であって、別の色ではない）。
+ *
  * ⚠️ 白文字に対するコントラスト（上端のハイライトが最大の位置 / 塗りそのもの）:
  *   weekday 3.41/5.19 ・ holiday 3.72/5.52 ・ vacation 2.15/2.73 ・
- *   vacation_holiday 2.75/3.84 ・ event 2.91/4.04 ・ closed 3.77/6.22 ・ special 3.53/5.36
+ *   vacation_weekday 3.71/5.78 ・ vacation_holiday 3.93/5.89 ・
+ *   event 2.91/4.04 ・ closed 3.77/6.22 ・ special 3.53/5.36
  * 見た目を優先した配色で、WCAG AA の通常文字 4.5:1 は満たさない（13px bold は
  * large text の 3:1 の基準にも掛からない）。旧・半透明時の 1.78〜3.60 よりは上がっている。
  *
@@ -33,8 +39,8 @@ const BADGE_MAP: Record<DiagramType, { label: string; rgb: string; color: string
   weekday:          { label: '授業日ダイヤ',          rgb: '52,107,196',  color: '#fff' },
   holiday:          { label: '休業日ダイヤ',          rgb: '185,61,65',   color: '#fff' },
   vacation:         { label: '長期休暇ダイヤ',        rgb: '193,151,17',  color: '#fff' },
-  vacation_weekday: { label: '長期休暇ダイヤ（平日）', rgb: '193,151,17',  color: '#fff' },
-  vacation_holiday: { label: '長期休暇ダイヤ（休日）', rgb: '171,121,13',  color: '#fff' },
+  vacation_weekday: { label: '平日ダイヤ（長期休暇）', rgb: '15,109,148',   color: '#fff' },
+  vacation_holiday: { label: '休日ダイヤ（長期休暇）', rgb: '178,51,103',   color: '#fff' },
   event:            { label: 'イベント日ダイヤ',       rgb: '199,98,30',   color: '#fff' },
   closed:           { label: '運休日',                rgb: '90,97,111',   color: '#fff' },
   special:          { label: '特別ダイヤ',            rgb: '136,75,203',  color: '#fff' },

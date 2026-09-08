@@ -90,8 +90,8 @@ UI のダイヤ種別は時刻表 ID の部分文字列から判定します。�
 | `closed` を含む | 全便運休日 |
 | `special` を含む | 特別ダイヤ |
 | `event` を含む | イベント日ダイヤ |
-| `vacation` と `holiday` を含む | 長期休暇ダイヤ（休日） |
-| `vacation` と `weekday` を含む | 長期休暇ダイヤ（平日） |
+| `vacation` と `holiday` を含む | 休日ダイヤ（長期休暇） |
+| `vacation` と `weekday` を含む | 平日ダイヤ（長期休暇） |
 | `vacation` を含む | 長期休暇ダイヤ |
 | `holiday` を含む | 休業日ダイヤ |
 | 上記以外 | 授業日ダイヤ |

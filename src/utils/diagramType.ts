@@ -9,8 +9,8 @@ import type { DiagramType } from '../types/timetable'
  *   timetable_weekday                  → weekday          (授業日ダイヤ)
  *   timetable_holiday                  → holiday          (休業日ダイヤ)
  *   timetable_vacation_[季節]          → vacation         (長期休暇ダイヤ。平日/休日で分かれない単一表)
- *   timetable_vacation_[季節]_weekday  → vacation_weekday (長期休暇ダイヤ（平日）)
- *   timetable_vacation_[季節]_holiday  → vacation_holiday (長期休暇ダイヤ（休日）)
+ *   timetable_vacation_[季節]_weekday  → vacation_weekday (平日ダイヤ（長期休暇）)
+ *   timetable_vacation_[季節]_holiday  → vacation_holiday (休日ダイヤ（長期休暇）)
  *   timetable_event_[イベント名]       → event            (イベント日ダイヤ)
  *
  * 長期休暇IDは 'vacation' と 'holiday' の両方を含みうるため、
