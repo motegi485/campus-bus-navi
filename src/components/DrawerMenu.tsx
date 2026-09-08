@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react'
 import { useOverlayA11y } from '../hooks/useOverlayA11y'
+import { usePressable } from '../hooks/usePressable'
 import {
   IconGradCap,
   IconBusStop,
@@ -122,7 +123,7 @@ export function DrawerMenu({ open, covered, hasUnread, onClose, onOpenNews, onOp
 
           {/* アプリの初期化ボタン */}
           <DrawerItem icon={<IconReset />} tone="red" title="アプリの初期化" sub="キャッシュ・SWをリセット"
-            titleColor="#ef4444"
+            titleColor="var(--status-danger-fg)"
             onClick={() => { onInitApp() }} />
 
           <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', padding: '12px 0 4px' }}>
@@ -159,11 +160,12 @@ interface DrawerItemProps {
 }
 
 function DrawerItem({ icon, tone, title, sub, chevron, onClick, titleColor, showDot }: DrawerItemProps) {
+  const { pressed, pressHandlers } = usePressable()
   const baseStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 13,
     padding: '11px 12px', borderRadius: 14, cursor: 'pointer',
-    background: 'var(--bg-card)', marginBottom: 6,
-    transition: 'background 0.35s',
+    background: pressed ? 'var(--row-active)' : 'var(--bg-card)', marginBottom: 6,
+    transition: pressed ? 'none' : 'background 0.3s',
     width: '100%', textAlign: 'left',
   }
   const inner = (
@@ -195,11 +197,11 @@ function DrawerItem({ icon, tone, title, sub, chevron, onClick, titleColor, show
             {/* 広がるリング（prefers-reduced-motion で停止） */}
             <span
               className="unread-pulse-ring"
-              style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#0ea5e9', opacity: 0.55 }}
+              style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--news-unread-accent)', opacity: 0.55 }}
             />
             {/* 中心ドット（タイル分離のため行背景色フチを維持） */}
             <span
-              style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#0ea5e9', boxShadow: '0 0 0 2px var(--bg-card)' }}
+              style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--news-unread-accent)', boxShadow: '0 0 0 2px var(--bg-card)' }}
             />
           </span>
         )}
@@ -216,10 +218,10 @@ function DrawerItem({ icon, tone, title, sub, chevron, onClick, titleColor, show
   // リンク項目は親の <a> がフォーカス可能なので、ここは presentational な <div>。
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} style={{ ...baseStyle, border: 'none', font: 'inherit', color: 'inherit' }}>
+      <button type="button" onClick={onClick} {...pressHandlers} style={{ ...baseStyle, border: 'none', font: 'inherit', color: 'inherit' }}>
         {inner}
       </button>
     )
   }
-  return <div style={baseStyle}>{inner}</div>
+  return <div {...pressHandlers} style={baseStyle}>{inner}</div>
 }

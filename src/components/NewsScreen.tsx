@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { setInert, useOverlayA11y } from '../hooks/useOverlayA11y'
+import { usePressable } from '../hooks/usePressable'
 import { RetryButton, StatusIcon } from './StatusParts'
 import type { NewsItem } from '../types/timetable'
 
@@ -47,6 +48,52 @@ function NewsTag({ tag, tagLabel }: { tag: string; tagLabel: string }) {
     <span style={{ ...style, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center' }}>
       {tagLabel}
     </span>
+  )
+}
+
+interface NewsListItemProps {
+  item: NewsItem
+  isUnread: boolean
+  onOpen: () => void
+}
+
+/**
+ * 一覧の各行はカード単位で押下状態を持つ。
+ * 親で状態を共有すると、複数カードが同時に押下表示になるためここへ閉じ込める。
+ */
+function NewsListItem({ item, isUnread, onOpen }: NewsListItemProps) {
+  const { pressed, pressHandlers } = usePressable()
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      {...pressHandlers}
+      aria-label={`${item.tagLabel} ${item.title}${isUnread ? '（未読）' : ''}`}
+      style={{
+        background: pressed ? 'var(--row-active)' : isUnread ? 'var(--news-unread-bg)' : 'var(--bg-card)',
+        borderRadius: 18, padding: '16px 18px', cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', gap: 8, width: '100%', textAlign: 'left', font: 'inherit',
+        border: 'none',
+        transition: pressed ? 'none' : 'background 0.3s',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <NewsTag tag={item.tag} tagLabel={item.tagLabel} />
+          {isUnread && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: 'var(--news-unread-accent)', color: 'var(--news-unread-on-accent)' }}>
+              未読
+            </span>
+          )}
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.date}</span>
+      </div>
+      <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>{item.title}</p>
+      <p style={{ fontSize: 12, color: 'var(--chip-text)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+        {item.preview}
+      </p>
+    </button>
   )
 }
 
@@ -169,40 +216,14 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
             </div>
           </div>
         )}
-        {!loading && news.map(item => {
-          const isUnread = !readIds.has(item.id) && item.unread
-          return (
-            <button
-              type="button"
-              key={item.id}
-              onClick={() => openDetail(item)}
-              aria-label={`${item.tagLabel} ${item.title}${isUnread ? '（未読）' : ''}`}
-              style={{
-                background: 'var(--bg-card)', borderRadius: 18, padding: '16px 18px', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', gap: 8, width: '100%', textAlign: 'left', font: 'inherit',
-                border: 'none', borderLeft: isUnread ? '4px solid #0ea5e9' : '4px solid transparent',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                {/* タグ ＋ 未読ピル（C1: 塗り・白文字） */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <NewsTag tag={item.tag} tagLabel={item.tagLabel} />
-                  {isUnread && (
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#0ea5e9', color: '#fff' }}>
-                      未読
-                    </span>
-                  )}
-                </div>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.date}</span>
-              </div>
-              <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>{item.title}</p>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                {item.preview}
-              </p>
-              {/* 旧 C0 の右下ドットは削除（未読ピルへ置換） */}
-            </button>
-          )
-        })}
+        {!loading && news.map(item => (
+          <NewsListItem
+            key={item.id}
+            item={item}
+            isUnread={!readIds.has(item.id) && item.unread}
+            onOpen={() => openDetail(item)}
+          />
+        ))}
         </div>{/* / 内側ラッパー */}
       </div>
 
