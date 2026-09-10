@@ -37,6 +37,10 @@ export function MapTab({ coords, stopName, destination, route, onChangeRoute }: 
       </header>
 
       <div style={{ padding: '16px 16px 0' }}>
+        {/* 見出しは下の「乗り場の様子」と同じ形にそろえる */}
+        <h2 style={{ margin: '0 0 8px', padding: '0 4px', fontSize: 15, fontWeight: 700, color: 'var(--chip-text)' }}>
+          乗り場マップ
+        </h2>
         <div style={{ height: 326, borderRadius: 22, border: '1px solid var(--row-card-border)', overflow: 'hidden' }}>
           <iframe
             title={`${stopName}の地図`}
