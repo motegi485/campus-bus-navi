@@ -41,6 +41,15 @@ import { MobilePwaGuide, shouldShowMobilePwaGuide } from './components/MobilePwa
 const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
 /**
+ * ヘッダーの更新ボタンの矢印が 1 周するのにかける時間（ミリ秒）。
+ * 実際に回すのは CSS の .refresh-spin なので、値を変えるときは
+ * index.css の refresh-spin アニメーションと必ず揃える。
+ * 取得が一瞬で終わっても周回の切れ目まで回し続けるため、
+ * 「回転を止めてよい時刻」の計算にこの周期を使う。
+ */
+const SPIN_PERIOD_MS = 1100
+
+/**
  * 通知が未購読のときに「発車前に通知」行へ出す説明。
  * 到達条件を誤解させないため、状態ごとに理由を書き分ける（ReminderSection と同じ方針）。
  * この状態で行をタップしたときの行き先はいずれも設定画面（通知トグル）。
@@ -89,6 +98,11 @@ export default function App() {
   // aria-modal を名乗る以上、背面を inert にする必要があるため（下の anyOverlayOpen）
   const [pwaGuideOpen, setPwaGuideOpen] = useState<boolean>(shouldShowMobilePwaGuide)
   const [refreshing, setRefreshing] = useState(false)
+  // 矢印の回転は refreshing より長く続く（最低 1 周する）ので、状態を分けて持つ
+  const [spinning, setSpinning] = useState(false)
+  const spinStartRef = useRef(0)
+  const spinStopTimerRef = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(spinStopTimerRef.current), [])
 
   // 週間ダイヤ（今日を含む 7 日）。ホームの帯と全画面の両方がこの 1 つの結果を使う。
   // 画面ごとにフックを呼ぶと、同じ 7 日分を二重に取りに行くことになる。
@@ -96,7 +110,7 @@ export default function App() {
   const week = useWeekTimetables(now, true, 7, weeklyOpen)
 
   // ヘッダーのアイコンボタンの押下フィードバック
-  const refreshPress = usePressable(refreshing)
+  const refreshPress = usePressable(refreshing || spinning)
 
   // いずれかのオーバーレイが開いている間、背後（タブ本文・バナー）を
   // Tab 順とアクセシビリティツリーから外す。WAI-ARIA の modal dialog パターン。
@@ -241,12 +255,24 @@ export default function App() {
   const handleRefresh = useCallback(async () => {
     if (refreshing) return
     setRefreshing(true)
+    // 回転の開始時刻。停止を周回の切れ目に合わせるために使う
+    spinStartRef.current = performance.now()
+    setSpinning(true)
     showToast('⟳ 時刻データを更新しています...', 1600)
     try {
       const ok = await refresh()
       showToast(ok ? '✓ 最新の時刻データに更新しました' : '⚠ 更新に失敗しました（オフライン？）')
     } finally {
       setRefreshing(false)
+      // 取得が一瞬で終わっても、回転は必ず 1 周以上・周回の切れ目で止める
+      // （途中の角度で止めると、速度が一定でも動きが途切れて見えるため）
+      const elapsed = performance.now() - spinStartRef.current
+      const turns = Math.max(1, Math.ceil(elapsed / SPIN_PERIOD_MS))
+      window.clearTimeout(spinStopTimerRef.current)
+      spinStopTimerRef.current = window.setTimeout(
+        () => setSpinning(false),
+        turns * SPIN_PERIOD_MS - elapsed
+      )
     }
   }, [refresh, refreshing, showToast])
 
@@ -427,7 +453,8 @@ export default function App() {
                     <button
                       onClick={() => { if (!refreshing) tapFeedback(10); handleRefresh() }}
                       {...refreshPress.pressHandlers}
-                      disabled={refreshing}
+                      // 回転が 1 周し終えるまでは押し直せない（周回の途中から回し直さないため）
+                      disabled={refreshing || spinning}
                       aria-label="時刻データを更新"
                       style={{
                         width: 46, height: 46, borderRadius: '50%', flexShrink: 0,
@@ -438,7 +465,7 @@ export default function App() {
                       }}
                     >
                       <ArrowsClockwise size={22} weight="bold" color="var(--chip-text)" aria-hidden="true"
-                        style={{ transition: 'transform 0.7s linear', transform: refreshing ? 'rotate(720deg)' : 'rotate(0deg)' }} />
+                        className={spinning ? 'refresh-spin' : undefined} />
                     </button>
                   </div>
 
