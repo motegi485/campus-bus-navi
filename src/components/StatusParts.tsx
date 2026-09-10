@@ -1,81 +1,9 @@
-import type { SVGProps } from 'react'
+import { WarningCircle, CalendarBlank, ClockCounterClockwise, CloudSlash, type Icon } from '@phosphor-icons/react'
 import { usePressable } from '../hooks/usePressable'
 import { tapFeedback } from '../utils/haptics'
 import type { DataStatus } from '../utils/deriveDataStatus'
 
-/**
- * StatusCard（フルカード）と StatusBand（帯）で共有する部品。
- *
- * アイコンは AppIcons とは別に持つ。AppIcons はドロワー・設定のメニュー用で
- * 線幅 1.7 固定の設計ルールがあるが、状態表示は文字を読む前に区別が付くことが目的で
- * より太い線が要る。viewBox 24・currentColor・aria-hidden の作法は合わせている。
- */
-
-function Glyph({ children, ...rest }: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      width={22}
-      height={22}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ display: 'block' }}
-      {...rest}
-    >
-      {children}
-    </svg>
-  )
-}
-
-/** 取得失敗: 丸に感嘆符 */
-function IconAlert(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Glyph {...props}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 8v5" />
-      <path d="M12 16.5h.01" />
-    </Glyph>
-  )
-}
-
-/** 日付跨ぎ: カレンダー */
-function IconCalendar(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Glyph {...props}>
-      <rect x="3" y="5" width="18" height="16" rx="3" />
-      <path d="M3 10h18" />
-      <path d="M8 3v4" />
-      <path d="M16 3v4" />
-      <path d="M12 14v3" />
-    </Glyph>
-  )
-}
-
-/** 本文が古い: 時計に巻き戻しの矢印 */
-function IconClockRewind(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Glyph {...props}>
-      <path d="M3.2 10.2A9 9 0 1 1 3 12" />
-      <path d="M3 4v5h5" />
-      <path d="M12 7.5V12l3 1.8" />
-    </Glyph>
-  )
-}
-
-/** オフライン: 雲にスラッシュ */
-function IconCloudOff(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Glyph {...props}>
-      <path d="M6.5 19a4.5 4.5 0 0 1-.5-8.97 6 6 0 0 1 10.2-3.2" />
-      <path d="M18 10.1a4.5 4.5 0 0 1 .5 8.9H9" />
-      <path d="M3 3l18 18" />
-    </Glyph>
-  )
-}
+/** 状態表示は Phosphor の Bold を使い、メニューより強い輪郭で伝える。 */
 
 /** 取得中スピナー（ローディング表示と同じ emerald-400） */
 export function Spinner({ size = 16 }: { size?: number }) {
@@ -102,12 +30,12 @@ export function StatusIcon({ status, size = 22 }: { status: DataStatus; size?: n
     )
   }
 
-  const map: Partial<Record<DataStatus, { Icon: typeof IconAlert; color: string }>> = {
-    'no-data': { Icon: IconAlert, color: '#ef4444' },
-    'fetch-failed': { Icon: IconAlert, color: '#ef4444' },
-    stale: { Icon: IconCalendar, color: 'var(--icon-amber-fg)' },
-    'stale-data': { Icon: IconClockRewind, color: 'var(--icon-amber-fg)' },
-    offline: { Icon: IconCloudOff, color: 'var(--icon-slate-fg)' },
+  const map: Partial<Record<DataStatus, { Icon: Icon; color: string }>> = {
+    'no-data': { Icon: WarningCircle, color: '#ef4444' },
+    'fetch-failed': { Icon: WarningCircle, color: '#ef4444' },
+    stale: { Icon: CalendarBlank, color: 'var(--icon-amber-fg)' },
+    'stale-data': { Icon: ClockCounterClockwise, color: 'var(--icon-amber-fg)' },
+    offline: { Icon: CloudSlash, color: 'var(--icon-slate-fg)' },
   }
   const entry = map[status]
   if (!entry) return null
@@ -115,7 +43,7 @@ export function StatusIcon({ status, size = 22 }: { status: DataStatus; size?: n
   const { Icon, color } = entry
   return (
     <span style={{ display: 'flex', lineHeight: 0, color }}>
-      <Icon width={size} height={size} />
+      <Icon size={size} weight="bold" aria-hidden="true" style={{ display: 'block' }} />
     </span>
   )
 }

@@ -1,3 +1,4 @@
+import { CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import type dayjs from 'dayjs'
 import type { RouteKey } from '../types/timetable'
@@ -36,9 +37,7 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
       onClick={onClick}
       style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}
     >
-      <svg width="10" height="16" viewBox="0 0 10 16" fill="none">
-        <path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="var(--accent-fg)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
+      <CaretLeft size={18} weight="bold" color="var(--accent-fg)" aria-hidden="true" />
       {label}
     </button>
   )
@@ -161,7 +160,7 @@ function WeekRow({
 
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
         {right}
-        <span aria-hidden="true" style={{ fontSize: 13, color: 'var(--text-muted)' }}>›</span>
+        <CaretRight size={18} weight="bold" color="var(--text-muted)" aria-hidden="true" style={{ flexShrink: 0 }} />
       </div>
     </button>
   )

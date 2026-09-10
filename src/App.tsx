@@ -1,3 +1,4 @@
+import { ArrowsClockwise, CalendarDots, CaretRight } from '@phosphor-icons/react'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import type { RouteKey } from './types/timetable'
@@ -428,16 +429,8 @@ export default function App() {
                         transition: 'transform .12s ease-out',
                       }}
                     >
-                      <svg
-                        width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--chip-text)"
-                        strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"
-                        style={{ transition: 'transform 0.7s linear', transform: refreshing ? 'rotate(720deg)' : 'rotate(0deg)' }}
-                      >
-                        <path d="M4.6 13.5A7.5 7.5 0 0 1 17.9 7.2" />
-                        <path d="M14 6.5 17.9 7.2 18 3.3" />
-                        <path d="M19.4 10.5A7.5 7.5 0 0 1 6.1 16.8" />
-                        <path d="M10 17.5 6.1 16.8 6 20.7" />
-                      </svg>
+                      <ArrowsClockwise size={22} weight="bold" color="var(--chip-text)" aria-hidden="true"
+                        style={{ transition: 'transform 0.7s linear', transform: refreshing ? 'rotate(720deg)' : 'rotate(0deg)' }} />
                     </button>
                   </div>
 
@@ -458,23 +451,14 @@ export default function App() {
                         className="flex items-center gap-2 rounded-[14px]"
                         style={{ background: 'var(--bg-input)', padding: '10px 13px', border: 'none', cursor: 'pointer', font: 'inherit' }}
                       >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <path d="M8 3.2v2.4M16 3.2v2.4" stroke="var(--text-muted)" strokeWidth="1.8" strokeLinecap="round" />
-                          <rect x="3.4" y="5.2" width="17.2" height="15.4" rx="3.2" fill="var(--bg-card)" stroke="var(--text-muted)" strokeWidth="1.7" />
-                          <path d="M3.4 9.4V8.4a3.2 3.2 0 0 1 3.2-3.2h10.8a3.2 3.2 0 0 1 3.2 3.2v1z" fill="var(--text-muted)" />
-                          <circle cx="7.7" cy="13.2" r="1.1" fill="var(--chip-text)" />
-                          <circle cx="12" cy="13.2" r="1.1" fill="var(--chip-text)" />
-                          <circle cx="16.3" cy="13.2" r="1.1" fill="var(--chip-text)" />
-                          <circle cx="7.7" cy="17.2" r="1.1" fill="var(--chip-text)" />
-                          <circle cx="12" cy="17.2" r="1.1" fill="var(--chip-text)" />
-                        </svg>
+                        <CalendarDots size={18} weight="regular" color="var(--text-muted)" aria-hidden="true" />
                         <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)' }}>
                           {now.month() + 1}/{now.date()}（{DAYS_JA[now.day()]}）
                         </span>
                         <DayBadge type={diagramType} />
                         {/* 押せることが見た目で分からなかったため、行カード（メニュー・
                             発車前の通知）と同じ「›」を右端に置く（ユーザー指示）。 */}
-                        <span aria-hidden="true" style={{ fontSize: 15, color: 'var(--text-muted)', marginLeft: 1 }}>›</span>
+                        <CaretRight size={18} weight="bold" color="var(--text-muted)" aria-hidden="true" style={{ flexShrink: 0 }} />
                       </button>
                       <span className="text-[13.5px] font-bold" style={{ color: 'var(--route-solid-campus)' }}>今日</span>
                     </div>
@@ -560,7 +544,7 @@ export default function App() {
                             className="text-[13px] font-semibold"
                             style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit' }}
                           >
-                            全時刻表 ›
+                            全時刻表 <CaretRight size={18} weight="bold" aria-hidden="true" style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }} />
                           </button>
                         </div>
                         <UpcomingList
@@ -599,7 +583,7 @@ export default function App() {
                               {reminderSummary}
                             </p>
                           </span>
-                          <span aria-hidden="true" style={{ flexShrink: 0, fontSize: 15, color: 'var(--text-muted)' }}>›</span>
+                          <CaretRight size={18} weight="bold" color="var(--text-muted)" aria-hidden="true" style={{ flexShrink: 0 }} />
                         </button>
                       </div>
                     )}

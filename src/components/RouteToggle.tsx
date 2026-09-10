@@ -10,7 +10,7 @@ interface Props {
 
 /**
  * ルートごとの塗り（改修たたき台 C11）。
- * gradient / detail は選択中の表現。改修たたき台の全カットが「大学発」選択中の
+ * gradient は選択中の表現。改修たたき台の全カットが「大学発」選択中の
  * 状態しか描いていないため、松永発側の選択中グラデーションは未確認 —
  * 大学発のグラデーション（原本 #33ae61 → #1d9550 → #16833f）と同じ明度配分で、
  * 既存の --route-solid-station（#6366f1）を中間色として類推した値。
@@ -22,15 +22,12 @@ const OPTIONS: {
   inactiveIconColor: string
   /** 選択時の背景グラデーション */
   gradient: string
-  /** 選択時のアイコン窓・車輪色（グラデーション中間色と同値） */
-  activeDetailColor: string
 }[] = [
   {
     key: 'campus_to_station',
     label: '大学発',
     inactiveIconColor: 'var(--route-solid-campus)',
     gradient: 'linear-gradient(180deg, #33ae61 0%, #1d9550 55%, #16833f 100%)',
-    activeDetailColor: '#1d9550',
   },
   {
     key: 'station_to_campus',
@@ -38,7 +35,6 @@ const OPTIONS: {
     inactiveIconColor: 'var(--route-solid-station)',
     // 松永発の選択中グラデーションは原本未掲載のため類推（上記コメント参照）
     gradient: 'linear-gradient(180deg, #7b7ef5 0%, #6366f1 55%, #4d50c7 100%)',
-    activeDetailColor: '#6366f1',
   },
 ]
 
@@ -65,7 +61,7 @@ function markHinted(): void {
 /**
  * ルート切替セグメント（改修たたき台 1a/2a/2b 共通）。
  * 選択中はグラデーションの塗りつぶしボタン、非選択はラベルのみ。
- * バスアイコンは選択状態で本体色と窓・車輪色が反転する（BusGlyph）。
+ * バスアイコンは選択状態で本体色を切り替える（BusGlyph）。
  */
 export function RouteToggle({ route, onChange }: Props) {
   const [nudging, setNudging] = useState(false)
@@ -142,7 +138,6 @@ export function RouteToggle({ route, onChange }: Props) {
             <BusGlyph
               size={21}
               body={active ? '#ffffff' : opt.inactiveIconColor}
-              detail={active ? opt.activeDetailColor : '#ffffff'}
             />
             {opt.label}
           </button>

@@ -1,3 +1,4 @@
+import { CaretLeft } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import { setInert, useOverlayA11y } from '../hooks/useOverlayA11y'
 import { usePressable } from '../hooks/usePressable'
@@ -34,9 +35,7 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
       onClick={onClick}
       style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}
     >
-      <svg width="10" height="16" viewBox="0 0 10 16" fill="none">
-        <path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="var(--accent-fg)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
+      <CaretLeft size={18} weight="bold" color="var(--accent-fg)" aria-hidden="true" />
       {label}
     </button>
   )

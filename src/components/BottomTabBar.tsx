@@ -1,3 +1,4 @@
+import { MapPin, ListBullets } from '@phosphor-icons/react'
 import { tapFeedback } from '../utils/haptics'
 import { BusGlyph } from './BusGlyph'
 
@@ -42,11 +43,11 @@ export function BottomTabBar({ active, onChange, hasUnread }: Props) {
               font: 'inherit',
             }}
           >
-            {key === 'bus' && <BusGlyph size={26} body="currentColor" detail="#ffffff" />}
-            {key === 'map' && <MapPinIcon />}
+            {key === 'bus' && <BusGlyph size={26} body="currentColor" />}
+            {key === 'map' && <MapPin size={25} weight="fill" aria-hidden="true" />}
             {key === 'menu' && (
               <span style={{ position: 'relative', width: 25, height: 25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <MenuIcon />
+                <ListBullets size={25} weight="bold" aria-hidden="true" />
                 {hasUnread && (
                   <span
                     aria-hidden="true"
@@ -65,29 +66,5 @@ export function BottomTabBar({ active, onChange, hasUnread }: Props) {
         )
       })}
     </nav>
-  )
-}
-
-function MapPinIcon() {
-  return (
-    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 2.2c-4.2 0-7.6 3.4-7.6 7.6 0 5.4 6.7 11.5 7 11.8.3.3.9.3 1.2 0 .3-.3 7-6.4 7-11.8 0-4.2-3.4-7.6-7.6-7.6z"
-        fill="currentColor"
-      />
-    </svg>
-  )
-}
-
-function MenuIcon() {
-  return (
-    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9.5 6.5h11" />
-      <path d="M9.5 12h11" />
-      <path d="M9.5 17.5h11" />
-      <circle cx="4.6" cy="6.5" r="1.3" fill="currentColor" stroke="none" />
-      <circle cx="4.6" cy="12" r="1.3" fill="currentColor" stroke="none" />
-      <circle cx="4.6" cy="17.5" r="1.3" fill="currentColor" stroke="none" />
-    </svg>
   )
 }
