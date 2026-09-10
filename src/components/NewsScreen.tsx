@@ -75,6 +75,9 @@ function NewsListItem({ item, isUnread, onOpen }: NewsListItemProps) {
         borderRadius: 18, padding: '16px 18px', cursor: 'pointer',
         display: 'flex', flexDirection: 'column', gap: 8, width: '100%', textAlign: 'left', font: 'inherit',
         border: 'none',
+        // 地（--bg-page）が白なので、既読カード（--bg-card = 白）は輪郭が無いと
+        // 面として立たない。未読カードは自前の色を持つので囲わない。
+        boxShadow: !pressed && !isUnread ? 'inset 0 0 0 1px var(--row-card-border)' : 'none',
         transition: pressed ? 'none' : 'background 0.3s',
       }}
     >

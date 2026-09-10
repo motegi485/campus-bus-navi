@@ -104,7 +104,7 @@ export function HelpScreen({ open, onClose }: Props) {
 
   return (
     /* fixed: ビューポート基準の全画面パネル。touchAction: NavBar 等起点の
-       背後 body への貫通スクロールを防ぐ（詳細は DrawerMenu.tsx のコメント参照） */
+       背後 body への貫通スクロールを防ぐ（詳細は NewsScreen.tsx のコメント参照） */
     <div ref={rootRef} aria-hidden={!open} style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', touchAction: 'pinch-zoom' }}>
       {/* ナビバー */}
       <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
@@ -128,7 +128,8 @@ export function HelpScreen({ open, onClose }: Props) {
         {/* FAQ */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>よくある質問</div>
-          <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>
+          {/* 白地に白いカードなので、輪郭は inset の影のヘアラインで作る（行高は不変） */}
+          <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px var(--row-card-border)', transition: 'background 0.35s' }}>
             {FAQ.map((faq, i) => (
               <FaqRow
                 key={faq.q}
@@ -144,7 +145,7 @@ export function HelpScreen({ open, onClose }: Props) {
         {/* フィードバック — Googleフォーム接続口 */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>お問い合わせ</div>
-          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: 20, transition: 'background 0.35s' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: 20, boxShadow: 'inset 0 0 0 1px var(--row-card-border)', transition: 'background 0.35s' }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>ご意見・不具合のご報告</p>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 16 }}>
               アプリをより良くするためのご意見や、気になった不具合などをお気軽にお寄せください。いただいた内容は今後の改善に活用させていただきます。
