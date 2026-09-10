@@ -973,3 +973,20 @@ html.bounce-native .header-cushion {
 @media (prefers-reduced-motion: reduce) {
   .unread-pulse-ring { animation: none; }
 }
+
+/* ============================================================
+   ヘッダーの更新ボタン（矢印アイコン）の回転
+   加減速を付けず一定速度で回し続ける。回転を止めるのは App.tsx で、
+   必ず周回の切れ目（＝最低 1 周）まで待ってから止める。そのため
+   1 周あたりの時間は App.tsx の SPIN_PERIOD_MS と揃えること。
+   ============================================================ */
+@keyframes refresh-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.refresh-spin {
+  animation: refresh-spin 1.1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .refresh-spin { animation: none; }
+}
