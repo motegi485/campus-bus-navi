@@ -37,7 +37,7 @@ export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
         fontSize: '13px',
         fontWeight: 600,
         backdropFilter: 'blur(8px)',
-        // レイヤー: DrawerMenu(z-30) < NewsScreen(50) < MobilePwaGuide(100) < UpdateBanner(110)
+        // レイヤー: 全時刻表シート(z-45/46) < NewsScreen等(50) < MobilePwaGuide(100) < UpdateBanner(110)
         zIndex: 110,
         whiteSpace: 'nowrap',
       }}

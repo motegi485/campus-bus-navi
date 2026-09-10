@@ -1,8 +1,5 @@
 @import "tailwindcss";
 
-/* Leaflet CSS */
-@import "leaflet/dist/leaflet.css";
-
 /*
    Hallmark UI 指針
    ジャンル: 落ち着いた実用ユーティリティ / トーン: 爽やか・控えめ・視認性重視
@@ -18,18 +15,6 @@
   --font-sans: 'Noto Sans JP', -apple-system, 'Hiragino Sans', sans-serif;
 }
 
-/*
-  bp-active クラスは main.tsx の syncBpActiveClass() で付与される。
-  条件: screen 幅が 1024px 以上、または landscape で 480px 以上。
-  iPadOS PWA の window.innerWidth 復元バグを回避するため、
-  CSS メディアクエリではなく screen.* を使って JS 判定している。
-*/
-@custom-variant bp {
-  html.bp-active & {
-    @slot;
-  }
-}
-
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ============================================================
@@ -38,22 +23,31 @@
 
 /* ── ライトテーマ（デフォルト）── */
 :root {
-  --bg-page:       #f2f3f7;
+  /* 地の色。改修たたき台（.sample/改修たたき台.dc.html）は 4 画面とも
+     `.scr { background:#fff }` で、地とヘッダー・タブバーが同じ白で連続する。
+     以前の #f2f3f7 は原本に無い値だったので白に合わせた。
+     白地では「白いカード」が地に溶けるため、ページ面に置くカード
+     （設定・ヘルプ・お知らせ・週間ダイヤの行）は --row-card-border の
+     ヘアラインを inset 影で足して輪郭を作る。 */
+  --bg-page:       #ffffff;
   --bg-card:       #ffffff;
   --bg-card2:      #f6f6fa;
   --bg-input:      #f0f0f5;
   --text-primary:  #1a1a2e;
   --text-secondary:#6b7280;
   /* 補助文字。旧値 #aaaaaa はページ面 2.10 / カード面 2.32 で AA を大きく割っていた。
-     実測（この値）: --bg-page 4.75 / --bg-card 5.27 / --bg-card2 4.89。 */
+     実測（この値）: --bg-page / --bg-card とも 5.27（地の白統一で同値）、--bg-card2 4.89。 */
   --text-muted:    #666c79;
   --border:        #f3f3f3;
   --border2:       #ececf0;
   /* 過ぎた便の時刻。旧値 #cccccc は --past-bg 上で 1.53 と、ほぼ読めない値だった。
      淡く見せる意図は面（--past-bg）と字の細さで保ち、文字自体は AA を満たす。
-     実測（この値）: --past-bg 上で 5.00。 */
+     背景は改修たたき台（全時刻表グリッド過去セル #f4f4f6）に合わせた。文字は原本の
+     #8b90a0 だとこの背景上で 2.90:1 まで落ちる（旧値 #f9f9f9 上では 5.00 あった）ため、
+     視覚的にはほぼ同系のまま AA を保てる濃さとして --text-muted と同値の #666c79 を維持。
+     実測（この値）: --past-bg 上で 4.80。 */
   --past-text:     #666c79;
-  --past-bg:       #f9f9f9;
+  --past-bg:       #f4f4f6;
 
   /* キーボードのフォーカスリング（:focus-visible）。
      地の明暗どちらでも見えるよう、濃淡 2 色を重ねた二重リングにしてある。
@@ -93,8 +87,8 @@
   --dow-sat: #2563eb;
   --dow-sun: #c81e1e;
 
-  /* セクションカードの縁と影（.section-card が読む）。ライトは地（--bg-page）との
-     明度差が小さいので、接地影 + 中距離 + 拡散の 3 層を重ねて輪郭を作る。
+  /* セクションカードの縁と影（.section-card が読む）。ライトは地（--bg-page）と
+     同色（白）なので、接地影 + 中距離 + 拡散の 3 層を重ねて輪郭を作る。
      光源は左上に置き、影は下から右へ回す（x:y ≒ 1:2。x を y と同じだけ振ると
      斜めに浮いて見えるので、あくまで「下寄りで、右にも出る」比率に留める）。 */
   --card-border: rgba(15, 23, 42, 0.065);
@@ -143,6 +137,47 @@
   --news-unread-bg:        #eef6ff;
   --news-unread-accent:    #0369a1;
   --news-unread-on-accent: #f8fafc;
+
+  /* ── 3タブ構成（バス/マップ/メニュー）のボトムナビ ──
+     選択色は改修たたき台のタブバー「.tab.on」の値 #1d9550。--route-solid-campus（#22a559）
+     はドット・リングなど別用途の緑で、意図的に別値。 */
+  --tab-active-fg:   #1d9550;
+  --tab-inactive-fg: #8b90a0;
+
+  /* ルート切替トグルの塗りつぶしノブ色（改修デザイン方針、C11）。
+     --route-tint-campus/station-fg（淡色バッジ用）とは別に、塗りつぶし用の濃色を持つ。 */
+  --route-solid-campus:  #22a559;
+  --route-solid-station: #6366f1;
+
+  /* ── 全時刻表シート・次のバスカードの「現在便」表現 ──
+     過去便は --past-bg / --past-text を流用する。未来便は --bg-card / --text-primary を流用する。 */
+  --slot-current-bg: #dff4e7;
+  --slot-current-fg: #1a8a4a;
+
+  /* メニュータブの未読バッジ（お知らせ）。既存の --news-unread-accent とは別文脈で使う値。 */
+  --menu-unread-fg: #0ea5e9;
+
+  /* メニュータブの面カードグループの背景（C10）。--bg-card2 よりわずかに白に近い専用値。
+     改修たたき台では「行カード」（メニューの各行・発車前の通知・マップの経路案内行）
+     すべてがこの色を個別の背景として持つ。グループの共有背景ではなく行単位の背景として使う。 */
+  --menu-group-bg: #f8f8fa;
+
+  /* ── 改修たたき台 専用トークン（このデザイン固有の面・縁）──
+     値は原本 .dc.html の inline style をそのまま採用。他所で使っている
+     --bg-input(#f0f0f5) / --border2(#ececf0) とは数値が僅かに異なるが、
+     それらは他画面（設定・お知らせ・週間ダイヤ等）と共有のため変更せず、
+     この改修分だけ専用トークンを持つ。 */
+  --next-card-bg:      #eef9f1; /* 次のバスカードの地（1a） */
+  --gauge-track:       #d5ecdd; /* 円形ゲージの未消化分（1a） */
+  --pill-track-bg:     #f0f0f3; /* ルートトグルの土台（1a/2a/2b） */
+  --pill-track-border: #e4e5ea;
+  --row-card-border:   #eceef2; /* 行カード（--menu-group-bg 地）・グリッド未来セルの縁（1a/2a/2b/2c） */
+  --sheet-grabber:     #d8dade; /* シートの上グラバー（2a） */
+  --route-toggle-inactive-fg: #1f2937; /* ルートトグル非選択ラベル */
+  --next-time-fg:      #0b1a14; /* 次のバスカードの発車時刻・ゲージ中央の数字 */
+  --next-gauge-sub-fg: #5c6472; /* ゲージ中央「分後」 */
+  --timeline-dot:      #c6cad3; /* 今後の発車時刻タイムラインの非強調ドット */
+  --timeline-line:     #e3e5ea; /* タイムラインの縦の連結線 */
 }
 
 /* ── ダークテーマ ── */
@@ -160,7 +195,9 @@
   --border2:       #2d3748;
   /* 過ぎた便の時刻（ダーク）。旧値 #4b5563 は --past-bg 上で 2.09 だった。
      過ぎた便は補助情報なので通常文字の 4.5 は狙わず、非文字要素と同じ 3:1 を
-     確実に超える値にしてある（実測 4.24）。淡さは面と字の細さで保つ。 */
+     確実に超える値にしてある（実測 4.24）。淡さは面と字の細さで保つ。
+     ライトの --past-bg 変更（改修たたき台対応）はダークには適用しない
+     （原本はライトのみのデザインのため、ダークは figure/ground の関係だけ保つ）。 */
   --past-text:     #7c8595;
   --past-bg:       #1a2332;
 
@@ -236,6 +273,37 @@
   --news-unread-bg:        #1a2d40;
   --news-unread-accent:    #0c4a6e;
   --news-unread-on-accent: #f8fafc;
+
+  /* ボトムナビ（ダーク）。選択色は --toggle-on-campus dark と同値。 */
+  --tab-active-fg:   #34d399;
+  --tab-inactive-fg: #8b95a5;
+
+  /* ルート切替トグルの塗りつぶしノブ色（ダーク）。白文字を載せる塗りなのでライトと同値でよい。 */
+  --route-solid-campus:  #22a559;
+  --route-solid-station: #6366f1;
+
+  /* 全時刻表シート「現在便」（ダーク）。--icon-green-* と同じ 16%透過方式。 */
+  --slot-current-bg: rgba(52, 211, 153, 0.16);
+  --slot-current-fg: #6ee7b7;
+
+  --menu-unread-fg: #38bdf8;
+
+  /* メニュータブの面カードグループの背景（ダーク）。--bg-card2 と同値。 */
+  --menu-group-bg: var(--bg-card2);
+
+  /* 改修たたき台 専用トークン（ダーク）。原本はライトのみのデザインなので、
+     ここは「地と図の関係」を保つ値を新たに選ぶ（ライトの生値の変換ではない）。 */
+  --next-card-bg:      rgba(52, 211, 153, 0.10); /* --slot-current-bg と同系、面積が広いぶん薄く */
+  --gauge-track:       rgba(110, 231, 183, 0.18);
+  --pill-track-bg:     var(--bg-input);
+  --pill-track-border: var(--chip-border);
+  --row-card-border:   var(--border2);
+  --sheet-grabber:     #4b5563;
+  --route-toggle-inactive-fg: var(--text-primary);
+  --next-time-fg:      var(--text-primary);
+  --next-gauge-sub-fg: var(--text-secondary);
+  --timeline-dot:      #4b5563;
+  --timeline-line:     var(--border2);
 }
 
 /* ============================================================
@@ -299,6 +367,17 @@ body {
   background: var(--bg-page);
 }
 
+/* 文書の高さの下限を「本来の全画面高」にしておく。
+   lvh（large viewport height）はブラウザ UI の出入りで変わらない側の高さなので、
+   iOS のコールドスタートでレイアウトビューポートが一時的に短く確定しても、文書は
+   実画面ぶんの高さを保ち、その差分だけスクロールできる。これが main.tsx の
+   1px スクロールによるビューポート再計算が成立する前提になる（同じ問題を持たない
+   ToDo-Reminder が html/body/#root に 100lvh を敷いているのと同じ狙い）。
+   アプリシェル側の min-height は実測値の --app-height を使い続ける（iPad 対策）。 */
+body {
+  min-height: 100lvh;
+}
+
 html, body {
   overscroll-behavior: none;
 }
@@ -329,48 +408,20 @@ html.bounce-stretch body {
 }
 
 /* ============================================================
-   ヘッダーグラデーション（テーマ非依存）
-   色は --hdr-g0/g1/g2、角度は --hdr-angle が単一の真実源。
-   バウンス時に上端へ露出するグラデ継続クッション（.header-cushion、
-   App.tsx が描画）も同じ変数を参照するため、route 切替に自動追従する。
-   stop 位置 0% / 50% / 100% は useNativeBounce
-   （src/hooks/useNativeBounce.ts）のプロファイル式と対の固定契約。
+   ヘッダー（改修デザイン: 白基調、route による色分岐は廃止 — C1, C2）
    ============================================================ */
-.header,
-.header-cushion {
-  --hdr-angle: 160deg;
-}
-/* 大学発の 3 stop は NextBusCard（#0d9966 → #34d399）と同じ色域に収めてある。
-   以前は g2 が #6ee7b7 まで伸びており、160deg のためその明るい端がちょうど
-   ルート切替の側に来て、白文字が地に沈んでいた（相対輝度 0.66 に対し白は 1.0）。
-   カード側の色を変えるときは、ここも合わせて見直すこと。 */
-.header.campus,
-.header-cushion.campus {
-  --hdr-g0: #0d9966;
-  --hdr-g1: #21b680;
-  --hdr-g2: #34d399;
-}
-/* 松永発は上 2 stop だけ 4% 深い。日付とアイコンの線がわずかに基準へ届いて
-   いなかったぶんの調整で、見た目はほぼ変わらない（平均輝度は 93% を維持）。 */
-.header.station,
-.header-cushion.station {
-  --hdr-g0: #7c87f0;
-  --hdr-g1: #675ecd;
-  --hdr-g2: #4f46e5;
-}
-.header.campus,
-.header.station {
-  background: linear-gradient(var(--hdr-angle), var(--hdr-g0) 0%, var(--hdr-g1) 50%, var(--hdr-g2) 100%);
+/* 改修たたき台 1a のヘッダーブロックは `padding:22px 20px 0;background:#fff` だけで、
+   本文との間に区切り線を持たない（地とヘッダーが同じ白で連続する）。ヘッダーは
+   sticky ではなく本文と一緒にスクロールするので、境界線が無くても重なりは起きない。 */
+.header-plain {
+  background: var(--bg-card);
+  transition: background .3s;
 }
 
-/* ホーム上端バウンス時に露出するグラデ継続クッション（iOS ネイティブバウンス
-   専用。stop 位置は useNativeBounce が inline CSS 変数で設定する）。
+/* ホーム上端バウンス時に露出するクッション（iOS ネイティブバウンス専用）。
    iOS はドキュメント上端より上の描画内容をラバーバンド露出域に表示しない
    （出せるのは viewport 固定レイヤーとベース背景のみ）ため、viewport 固定・
-   コンテンツ背面（z-index:-1）のレイヤーとし、「ヘッダー上端 1 行の色
-   プロファイル」＝ x 方向のみの 90deg グラデ（--bounce-x0/1/2）を敷く。
-   境界線上の色はヘッダーの押し下げ量によらず常にヘッダー上端と同一なので、
-   継ぎ目は原理上出ない（上方向の色変化は本来ほぼ一定のため省略する近似）。
+   コンテンツ背面（z-index:-1）のレイヤーとし、ヘッダーと同じ単色（--bg-card）を敷く。
    静止時はオペークな shell に完全に覆われて不可視。下端バウンスの露出域
    （body 背景 --bg-page）に掛からないよう高さは viewport 上部 70% に留める。
    Android はストレッチ表現（隙間が開かない）のためクッション自体を使わない。 */
@@ -386,45 +437,8 @@ html.bounce-native .header-cushion {
   right: 0;
   height: 70vh;
   z-index: -1;
-  background: linear-gradient(
-    90deg,
-    var(--hdr-g0) var(--bounce-x0, 0%),
-    var(--hdr-g1) var(--bounce-x1, 50%),
-    var(--hdr-g2) var(--bounce-x2, 100%)
-  );
-}
-
-/* ============================================================
-   Leaflet UI カスタマイズ
-   ============================================================ */
-.leaflet-control-attribution {
-  background: rgba(15, 23, 42, 0.8) !important;
-  color: #64748b !important;
-  font-size: 10px !important;
-}
-.leaflet-control-attribution a {
-  color: #94a3b8 !important;
-}
-
-/* Leaflet の z-index をドロワー(z-index:30)より下に抑制 */
-/* isolation: isolate で囲ってあるが、Leaflet がグローバルCSSで高いz-indexを持つため明示的に上書き */
-.leaflet-pane         { z-index: 4 !important; }
-.leaflet-tile-pane    { z-index: 2 !important; }
-.leaflet-overlay-pane { z-index: 5 !important; }
-.leaflet-shadow-pane  { z-index: 6 !important; }
-.leaflet-marker-pane  { z-index: 7 !important; }
-.leaflet-tooltip-pane { z-index: 8 !important; }
-.leaflet-popup-pane   { z-index: 9 !important; }
-.leaflet-control      { z-index: 10 !important; }
-
-/* バス停ラベルのツールチップをポップアップに近いデザインに調整 */
-.leaflet-tooltip {
-  padding: 8px 16px !important;
-  border-radius: 10px !important;
-  border: 1px solid rgba(0, 0, 0, 0.15) !important;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.25) !important;
-  font-size: 14px !important;
-  white-space: nowrap !important;
+  background: var(--bg-card);
+  transition: background .3s;
 }
 
 /* ============================================================
@@ -454,7 +468,7 @@ html.bounce-native .header-cushion {
 
    ── 縁は border ではなく ::after に集約する（重要）──
    inset の box-shadow は要素の背景の上・子要素の下に描かれるため、中身が端まで
-   敷き詰まるカード（乗り場マップ = Leaflet が全面を覆う）では稜線がタイルに
+   敷き詰まるカード（乗り場マップ = 全面を覆う埋め込みiframe）では稜線が中身に
    隠れて消える。そこで境界線（--card-border）も稜線（--card-rim）も、子要素
    より手前に来る ::after の inset シャドウで描く。border を持たせないので
    ::after の inset: 0 と border-radius: inherit が要素の外形とぴったり一致する。
@@ -464,7 +478,7 @@ html.bounce-native .header-cushion {
    list … 行が並ぶカード（本日の全時刻表・今後の発車時刻・週間ダイヤの日別グリッド）
    message … 中央寄せの状態メッセージカード（取得失敗などのエラーカード）
    元々ここに実装ごとに書かれていた 18px / 20px を集約したもの。
-   WeekStrip・週間ダイヤの始発/最終/本数カードのような密なストリップ型は、内容の密度が
+   週間ダイヤの始発/最終/本数カードのような密なストリップ型は、内容の密度が
    異なるためこのスケールに合わせず個別の値のままにしてある。 */
 :root {
   --card-pad-list: 18px;
@@ -529,8 +543,8 @@ html.bounce-native .header-cushion {
    「より不透明な白」にしてある（濃色ラベルとの比は上がる方向）。
 
    ヘッダーは滑らかなグラデなので blur の視覚効果自体は小さく、
-   実質は色の半透明＋彩度強調。地図（.leaflet-container / isolation:isolate の
-   内側）では使わないこと。
+   実質は色の半透明＋彩度強調。地図（乗り場マップの埋め込みiframe内側）では
+   使わないこと。
 
    ── テーマで面の作りが違う ──
    ライトは「透明な白ガラス」。地のグラデがそのまま透けるのが狙いで、暗い面は
@@ -543,7 +557,7 @@ html.bounce-native .header-cushion {
    上に重ねる光沢グラデを上端 28% までに閉じてあるのは、文字に掛かると
    campus が 3.56:1 まで落ちるため。可読性のための境界で、任意値ではない。
 
-   地図（.leaflet-container / isolation:isolate の内側）では使わないこと。
+   地図（乗り場マップの埋め込みiframe内側）では使わないこと。
    ============================================================ */
 .frost-surface {
   /* ライト。backdrop-filter 無効時は blur が効かないぶんを不透明度で補う */
@@ -634,6 +648,82 @@ html.bounce-native .header-cushion {
 }
 
 /* ============================================================
+   ボトムタブバー（バス/マップ/メニュー固定3タブ）
+   高さ・境界線・影の値はここが単一の真実源（BottomTabBar.tsx には直書きしない）。
+
+   改修たたき台は固定高フレーム内の position:absolute; bottom:0 だが、この
+   アプリはページ全体がドキュメントスクロール（useNativeBounce が html に
+   バウンスを委譲する設計、bounce-native-delegation を参照）なので、
+   viewport に対する position:fixed で常時表示させる。各タブの本文側は
+   --tabbar-h ぶんの下パディングを確保して、タブバーの下に隠れないようにする
+   （App.tsx の <main>、MapTab.tsx、MenuTab.tsx）。 */
+:root {
+  --tabbar-h: 76px;
+}
+.bottom-tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  /*
+    ⚠️ bottom は 0（= レイアウトビューポート下端）から動かさないこと。
+
+    iOS の PWA ではコールドスタート直後にレイアウトビューポートが実画面より
+    短く確定することがあり、タブバーが画面下端から浮いて見える。これを
+    「負の bottom でビューポート外へ押し下げる」方法で補正しようとしたが、
+    iOS は position:fixed の描画をレイアウトビューポートでクリップするため、
+    はみ出した部分（アイコン・ラベル）が丸ごと消えた（実機 2026-09-10 で確認。
+    ビューポート外に出た未読ドットが 812pt でちょうど切れていた）。
+    ビューポートの外にはページは何も描けない（ルート背景だけが画面全体を塗る）。
+    正しい対処はビューポート自体を正しい高さに直すことで、main.tsx の
+    recoverShortViewport() が担当する。
+  */
+  bottom: 0;
+  z-index: 20;
+  height: var(--tabbar-h);
+  background: var(--bg-card);
+  border-top: 1px solid var(--border2);
+  box-shadow: 0 -8px 20px -10px rgba(15, 23, 42, 0.22);
+  /* 原本は 9px。実機で見るとアイコン・ラベルが下寄りに見えるため 3px 上げる
+     （ユーザー指示）。padding-bottom（セーフエリア）ぶんで中身は上詰めになるので、
+     この値がそのまま中身全体のオフセットになる。 */
+  padding-top: 6px;
+  transition: background .3s, border-color .3s;
+}
+
+/* ============================================================
+   全時刻表シート（下からのフルスクリーンシート）
+   スライドインは transform、背後のディムは opacity のみで行う（GPU合成）。
+   ============================================================ */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.28);
+  transition: opacity .3s;
+}
+.sheet-panel {
+  position: fixed;
+  /* 改修たたき台 2a: 上端は58px開けて背後のヘッダーを覗かせ、シート上端は角丸。
+     ノッチ機を考慮し 58px の起点は safe-area-inset-top の外側に置く。 */
+  top: calc(env(safe-area-inset-top, 0px) + 58px);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 24px 24px 0 0;
+  overflow: hidden;
+  background: var(--bg-page);
+  transform: translateY(0);
+  transition: transform .34s cubic-bezier(.32, .72, 0, 1);
+  display: flex;
+  flex-direction: column;
+}
+.sheet-panel.sheet-panel-closed {
+  transform: translateY(100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-panel { transition: none; }
+}
+
+/* ============================================================
    ページ面に置くルート切替スイッチ（RouteSwitch）
 
    ヘッダーの .frost-surface は「グラデが透ける半透明の面」なので、
@@ -642,7 +732,7 @@ html.bounce-native .header-cushion {
    「動かせる部品」に見せる手掛かりは 2 つに絞っている。
    (1) トラックが溝として沈んでいること（inset の影）
    (2) ノブが物理的に浮いていて、押すと滑ること（落ち影 ＋ ばねの transition）
-   --bg-input (#f0f0f5) は --bg-page (#f2f3f7) とほぼ同じ明度で、
+   --bg-input (#f0f0f5) は白地 (--bg-page) との明度差が小さく、
    1px の境界だけでは面として立たない。溝の影がここでは必須。
 
    ライトは白いノブ（地より明るい）。ダークは .toggle-knob と同じ考え方で、
@@ -689,24 +779,6 @@ html.bounce-native .header-cushion {
 }
 @media (prefers-reduced-motion: reduce) {
   .route-toggle-nudge { animation: none; }
-}
-
-/* ============================================================
-   レスポンシブ対応（lg: 1024px以上）
-   ============================================================ */
-
-/* PC/横向き表示時: phone-shell-inner の角丸・影を解除 */
-html.bp-active .phone-shell-inner {
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-
-/* PC/横向き表示時: Leaflet地図は右カラムの残り高さいっぱいに広がる。
-   左カラム（次のバス＋今後の発車時刻）と下端を揃えるため、固定高ではなく
-   親（BusStopMap の地図ラッパ）に追従させる。下限は同ラッパの bp:min-h-[300px]。
-   MapContainer のインライン height:220px（モバイル縦用）をここで上書きする。 */
-html.bp-active .leaflet-container {
-  height: 100% !important;
 }
 
 /* ============================================================

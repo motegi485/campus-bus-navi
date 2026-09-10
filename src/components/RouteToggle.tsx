@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RouteKey } from '../types/timetable'
 import { tapFeedback } from '../utils/haptics'
+import { BusGlyph } from './BusGlyph'
 
 interface Props {
   route: RouteKey
@@ -8,26 +9,38 @@ interface Props {
 }
 
 /**
- * 選択中ラベルの色 = そのルートの色。ノブがライトでは白・ダークでは黒ガラスと
- * 反転するため、実際の値は index.css の --toggle-on-* がテーマ別に持つ。
+ * ルートごとの塗り（改修たたき台 C11）。
+ * gradient / detail は選択中の表現。改修たたき台の全カットが「大学発」選択中の
+ * 状態しか描いていないため、松永発側の選択中グラデーションは未確認 —
+ * 大学発のグラデーション（原本 #33ae61 → #1d9550 → #16833f）と同じ明度配分で、
+ * 既存の --route-solid-station（#6366f1）を中間色として類推した値。
  */
-const OPTIONS: { key: RouteKey; label: string; color: string }[] = [
-  { key: 'campus_to_station', label: '大学発', color: 'var(--toggle-on-campus)' },
-  { key: 'station_to_campus', label: '松永発', color: 'var(--toggle-on-station)' },
+const OPTIONS: {
+  key: RouteKey
+  label: string
+  /** 非選択時のアイコン本体色（そのルートの識別色） */
+  inactiveIconColor: string
+  /** 選択時の背景グラデーション */
+  gradient: string
+  /** 選択時のアイコン窓・車輪色（グラデーション中間色と同値） */
+  activeDetailColor: string
+}[] = [
+  {
+    key: 'campus_to_station',
+    label: '大学発',
+    inactiveIconColor: 'var(--route-solid-campus)',
+    gradient: 'linear-gradient(180deg, #33ae61 0%, #1d9550 55%, #16833f 100%)',
+    activeDetailColor: '#1d9550',
+  },
+  {
+    key: 'station_to_campus',
+    label: '松永発',
+    inactiveIconColor: 'var(--route-solid-station)',
+    // 松永発の選択中グラデーションは原本未掲載のため類推（上記コメント参照）
+    gradient: 'linear-gradient(180deg, #7b7ef5 0%, #6366f1 55%, #4d50c7 100%)',
+    activeDetailColor: '#6366f1',
+  },
 ]
-
-/** 未選択ラベル。ヘッダー上の他の文字（タイトル・日付）と揃えて白 */
-const IDLE_LABEL = '#ffffff'
-
-/**
- * ダークのトラックに使うティント色（ルート色のスモークガラス）。
- * ライトは透明な白ガラスなので使わない（.frost-surface 側で分岐している）。
- * on = backdrop-filter 有効時 / fb = 無効時（blur が効かないぶん不透明にする）。
- */
-const TINT: Record<RouteKey, { on: string; fb: string }> = {
-  campus_to_station: { on: 'rgba(4,71,52,.66)', fb: 'rgba(4,71,52,.74)' },
-  station_to_campus: { on: 'rgba(55,48,163,.66)', fb: 'rgba(55,48,163,.74)' },
-}
 
 /** ナッジ済みフラグ。設定本体（campusBusNaviSettings）とは別キーで持つ */
 const NUDGE_KEY = 'campusBusNaviRouteToggleHinted'
@@ -49,12 +62,15 @@ function markHinted(): void {
   }
 }
 
+/**
+ * ルート切替セグメント（改修たたき台 1a/2a/2b 共通）。
+ * 選択中はグラデーションの塗りつぶしボタン、非選択はラベルのみ。
+ * バスアイコンは選択状態で本体色と窓・車輪色が反転する（BusGlyph）。
+ */
 export function RouteToggle({ route, onChange }: Props) {
-  const index = route === 'campus_to_station' ? 0 : 1
   const [nudging, setNudging] = useState(false)
   const timers = useRef<number[]>([])
 
-  // 初回のみ: 700ms 後にナッジ開始、1.3s x 2 回で終了
   useEffect(() => {
     if (alreadyHinted()) return
     const start = window.setTimeout(() => setNudging(true), 700)
@@ -67,7 +83,6 @@ export function RouteToggle({ route, onChange }: Props) {
   }, [])
 
   const handle = (key: RouteKey) => {
-    // ユーザーが自力で操作したらナッジは役目を終える
     if (nudging) {
       timers.current.forEach(id => clearTimeout(id))
       setNudging(false)
@@ -79,85 +94,60 @@ export function RouteToggle({ route, onChange }: Props) {
   }
 
   return (
-    <div className="mt-4 bp:w-[64%] bp:mx-auto">
-      <div
-        role="group"
-        aria-label="ルート切替"
-        className="frost-surface relative flex rounded-full p-1"
-        style={{
-          // ダークのティントは route ごとに変わる（.frost-surface が var() で読む）。
-          // 面・縁・影そのものは index.css の .frost-surface / .dark .frost-surface
-          ['--toggle-tint' as string]: TINT[route].on,
-          ['--toggle-tint-fb' as string]: TINT[route].fb,
-        }}
-      >
-        {/* ノブ（凸）。transform 1 本で位置とナッジを兼ねるため、
-            ナッジ中は class 側の animation が transform を上書きする。
-            見た目（鏡面グラデ・縁・影）は index.css の .toggle-knob 側。
-            box-sizing: border-box が全要素に効いているので、border が付いても
-            width: calc(50% - 4px) とボタン幅の一致は崩れない */}
-        <div
-          aria-hidden="true"
-          className={`toggle-knob${nudging ? ' route-toggle-nudge' : ''}`}
-          style={{
-            position: 'absolute',
-            top: 4,
-            bottom: 4,
-            left: 4,
-            width: 'calc(50% - 4px)',
-            // ナッジ用アニメーションの基準位置
-            ['--nudge-pos' as string]: `${index * 100}%`,
-            transform: `translateX(${index * 100}%)`,
-            transition: 'transform .34s cubic-bezier(.34,1.4,.64,1)',
-            borderRadius: 9999,
-          }}
-        />
-
-        {OPTIONS.map((opt) => {
-          const active = route === opt.key
-          return (
-            <button
-              key={opt.key}
-              type="button"
-              onClick={() => handle(opt.key)}
-              aria-pressed={active}
-              className="relative flex-1 rounded-full py-[9px] px-[6px] select-none"
-              style={{
-                border: 'none',
-                background: 'transparent',
-                font: 'inherit',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: 'pointer',
-                color: active ? opt.color : IDLE_LABEL,
-                transition: 'color .2s',
-              }}
-            >
-              {opt.label}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* ナッジ中のヒント。装飾なので支援技術には渡さない
-          （状態は aria-pressed で伝わっている） */}
-      <div
-        aria-hidden="true"
-        style={{
-          marginTop: 8,
-          height: nudging ? 16 : 0,
-          overflow: 'hidden',
-          fontSize: 11,
-          fontWeight: 600,
-          textAlign: 'center',
-          color: '#fff',
-          textShadow: '0 1px 3px rgba(0,0,0,.45)',
-          opacity: nudging ? 1 : 0,
-          transition: 'opacity .3s, height .3s',
-        }}
-      >
-        タップでルートを切り替え
-      </div>
+    <div
+      role="group"
+      aria-label="ルート切替"
+      className="flex"
+      style={{
+        gap: 4,
+        padding: 5,
+        borderRadius: 9999,
+        background: 'var(--pill-track-bg)',
+        border: '1px solid var(--pill-track-border)',
+        boxShadow: 'inset 0 2px 4px rgba(15,23,42,.11)',
+      }}
+    >
+      {OPTIONS.map((opt) => {
+        const active = route === opt.key
+        return (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => handle(opt.key)}
+            aria-pressed={active}
+            className={nudging && active ? 'route-toggle-nudge' : undefined}
+            style={{
+              position: 'relative',
+              flex: 1,
+              height: 46,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              borderRadius: 9999,
+              fontSize: 15,
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+              cursor: 'pointer',
+              background: active ? opt.gradient : 'transparent',
+              border: active ? '1px solid rgba(255,255,255,.28)' : 'none',
+              boxShadow: active
+                ? 'inset 0 1px 0 rgba(255,255,255,.42), 0 4px 10px -2px rgba(20,120,60,.45), 0 1px 2px rgba(15,23,42,.18)'
+                : 'none',
+              color: active ? '#ffffff' : 'var(--route-toggle-inactive-fg)',
+              textShadow: active ? '0 1px 1px rgba(0,0,0,.16)' : 'none',
+              transition: 'background .2s, box-shadow .2s, color .2s, border-color .2s',
+            }}
+          >
+            <BusGlyph
+              size={21}
+              body={active ? '#ffffff' : opt.inactiveIconColor}
+              detail={active ? opt.activeDetailColor : '#ffffff'}
+            />
+            {opt.label}
+          </button>
+        )
+      })}
     </div>
   )
 }
