@@ -630,7 +630,6 @@ export default function App() {
                   hasUnread={hasUnread}
                   onOpenNews={() => setNewsOpen(true)}
                   onOpenWeekly={() => setWeeklyOpen(true)}
-                  onOpenReminders={() => setFullTimetableOpen(true)}
                   onOpenSettings={() => setSettingsOpen(true)}
                   onOpenHelp={() => setHelpOpen(true)}
                   onInitApp={handleInitApp}

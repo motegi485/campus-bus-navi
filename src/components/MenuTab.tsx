@@ -12,7 +12,6 @@ import {
   IconReset,
   type IconTone,
 } from './AppIcons'
-import { BellIcon } from './BellIcon'
 import { ExternalLinkIcon } from './ExternalLinkIcon'
 import { SCHOOL_BUS_INFO_URL } from '../constants/links'
 
@@ -20,7 +19,6 @@ interface Props {
   hasUnread: boolean
   onOpenNews: () => void
   onOpenWeekly: () => void
-  onOpenReminders: () => void
   onOpenSettings: () => void
   onOpenHelp: () => void
   onInitApp: () => void
@@ -39,7 +37,7 @@ const LINKS: { icon: ReactNode; tone: IconTone; title: string; sub: string; url:
  * （ターン2チャットでの確定指示）。行は改修たたき台どおり個別カード（グループの
  * 共有背景ではない）。
  */
-export function MenuTab({ hasUnread, onOpenNews, onOpenWeekly, onOpenReminders, onOpenSettings, onOpenHelp, onInitApp }: Props) {
+export function MenuTab({ hasUnread, onOpenNews, onOpenWeekly, onOpenSettings, onOpenHelp, onInitApp }: Props) {
   return (
     <div className="flex flex-col" style={{ paddingBottom: 'calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 16px)' }}>
       {/* 上端の余白はバスタブのヘッダー（App.tsx）と同じ計算にする。safe-area を
@@ -68,8 +66,6 @@ export function MenuTab({ hasUnread, onOpenNews, onOpenWeekly, onOpenReminders, 
           showDot={hasUnread} onClick={onOpenNews} />
         <MenuRow icon={<IconCalendarWeek />} tone="blue" title="週間ダイヤ" sub="今日を含む7日間の運行予定" chevron="›"
           onClick={onOpenWeekly} />
-        <MenuRow icon={<BellIcon width={20} height={20} />} tone="green" title="発車前の通知" sub="本日の便ごとに設定" chevron="›"
-          onClick={onOpenReminders} />
       </MenuGroup>
 
       {/* その他 */}
