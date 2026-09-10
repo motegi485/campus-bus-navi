@@ -1,3 +1,4 @@
+import { CaretLeft, Chat } from '@phosphor-icons/react'
 import { useState, useEffect } from 'react'
 import { useOverlayA11y } from '../hooks/useOverlayA11y'
 import { usePressable } from '../hooks/usePressable'
@@ -109,7 +110,7 @@ export function HelpScreen({ open, onClose }: Props) {
       {/* ナビバー */}
       <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
         <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
-          <svg width="10" height="16" viewBox="0 0 10 16" fill="none"><path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="var(--accent-fg)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <CaretLeft size={18} weight="bold" color="var(--accent-fg)" aria-hidden="true" />
           戻る
         </button>
         <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>ヘルプ</span>
@@ -154,9 +155,7 @@ export function HelpScreen({ open, onClose }: Props) {
               onClick={handleFeedback}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: 14, background: 'linear-gradient(135deg,#0d9966,#34d399)', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 14, border: 'none', cursor: 'pointer' }}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-              </svg>
+              <Chat size={15} weight="bold" color="white" aria-hidden="true" />
               フィードバックを送る
             </button>
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>

@@ -1,3 +1,4 @@
+import { CaretLeft, CaretRight, Check } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import { setInert, useOverlayA11y } from '../hooks/useOverlayA11y'
 import { usePressable } from '../hooks/usePressable'
@@ -36,7 +37,7 @@ type SelectKey = 'route' | 'theme' | 'font'
 function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
-      <svg width="10" height="16" viewBox="0 0 10 16" fill="none"><path d="M8.5 1.5L1.5 8L8.5 14.5" stroke="var(--accent-fg)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      <CaretLeft size={18} weight="bold" color="var(--accent-fg)" aria-hidden="true" />
       {label}
     </button>
   )
@@ -107,7 +108,7 @@ function SettingRow({ icon, tone, title, sub, value, onClick }: { icon: AppIcon;
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
         <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 500 }}>{value}</span>
-        <span aria-hidden="true" style={{ fontSize: 13, color: 'var(--text-muted)' }}>›</span>
+        <CaretRight size={18} weight="bold" color="var(--text-muted)" aria-hidden="true" style={{ flexShrink: 0 }} />
       </div>
     </button>
   )
@@ -259,7 +260,7 @@ export function SettingsScreen({
                     }}
                   >
                     <span style={{ fontSize: 15, fontWeight: isSelected ? 700 : 500, color: isSelected ? 'var(--accent-fg)' : 'var(--text-primary)' }}>{opt}</span>
-                    <span aria-hidden="true" style={{ fontSize: 17, color: 'var(--accent-fg)', opacity: isSelected ? 1 : 0, transition: 'opacity 0.15s' }}>✓</span>
+                    <Check size={20} weight="bold" color="var(--accent-fg)" aria-hidden="true" style={{ flexShrink: 0, opacity: isSelected ? 1 : 0, transition: 'opacity 0.15s' }} />
                   </button>
                 )
               })}

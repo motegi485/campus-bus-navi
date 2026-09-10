@@ -1,3 +1,4 @@
+import { CaretRight } from '@phosphor-icons/react'
 import { type ReactNode } from 'react'
 import { usePressable } from '../hooks/usePressable'
 import {
@@ -62,17 +63,17 @@ export function MenuTab({ hasUnread, onOpenNews, onOpenWeekly, onOpenSettings, o
 
       {/* アプリ */}
       <MenuGroup>
-        <MenuRow icon={<IconMegaphone />} tone="amber" title="お知らせ" sub="バス運行情報・重要連絡" chevron="›"
+        <MenuRow icon={<IconMegaphone />} tone="amber" title="お知らせ" sub="バス運行情報・重要連絡" chevron
           showDot={hasUnread} onClick={onOpenNews} />
-        <MenuRow icon={<IconCalendarWeek />} tone="blue" title="週間ダイヤ" sub="今日を含む7日間の運行予定" chevron="›"
+        <MenuRow icon={<IconCalendarWeek />} tone="blue" title="週間ダイヤ" sub="今日を含む7日間の運行予定" chevron
           onClick={onOpenWeekly} />
       </MenuGroup>
 
       {/* その他 */}
       <MenuGroup>
-        <MenuRow icon={<IconGear />} tone="indigo" title="設定" sub="表示・通知オプション" chevron="›"
+        <MenuRow icon={<IconGear />} tone="indigo" title="設定" sub="表示・通知オプション" chevron
           onClick={onOpenSettings} />
-        <MenuRow icon={<IconHelp />} tone="slate" title="ヘルプ" sub="使い方・お問い合わせ" chevron="›"
+        <MenuRow icon={<IconHelp />} tone="slate" title="ヘルプ" sub="使い方・お問い合わせ" chevron
           onClick={onOpenHelp} />
         <MenuRow icon={<IconReset />} tone="red" title="アプリの初期化" sub="キャッシュ・SWをリセット"
           titleColor="var(--status-danger-fg)" onClick={onInitApp} />
@@ -99,7 +100,7 @@ interface MenuRowProps {
   title: string
   sub: string
   /** 内部遷移の矢印（"›"）。外部リンクは external を使う */
-  chevron?: string
+  chevron?: boolean
   /** 外部リンク行: 斜め矢印アイコンを出す */
   external?: boolean
   onClick?: () => void
@@ -146,7 +147,7 @@ function MenuRow({ icon, tone, title, sub, chevron, external, onClick, titleColo
           <ExternalLinkIcon width={13} height={13} />
         </span>
       ) : chevron ? (
-        <span aria-hidden="true" style={{ fontSize: 15, color: 'var(--text-muted)', flexShrink: 0 }}>{chevron}</span>
+        <CaretRight size={18} weight="bold" color="var(--text-muted)" aria-hidden="true" style={{ flexShrink: 0 }} />
       ) : null}
     </>
   )

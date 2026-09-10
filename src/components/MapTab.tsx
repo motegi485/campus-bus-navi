@@ -1,3 +1,4 @@
+import { MapPin } from '@phosphor-icons/react'
 import type { BusStopCoords, RouteKey } from '../types/timetable'
 import { buildMapUrl } from '../utils/buildMapUrl'
 import { buildEmbedMapUrl, buildEmbedStreetViewUrl } from '../utils/buildEmbedUrl'
@@ -71,9 +72,7 @@ export function MapTab({ coords, stopName, destination, route, onChangeRoute }: 
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 2.2c-4.2 0-7.6 3.4-7.6 7.6 0 5.4 6.7 11.5 7 11.8.3.3.9.3 1.2 0 .3-.3 7-6.4 7-11.8 0-4.2-3.4-7.6-7.6-7.6zm0 10.4a2.9 2.9 0 1 1 0-5.8 2.9 2.9 0 0 1 0 5.8z" fill="currentColor" />
-            </svg>
+            <MapPin size={20} weight="fill" aria-hidden="true" />
           </span>
           <span className="min-w-0" style={{ flex: 1 }}>
             <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>現在地からのルートを見る</p>

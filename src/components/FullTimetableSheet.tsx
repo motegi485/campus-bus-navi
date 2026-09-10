@@ -1,3 +1,4 @@
+import { X, CalendarBlank } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import type { Dayjs } from 'dayjs'
 import type { ScheduleEntry, RouteKey, DiagramType } from '../types/timetable'
@@ -152,10 +153,7 @@ export function FullTimetableSheet({
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--chip-text)" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-                <path d="M5.5 5.5 18.5 18.5" />
-                <path d="M18.5 5.5 5.5 18.5" />
-              </svg>
+              <X size={15} weight="bold" color="var(--chip-text)" aria-hidden="true" />
             </button>
           </div>
 
@@ -168,16 +166,7 @@ export function FullTimetableSheet({
               className="flex items-center gap-[9px]"
               style={{ background: 'var(--past-bg)', borderRadius: 14, padding: '10px 13px', marginTop: 14 }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M8 3.2v2.4M16 3.2v2.4" stroke="var(--text-muted)" strokeWidth="1.8" strokeLinecap="round" />
-                <rect x="3.4" y="5.2" width="17.2" height="15.4" rx="3.2" fill="var(--bg-card)" stroke="var(--text-muted)" strokeWidth="1.7" />
-                <path d="M3.4 9.4V8.4a3.2 3.2 0 0 1 3.2-3.2h10.8a3.2 3.2 0 0 1 3.2 3.2v1z" fill="var(--text-muted)" />
-                <circle cx="7.7" cy="13.2" r="1.1" fill="var(--chip-text)" />
-                <circle cx="12" cy="13.2" r="1.1" fill="var(--chip-text)" />
-                <circle cx="16.3" cy="13.2" r="1.1" fill="var(--chip-text)" />
-                <circle cx="7.7" cy="17.2" r="1.1" fill="var(--chip-text)" />
-                <circle cx="12" cy="17.2" r="1.1" fill="var(--chip-text)" />
-              </svg>
+              <CalendarBlank size={18} weight="regular" color="var(--text-muted)" aria-hidden="true" />
               <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)' }}>
                 {now.month() + 1}/{now.date()}（{DAYS_JA[now.day()]}）
               </span>
