@@ -69,6 +69,7 @@ flowchart TD
 - 次発、残り本数、次発後の最大 4 本、終バス、翌日始発を毎分再計算する
 - 特別ダイヤ、全便運休日、日付跨ぎでデータが古い状態を安全に分岐する
 - `deriveDataStatus()` でデータ状態を 1 つに畳み、状態表示を排他的に描く
+- バスタブの「発車前に通知」行（タイムライン直下）を直接持つ。`usePushSubscription` の状態と `useDepartureReminders` の `loadState` から説明文（`reminderSummary`）とタップ先を決める。購読済みなら `FullTimetableSheet`、未購読なら `SettingsScreen` を開く（[design-decisions.md](design-decisions.md)）
 - PWA 更新検知とアプリ初期化を担当する
 - オーバーレイ（全時刻表シート・お知らせ・週間ダイヤ・設定・ヘルプ）が開いている間、背面を `inert` にする
 
