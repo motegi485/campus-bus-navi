@@ -1,84 +1,91 @@
-import type { ScheduleEntry, RouteKey, FontSize } from '../types/timetable'
+import type { ScheduleEntry, FontSize } from '../types/timetable'
 import { parseHHmmToMinutes } from '../utils/parseTime'
+import { formatWaitLabel, formatDiffLabel } from '../utils/findNextBus'
 import { BellIcon } from './BellIcon'
 
 interface Props {
+  /**
+   * 先頭が次発（NextBusCard と同じ便）、以降が続く便。
+   * 改修たたき台の `tl` は5件だが、ユーザー指示によりアプリでは4件（次発+3件）に減らしている。
+   */
   buses: ScheduleEntry[]
-  route: RouteKey
   nowMinutes: number
   fontSize: FontSize
   /**
    * 発車前の通知を設定済みの便（"HH:mm"）。ベル印を付ける。
-   * 未指定なら従来どおり印を出さない（週間ダイヤなど当日以外の文脈で使えるようにするため）。
+   * 改修たたき台の静的モックには無いが、実用機能として残す（ターン2チャットでの確定指示）。
    */
   marked?: ReadonlySet<string>
 }
 
-const FONT_SIZE_MAP: Record<FontSize, string> = {
-  small:  'text-xl',
-  medium: 'text-[26px]',
-  large:  'text-[31px]',
+const FONT_SIZE_MAP: Record<FontSize, number> = {
+  small:  19,
+  medium: 22,
+  large:  26,
 }
 
-function formatDiff(diff: number): string {
-  if (diff >= 60) {
-    const h = Math.floor(diff / 60)
-    const m = diff % 60
-    return m === 0 ? `${h}時間後` : `${h}時間 ${m}分後`
-  }
-  return `${diff}分後`
-}
-
-export function UpcomingList({ buses, route, nowMinutes, fontSize, marked }: Props) {
+/**
+ * 「今後の発車時刻」タイムライン（改修たたき台 1a）。
+ * 先頭行は次発（NextBusCard と同じ便）を大きい緑ドットで強調し、以降の便は
+ * 小さいグレーのドットでつなぐ。見出しは呼び出し側（App.tsx）が持つ。
+ */
+export function UpcomingList({ buses, nowMinutes, fontSize, marked }: Props) {
   if (buses.length === 0) return null
 
-  const isCampus = route === 'campus_to_station'
-  const badgeClass = isCampus
-    ? 'bg-[var(--route-tint-campus-bg)] text-[var(--route-tint-campus-fg)]'
-    : 'bg-[var(--route-tint-station-bg)] text-[var(--route-tint-station-fg)]'
-  const diffColor = isCampus
-    ? 'text-[var(--route-tint-campus-fg)]'
-    : 'text-[var(--route-tint-station-fg)]'
-  const fs = FONT_SIZE_MAP[fontSize]
+  const timeSize = FONT_SIZE_MAP[fontSize]
 
   return (
-    <div className="section-card rounded-[20px]" style={{ padding: 'var(--card-pad-list)' }}>
-      <p className="text-[11px] text-[var(--text-muted)] font-bold mb-3 tracking-widest uppercase">
-        今後の発車時刻
-      </p>
-      <div className="flex flex-col">
-        {buses.map((bus, i) => {
-          const depMin = parseHHmmToMinutes(bus.departure)
-          if (depMin === null) return null
-          const diff = depMin - nowMinutes
-          return (
+    <div style={{ position: 'relative', paddingLeft: 2 }}>
+      {buses.map((bus, i) => {
+        const depMin = parseHHmmToMinutes(bus.departure)
+        if (depMin === null) return null
+        const diff = depMin - nowMinutes
+        const isNext = i === 0
+        const isLastRow = i === buses.length - 1
+
+        return (
+          <div key={bus.departure + i} style={{ display: 'flex', alignItems: 'stretch', gap: 16 }}>
+            {/* ドット + 縦線の列 */}
+            <div style={{ width: 16, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span style={{ width: 2, height: 19, background: isNext ? 'transparent' : 'var(--timeline-line)', flexShrink: 0, marginBottom: 3 }} />
+              <span
+                style={{
+                  width: isNext ? 14 : 11, height: isNext ? 14 : 11, borderRadius: '50%', flexShrink: 0,
+                  background: isNext ? 'var(--tab-active-fg)' : 'var(--timeline-dot)',
+                }}
+              />
+              <span style={{ flex: 1, width: 2, background: isLastRow ? 'transparent' : 'var(--timeline-line)', marginTop: 3 }} />
+            </div>
+
             <div
-              key={bus.departure + i}
-              className="flex items-center justify-between py-3 border-b border-[var(--border)] last:border-none last:pb-0"
+              style={{
+                flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: 10, padding: '11px 0', borderBottom: '1px solid var(--row-card-border)',
+              }}
             >
-              <div className="flex items-center gap-[10px]">
-                <span className={`${fs} font-bold text-[var(--text-primary)] tracking-tight transition-[font-size] duration-200`}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: timeSize, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-.6px' }}>
                   {bus.departure}
-                </span>
-                {/* 通知を設定済みの印。次のバスカード・全時刻表と同じベルで揃える */}
+                </p>
                 {marked?.has(bus.departure) && (
-                  <span role="img" aria-label="発車前の通知を設定済み" className="leading-none" style={{ color: 'var(--accent-fg)' }}>
+                  <span role="img" aria-label="発車前の通知を設定済み" style={{ color: 'var(--accent-fg)', display: 'flex' }}>
                     <BellIcon width={12} height={12} />
                   </span>
                 )}
-                {bus.note && (
-                  <span className={`text-[11px] px-2 py-0.5 rounded-[7px] font-bold ${badgeClass}`}>
-                    {bus.note}
-                  </span>
-                )}
-              </div>
-              <span className={`text-[13px] font-bold ${diffColor}`}>
-                {formatDiff(diff)}
+              </span>
+              <span
+                style={{
+                  fontSize: 12.5, fontWeight: 800, whiteSpace: 'nowrap', borderRadius: 9999, padding: '7px 12px',
+                  color: isNext ? 'var(--slot-current-fg)' : 'var(--text-secondary)',
+                  background: isNext ? 'var(--slot-current-bg)' : 'var(--past-bg)',
+                }}
+              >
+                {isNext ? formatWaitLabel(diff) : formatDiffLabel(diff)}
               </span>
             </div>
-          )
-        })}
-      </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

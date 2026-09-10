@@ -58,20 +58,6 @@ export default defineConfig({
               },
             },
           },
-          {
-            // OSMタイル: Cache First（オフライン時もキャッシュ済みタイルを表示するため）
-            // ホストは OSMF のタイル利用ポリシーが指定する tile.openstreetmap.org に統一済み。
-            // 旧 a/b/c サブドメインのエントリが端末に残っていても引き続き拾えるよう任意扱いにする。
-            urlPattern: /^https:\/\/([abc]\.)?tile\.openstreetmap\.org\/.*/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'osm-tiles',
-              expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 60 * 60 * 24 * 30, // 30日
-              },
-            },
-          },
         ],
       },
     }),

@@ -67,3 +67,29 @@ export function findUpcomingBuses(
 export function findFirstBus(schedule: ScheduleEntry[]): ScheduleEntry | null {
   return schedule.length > 0 ? schedule[0] : null
 }
+
+/**
+ * 残り分数の表示ラベル。「あと」を前置く形（次のバスカード・今後の発車時刻の
+ * 先頭行で使う、改修たたき台の {row 0}.diff と同じ書式）。
+ */
+export function formatWaitLabel(minutesUntil: number): string {
+  if (minutesUntil >= 60) {
+    const h = Math.floor(minutesUntil / 60)
+    const m = minutesUntil % 60
+    return m === 0 ? `あと${h}時間` : `あと${h}時間${m}分`
+  }
+  return `あと${minutesUntil}分`
+}
+
+/**
+ * 残り分数の表示ラベル。「後」を後置する形（今後の発車時刻の2本目以降で使う、
+ * 改修たたき台の diffLabel() と同じ書式）。
+ */
+export function formatDiffLabel(minutesUntil: number): string {
+  if (minutesUntil >= 60) {
+    const h = Math.floor(minutesUntil / 60)
+    const m = minutesUntil % 60
+    return m === 0 ? `${h}時間後` : `${h}時間${m}分後`
+  }
+  return `${minutesUntil}分後`
+}

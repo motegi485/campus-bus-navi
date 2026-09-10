@@ -25,12 +25,19 @@ interface Props {
   selected?: ReadonlySet<string>
   /** マスのタップ。選択モードのときだけ呼ばれる */
   onToggle?: (departure: string) => void
+  /**
+   * 未来便セルの背景色。既定は --bg-card2（週間ダイヤの日別ビューが白い
+   * .section-card の上に直接置くため）。全時刻表シートは改修デザイン（§20 C1）
+   * どおり --bg-card（白）を渡す。地も白なので、輪郭は --row-card-border の
+   * 1px（下の border）が作る。
+   */
+  futureBg?: string
 }
 
 /**
  * 発車時刻のグリッド。
  *
- * ホームの「本日の全時刻表」（FullTimetable）と、週間ダイヤの日別ビューが共用する。
+ * ホームの「本日の全時刻表」（FullTimetableSheet）と、週間ダイヤの日別ビューが共用する。
  * 見出しや開閉トグルは持たず、時刻の並びだけを担当する。
  */
 export function TimetableGrid({
@@ -42,19 +49,18 @@ export function TimetableGrid({
   selectMode = false,
   selected,
   onToggle,
+  futureBg = 'var(--bg-card2)',
 }: Props) {
   const isCampus = route === 'campus_to_station'
-  const activeBg = isCampus ? 'var(--route-tint-campus-bg)' : 'var(--route-tint-station-bg)'
-  const activeText = isCampus ? 'var(--route-tint-campus-fg)' : 'var(--route-tint-station-fg)'
-  // 選択モードの塗り。次発ハイライト（activeBg/activeText の淡い塗り）より強い単色塗りで
-  // 「選択済み」を表すための専用色。値は --route-tint-campus-fg / --route-tint-station-fg の
-  // ライト値と同一（白文字でそれぞれ 7.68:1 / 6.29:1、実測済み）を流用しており、
-  // テーマに関わらず一定にする（ヘッダーのルートグラデーションと同じ方針）。
+  // 現在便のハイライトは全時刻表シートの改修デザイン（§20）で緑に統一する。
+  // ルート色による塗り分けは選択モードの単色塗りにだけ残す。
+  const activeBg = 'var(--slot-current-bg)'
+  const activeText = 'var(--slot-current-fg)'
   const selectedBg = isCampus ? '#065f46' : '#4f46e5'
   const selectedRing = isCampus ? 'rgba(6,95,70,.35)' : 'rgba(79,70,229,.35)'
 
   return (
-    <div className="grid grid-cols-3 bp:grid-cols-6 gap-[7px]">
+    <div className="grid grid-cols-3 gap-[7px]">
       {schedule.map((bus, i) => {
         const depMin = parseHHmmToMinutes(bus.departure)
         // 不正な departure はパース失敗 → 過去扱いせずグレー（中立）で表示
@@ -71,7 +77,7 @@ export function TimetableGrid({
           ? activeBg
           : isPast
           ? 'var(--past-bg)'
-          : 'var(--bg-card2)'
+          : futureBg
         const color = isSelected
           ? '#ffffff'
           : isCurrent
@@ -79,24 +85,26 @@ export function TimetableGrid({
           : isPast
           ? 'var(--past-text)'
           : 'var(--text-primary)'
+        const border = isSelected
+          ? 'none'
+          : `1px solid ${isCurrent ? activeBg : isPast ? 'var(--past-bg)' : 'var(--row-card-border)'}`
+        // 現在便だけ緑のリングを足す（過去/未来と混同しないための2つ目の手掛かり）
+        const ring = isCurrent && !isSelected ? '0 0 0 1.5px var(--route-solid-campus)' : 'none'
 
         const content = (
           <>
-            <p className="text-[14px] font-bold" style={{ color }}>
+            <span className="text-[16px] font-extrabold" style={{ color, letterSpacing: '-.3px' }}>
               {bus.departure}
-            </p>
+            </span>
             {/*
               備考（現状は「最終」のみ）。行として下に積むとそのマスだけ縦に伸び、
               最下段だけ高さが違って見えるため、高さに影響しない小さなラベルとして
-              左上の角に重ねる。
+              左上の角に重ねる（改修たたき台どおり、地色を持たない素のラベル）。
             */}
             {bus.note && (
               <span
-                className="absolute top-[3px] left-[4px] px-[3px] py-[1px] rounded-[4px] text-[9px] font-bold leading-none"
-                style={{
-                  color: isSelected || isCurrent ? color : 'var(--text-muted)',
-                  background: isSelected || isCurrent ? 'transparent' : 'var(--bg-input)',
-                }}
+                className="absolute top-[3px] left-[5px] text-[9px] font-bold leading-none"
+                style={{ color: 'var(--text-muted)' }}
               >
                 {bus.note}
               </span>
@@ -114,10 +122,7 @@ export function TimetableGrid({
           </>
         )
 
-        const boxClass = 'relative py-2 px-1 rounded-[10px] text-center'
-        // 選択モードのマスはタップ操作なので高さ44px以上を確保する（備考ラベル・ベル印は
-        // 絶対配置のためフレックスの外に出て、この変更の影響を受けない）
-        const selectableBoxClass = 'relative min-h-[44px] px-1 rounded-[10px] text-center flex flex-col items-center justify-center'
+        const boxClass = 'relative rounded-[12px] flex items-center justify-center text-center'
 
         // 選択モードのときだけボタンにする。通常時は従来どおり div のままで、
         // 時刻表を読むだけの指が誤って予定を作らないようにする
@@ -130,14 +135,15 @@ export function TimetableGrid({
               onClick={() => selectable && onToggle?.(bus.departure)}
               aria-pressed={isSelected}
               aria-label={`${bus.departure} 発${isSelected ? '（通知を設定）' : ''}`}
-              className={selectableBoxClass}
+              className={boxClass}
               style={{
+                minHeight: 46,
                 background,
-                border: 'none',
+                border,
                 font: 'inherit',
                 cursor: selectable ? 'pointer' : 'default',
                 opacity: selectable ? 1 : 0.45,
-                boxShadow: isSelected ? `0 0 0 2px ${selectedRing}` : 'none',
+                boxShadow: isSelected ? `0 0 0 2px ${selectedRing}` : ring,
               }}
             >
               {content}
@@ -146,7 +152,7 @@ export function TimetableGrid({
         }
 
         return (
-          <div key={bus.departure + i} className={boxClass} style={{ background }}>
+          <div key={bus.departure + i} className={boxClass} style={{ minHeight: 46, background, border, boxShadow: ring }}>
             {content}
           </div>
         )
