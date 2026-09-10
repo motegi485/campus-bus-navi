@@ -49,6 +49,8 @@ flowchart TD
 
 - PWA マニフェスト、アイコン、Google Fonts、Cloudflare Web Analytics のビーコンを読み込みます。
 - React のマウント前に `campusBusNaviSettings` を読み、ダークテーマなら `<html>` に `dark` を付与します。これは初期描画の白いフラッシュを防ぐためです。
+
+配色は 2 軸のカスケードで決まります。**テーマ**は `<html>` の `dark` クラス、**ルート**はアプリシェル（`.phone-shell-inner`）の `data-route` 属性で、どちらも `src/index.css` が同じ名前の CSS 変数を上書きします。松永発を選ぶとルート追従トークン（`--route-solid` / `--route-accent-fg` / `--slot-current-*` / `--next-card-bg` / `--gauge-track` など）がインディゴ系へ入れ替わり、シェル内側の全画面（オーバーレイ・タブバー・バナーを含む）へ届きます。コンポーネントはルートを見ずにトークン名だけを読みます。ルートと無関係な `--ui-accent-*` と `--tab-*`、意味色の `--status-*` / `--switch-on-bg` は `data-route` で変わりません。詳細は [design-decisions.md](design-decisions.md#ルート別テーマ色と中立色2026-09-11) を参照してください。
 - viewport に `shrink-to-fit=no` を指定します。iPad Safari の起動時縮小を防ぐため、削除してはいけません。
 
 ### `src/main.tsx`
@@ -68,6 +70,7 @@ flowchart TD
 - 表示中のタブ（`バス` / `マップ` / `メニュー`）、全時刻表シート、お知らせ、設定、ヘルプ、更新中、Toast の状態を管理する
 - 次発、残り本数、次発後の最大 4 本、終バス、翌日始発を毎分再計算する
 - 特別ダイヤ、全便運休日、日付跨ぎでデータが古い状態を安全に分岐する
+- 選択中のルートをアプリシェル（`.phone-shell-inner`）の `data-route` 属性へ流す
 - `deriveDataStatus()` でデータ状態を 1 つに畳み、状態表示を排他的に描く
 - バスタブの「発車前に通知」行（タイムライン直下）を直接持つ。`usePushSubscription` の状態と `useDepartureReminders` の `loadState` から説明文（`reminderSummary`）とタップ先を決める。購読済みなら `FullTimetableSheet`、未購読なら `SettingsScreen` を開く（[design-decisions.md](design-decisions.md)）
 - PWA 更新検知とアプリ初期化を担当する
