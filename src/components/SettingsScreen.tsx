@@ -36,8 +36,8 @@ type SelectKey = 'route' | 'theme' | 'font'
 
 function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
-      <CaretLeft size={18} weight="bold" color="var(--accent-fg)" aria-hidden="true" />
+    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
+      <CaretLeft size={18} weight="bold" color="var(--ui-accent-fg)" aria-hidden="true" />
       {label}
     </button>
   )
@@ -202,6 +202,9 @@ export function SettingsScreen({
 
         {/* 表示セクション */}
         <Section label="表示">
+          {/* タイルは緑のまま（ユーザー指示）。ここの --icon-*-bg/fg は設定の各行を
+              見分けるためのカテゴリ色で、ルート色でもテーマ色でもない。
+              このすぐ下の行が violet、その下が amber であるのと同列に扱う。 */}
           <SettingRow icon={IconRouteSwap} tone="green" title="デフォルトルート" sub="起動時に最初に表示するルート" value={SELECTS.route.current} onClick={() => openSelect('route')} />
           <SettingRow icon={IconContrast} tone="violet" title="カラーテーマ" sub="背景の表示モード" value={SELECTS.theme.current} onClick={() => openSelect('theme')} />
           <SettingRow icon={IconFontSize} tone="amber" title="フォントサイズ" sub="時刻の文字の大きさ" value={SELECTS.font.current} onClick={() => openSelect('font')} />
@@ -259,8 +262,8 @@ export function SettingsScreen({
                       cursor: 'pointer',
                     }}
                   >
-                    <span style={{ fontSize: 15, fontWeight: isSelected ? 700 : 500, color: isSelected ? 'var(--accent-fg)' : 'var(--text-primary)' }}>{opt}</span>
-                    <Check size={20} weight="bold" color="var(--accent-fg)" aria-hidden="true" style={{ flexShrink: 0, opacity: isSelected ? 1 : 0, transition: 'opacity 0.15s' }} />
+                    <span style={{ fontSize: 15, fontWeight: isSelected ? 700 : 500, color: isSelected ? 'var(--ui-accent-fg)' : 'var(--text-primary)' }}>{opt}</span>
+                    <Check size={20} weight="bold" color="var(--ui-accent-fg)" aria-hidden="true" style={{ flexShrink: 0, opacity: isSelected ? 1 : 0, transition: 'opacity 0.15s' }} />
                   </button>
                 )
               })}

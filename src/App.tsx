@@ -18,6 +18,7 @@ import { findNextBus, findUpcomingBuses, findFirstBus, countRemainingBuses } fro
 import { deriveDataStatus, hidesTimes, showsBand } from './utils/deriveDataStatus'
 import { StatusCard } from './components/StatusCard'
 import { StatusBand } from './components/StatusBand'
+import { Spinner } from './components/StatusParts'
 import { RouteToggle } from './components/RouteToggle'
 import { NextBusCard } from './components/NextBusCard'
 import { UpcomingList } from './components/UpcomingList'
@@ -319,8 +320,15 @@ export default function App() {
           className="relative w-full"
           style={{ minHeight: 'var(--app-height, 100vh)' }}
         >
+          {/* data-route はここ 1 か所だけ。index.css の [data-route="station_to_campus"]
+              がルート追従トークン（--route-solid / --slot-current-* / --next-card-bg /
+              --gauge-track / --route-accent-fg 等）を上書きし、この内側の全画面へ
+              カスケードする。オーバーレイ・タブバー・バナーはすべてこの div の中に
+              あり、ポータルは使っていないので、これで漏れなく届く。
+              JSX 側はルート色を直接持たない（持たせるとここと二重管理になる）。 */}
           <div
             className="phone-shell-inner w-full overflow-hidden isolate"
+            data-route={route}
             style={{
               position: 'relative',
               background: 'var(--bg-page)',
@@ -460,7 +468,9 @@ export default function App() {
                             発車前の通知）と同じ「›」を右端に置く（ユーザー指示）。 */}
                         <CaretRight size={18} weight="bold" color="var(--text-muted)" aria-hidden="true" style={{ flexShrink: 0 }} />
                       </button>
-                      <span className="text-[13.5px] font-bold" style={{ color: 'var(--route-solid-campus)' }}>今日</span>
+                      {/* 文字なので --route-solid（非文字用）ではなく --route-accent-fg を使う。
+                          13.5px bold は large text に当たらず 4.5:1 が要る。 */}
+                      <span className="text-[13.5px] font-bold" style={{ color: 'var(--route-accent-fg)' }}>今日</span>
                     </div>
                   )}
                 </header>
@@ -487,7 +497,7 @@ export default function App() {
               >
                 {loading && (
                   <div className="flex flex-col items-center justify-center py-16 gap-3" style={{ padding: '0 20px' }}>
-                    <div className="w-8 h-8 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                    <Spinner size={32} />
                     <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>時刻表を読み込み中...</p>
                   </div>
                 )}

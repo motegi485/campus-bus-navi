@@ -33,9 +33,9 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
   return (
     <button
       onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}
     >
-      <CaretLeft size={18} weight="bold" color="var(--accent-fg)" aria-hidden="true" />
+      <CaretLeft size={18} weight="bold" color="var(--ui-accent-fg)" aria-hidden="true" />
       {label}
     </button>
   )

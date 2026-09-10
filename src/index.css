@@ -122,15 +122,49 @@
   --route-tint-campus-bg:  #d1fae5;  --route-tint-campus-fg:  #065f46;
   --route-tint-station-bg: #ede9fe; --route-tint-station-fg: #4f46e5;
 
-  /* 戻るボタン等、route と無関係な文脈でも使う単色アクセント緑。
-     #10b981 は白地で 2.54:1 と AA 未達のため。--toggle-on-campus と同値だが、
-     Settings/Help など route に紐づかない文脈でも使うため独立トークンとして持つ。
-     実測: 白地 5.48:1。 */
-  --accent-fg: #047857;
+  /* ── ルート追従の色（この :root の値は「大学発」）──
+     松永発は下の [data-route="station_to_campus"] が同じ名前で上書きする。
+     JSX 側はルートを知らず、この名前だけを読む（App が shell に data-route を付ける）。
 
-  /* 状態を本文で伝えるときの色。--icon-*-fg は線アイコン用で、本文には使わない。 */
+     文字用（--route-accent-fg）と非文字用（--route-solid）を必ず分けること。
+     兼用にすると、非文字 3:1 で足りる明るい塗りが 13.5px の「今日」に流用されて
+     AA を割る。実際に旧 --route-solid-campus (#22a559) がその状態で、白地 3.18:1 だった。
+     実測（大学発）: --route-solid 白地 3.18:1（非文字 3:1 は満たす）、
+                     --route-accent-fg 白地 5.55:1 / --bg-card2 5.15:1。 */
+  --route-solid:      #22a559;  /* 非文字専用: ゲージの塗り・残り本数ドット・現在便リング */
+  --route-accent-fg:  #047857;  /* 文字/線専用: 「今日」・ベル印・キャンセル・◯分前の選択・今日リング */
+
+  /* テーマで反転させないルート色。白文字を載せる塗り（週間ダイヤの「今日」バッジ、
+     通知の選択モードで塗るセル）は、ダークで明るい値に振ると白文字が読めなくなるため、
+     ライト・ダーク共通の 1 値で持つ。実測: 白文字に対し 大学発 5.55:1 / 松永発 7.90:1。 */
+  --route-badge-fill:   #047857;
+  --route-selected-bg:  #065f46;
+  --route-selected-ring: rgba(6, 95, 70, .35);
+
+  /* ── 中立アクセント（route と無関係な文脈）──
+     戻るボタン・設定の選択チェック・取得中スピナー。旧 --accent-fg（緑）の後継。
+     松永発でアプリ全体がインディゴになったとき、ここが緑のまま残ると
+     意味を持たない色が 2 系統同居するため、どちらでもない青へ移した。
+     実測: 白地 5.12:1 / --bg-card2 4.75:1。
+     ⚠️ --dow-sat と同値（#2563eb）。週間ダイヤでは「戻る」と土曜の曜日文字が
+     同じ青で同居するが、別値にしても見分けはつかず不整合に見えるだけなので揃えてある。 */
+  --ui-accent-fg: #2563eb;
+  /* 白文字を載せる中立の面（ヘルプのバナーとフィードバック、PWA 導入案内）。
+     明るい側の stop を #2563eb で止めてあるのは、14px bold の白ラベルに AA が要るため。
+     #3b82f6 まで明るくすると 3.68:1 で割る。実測: 明るい側の stop で 5.12:1。 */
+  --ui-accent-grad: linear-gradient(135deg, #1e3a8a, #2563eb);
+  /* テーマに関わらず暗い面の上に載る中立色（更新バナー）。テーマで反転する
+     --ui-accent-fg は使えない（--route-badge-fill と同じ考え方）。
+     実測: rgba(15,23,42,.92) の上で 9.95:1。 */
+  --ui-accent-on-dark: #93c5fd;
+
+  /* 状態を本文で伝えるときの色。--icon-*-fg は線アイコン用で、本文には使わない。
+     この 2 つと --switch-on-bg は「成功・失敗・オン」を表す意味色であって
+     テーマ色ではない。松永発でアプリがインディゴになっても据え置く。 */
   --status-success-fg: #047857;
   --status-danger-fg:  #c81e1e;
+  /* 発車前の通知トグルのオン。OS 標準の意味論に合わせて緑のまま。 */
+  --switch-on-bg:      #10b981;
 
   /* 未読は左の太線ではなく、面の差と「未読」ラベルで伝える。
      accent はピルとドロワーの未読ドットで共有し、どちらも同じ状態を示す。 */
@@ -139,20 +173,34 @@
   --news-unread-on-accent: #f8fafc;
 
   /* ── 3タブ構成（バス/マップ/メニュー）のボトムナビ ──
-     選択色は改修たたき台のタブバー「.tab.on」の値 #1d9550。--route-solid-campus（#22a559）
-     はドット・リングなど別用途の緑で、意図的に別値。 */
-  --tab-active-fg:   #1d9550;
-  --tab-inactive-fg: #8b90a0;
+     タブバーはメニュータブや設定を開いている間も見えるので、ルート色も緑も持たせない。
+     選択中は「墨の文字＋背後の pill」で示す（改修たたき台の #1d9550 から変更）。
+     主たる手掛かりは墨と灰の明度差、pill はそれを補う位置の手掛かりで、
+     ライトでは意図的に淡い（--bg-input は地の白に対し 1.14:1）。
+     実測: 選択 vs 非選択の文字 ライト 5.36:1 / ダーク 2.90:1。
+     ダークで差が縮むのは、非選択も 11px の文字として --bg-card 上で AA（4.83:1）を
+     保つ必要があり、これ以上暗くできないため。pill の役割はダークでより大きい。 */
+  --tab-active-fg:      var(--text-primary);
+  --tab-inactive-fg:    #8b90a0;
+  --tab-active-pill-bg: var(--bg-input);
 
   /* ルート切替トグルの塗りつぶしノブ色（改修デザイン方針、C11）。
      --route-tint-campus/station-fg（淡色バッジ用）とは別に、塗りつぶし用の濃色を持つ。 */
   --route-solid-campus:  #22a559;
   --route-solid-station: #6366f1;
 
-  /* ── 全時刻表シート・次のバスカードの「現在便」表現 ──
-     過去便は --past-bg / --past-text を流用する。未来便は --bg-card / --text-primary を流用する。 */
+  /* ── 全時刻表シート・次のバスカードの「現在便」表現（ルート追従）──
+     過去便は --past-bg / --past-text を流用する。未来便は --bg-card / --text-primary を流用する。
+
+     --slot-current-fg は旧値 #1a8a4a が AA 未達だった（自 bg 3.82 / --bg-card 4.40 /
+     --next-card-bg 4.07）。載る文字は 11〜16px の bold で、太くても 18.66px 未満なので
+     large text の 3:1 ではなく通常文字の 4.5:1 が要る。色相はほぼ変えず（145°→146°）、
+     明度だけ約 11% 落として満たした。
+     実測（この値）: --slot-current-bg 上 4.68:1 / --bg-card 上 5.40:1 /
+     --next-card-bg 上 4.07 → 5.00:1。全時刻表の「通知を設定」ボタンはこの色を塗りにして
+     白文字を載せるので、その向きでも 5.40:1。 */
   --slot-current-bg: #dff4e7;
-  --slot-current-fg: #1a8a4a;
+  --slot-current-fg: #157a41;
 
   /* メニュータブの未読バッジ（お知らせ）。既存の --news-unread-accent とは別文脈で使う値。 */
   --menu-unread-fg: #0ea5e9;
@@ -167,8 +215,8 @@
      --bg-input(#f0f0f5) / --border2(#ececf0) とは数値が僅かに異なるが、
      それらは他画面（設定・お知らせ・週間ダイヤ等）と共有のため変更せず、
      この改修分だけ専用トークンを持つ。 */
-  --next-card-bg:      #eef9f1; /* 次のバスカードの地（1a） */
-  --gauge-track:       #d5ecdd; /* 円形ゲージの未消化分（1a） */
+  --next-card-bg:      #eef9f1; /* 次のバスカードの地（1a）。ルート追従 */
+  --gauge-track:       #d5ecdd; /* 円形ゲージの未消化分（1a）。ルート追従 */
   --pill-track-bg:     #f0f0f3; /* ルートトグルの土台（1a/2a/2b） */
   --pill-track-border: #e4e5ea;
   --row-card-border:   #eceef2; /* 行カード（--menu-group-bg 地）・グリッド未来セルの縁（1a/2a/2b/2c） */
@@ -178,6 +226,48 @@
   --next-gauge-sub-fg: #5c6472; /* ゲージ中央「分後」 */
   --timeline-dot:      #c6cad3; /* 今後の発車時刻タイムラインの非強調ドット */
   --timeline-line:     #e3e5ea; /* タイムラインの縦の連結線 */
+}
+
+/* ============================================================
+   ルート別テーマ色（松永発）— ライト
+
+   App.tsx がアプリシェル（.phone-shell-inner）に data-route を付け、ここで
+   ルート追従トークンだけを上書きする。route はアプリ全体で 1 つの状態なので、
+   属性も 1 か所で足りる。オーバーレイ（全時刻表シート・週間ダイヤ・設定・
+   ヘルプ・お知らせ）もタブバーもバナーもこのシェルの内側にあるため、
+   これだけで全画面へカスケードする。ポータルは使っていない。
+
+   淡い面は淡いインディゴ、深い文字は深いインディゴへ、大学発の明度配分に
+   合わせて対応付けてある。基準はルートトグルが既に持っていた
+   --route-solid-station (#6366f1) で、そこから淡色・濃色を派生させた。
+
+   ここに書かないもの（意図的にルートで変えない）:
+   - --ui-accent-* … route と無関係な文脈の中立色
+   - --tab-*       … タブバーは全画面で見えるので色を持たせない
+   - --status-*, --switch-on-bg … 成功・失敗・オンの意味色
+   - --icon-*, --dow-*, --news-*, --menu-unread-fg … 別の意味体系
+   ============================================================ */
+[data-route="station_to_campus"] {
+  /* 実測: --route-solid 白地 4.46:1（非文字 3:1）、
+           --route-accent-fg 白地 7.90:1 / --bg-card2 7.33:1。 */
+  --route-solid:       #6366f1;
+  --route-accent-fg:   #4338ca;
+
+  /* テーマで反転させない塗り。実測: 白文字に対し 7.90:1。 */
+  --route-badge-fill:  #4338ca;
+  --route-selected-bg: #4f46e5;
+  --route-selected-ring: rgba(79, 70, 229, .35);
+
+  /* 現在便。実測: --slot-current-fg は 自 bg 上 5.15:1 / --bg-card 上 6.31:1 /
+     --next-card-bg 上 5.55:1 でいずれも AA を満たす。 */
+  --slot-current-bg:   #e6e7fd;
+  --slot-current-fg:   #4f46e5;
+
+  /* 次のバスカードの地と円形ゲージの溝。
+     実測: ゲージの塗り (--route-solid) と溝の比 3.37:1（非文字 3:1）。
+     大学発の同じ組み合わせは 2.56:1 で、こちらのほうが溝が読める。 */
+  --next-card-bg:      #eef0fe;
+  --gauge-track:       #dcdefa;
 }
 
 /* ── ダークテーマ ── */
@@ -262,10 +352,24 @@
   --route-tint-campus-bg:  #0f3d2e;  --route-tint-campus-fg:  #6ee7b7;
   --route-tint-station-bg: #2e2a5c; --route-tint-station-fg: #a5b4fc;
 
-  /* 戻るボタン等のアクセント（ダーク）。--toggle-on-campus dark と同値。実測: --bg-card 上 9.63:1。 */
-  --accent-fg: #6ee7b7;
+  /* ルート追従の色（ダーク・大学発）。ライトと同じく文字用と非文字用を分ける。
+     --route-solid をライトの #22a559 から一段明るくしてあるのは、円形ゲージの
+     塗りと溝の比がダークで 2.97:1 と非文字 3:1 を割っていたため（実測 4.92:1 へ）。
+     実測: --route-accent-fg --bg-card 上 9.63:1 / --bg-page 上 11.56:1、
+           --route-solid --bg-card 上 7.61:1。 */
+  --route-solid:      #34d399;
+  --route-accent-fg:  #6ee7b7;
 
-  /* 状態を本文で伝えるときの色。アイコン用の --icon-*-fg と用途を分ける。 */
+  /* --route-badge-fill / --route-selected-* はテーマで反転させない（白文字を載せる塗り）。
+     ライトの :root / [data-route] の値をそのまま使うので、ここでは再定義しない。 */
+
+  /* 中立アクセント（ダーク）。実測: --bg-card 上 8.10:1 / --bg-page 上 9.87:1。
+     --ui-accent-grad と --ui-accent-on-dark はテーマで変えないので再定義しない
+     （どちらも暗い面に白／明るい文字を載せる前提の値）。 */
+  --ui-accent-fg: #93c5fd;
+
+  /* 状態を本文で伝えるときの色。アイコン用の --icon-*-fg と用途を分ける。
+     --switch-on-bg はライトと同値（塗りの上に白いノブが載るだけなのでテーマ非依存）。 */
   --status-success-fg: #6ee7b7;
   --status-danger-fg:  #f87171;
 
@@ -274,15 +378,22 @@
   --news-unread-accent:    #0c4a6e;
   --news-unread-on-accent: #f8fafc;
 
-  /* ボトムナビ（ダーク）。選択色は --toggle-on-campus dark と同値。 */
-  --tab-active-fg:   #34d399;
+  /* ボトムナビ（ダーク）。ライトと同じく色を持たせず、墨（ここでは明るい側）と
+     灰の明度差＋ pill で示す。--tab-active-fg / --tab-active-pill-bg は :root で
+     var(--text-primary) / var(--bg-input) を参照しているので、ここでは
+     非選択の灰だけをダーク用に持つ。
+     実測: 非選択 #8b95a5 は --bg-card 上 4.83:1（11px の文字なので AA が要る）。
+     選択との差は 2.90:1 で、ライト（5.36:1）より縮む。pill の役割はダークで大きい。 */
   --tab-inactive-fg: #8b95a5;
 
   /* ルート切替トグルの塗りつぶしノブ色（ダーク）。白文字を載せる塗りなのでライトと同値でよい。 */
   --route-solid-campus:  #22a559;
   --route-solid-station: #6366f1;
 
-  /* 全時刻表シート「現在便」（ダーク）。--icon-green-* と同じ 16%透過方式。 */
+  /* 全時刻表シート「現在便」（ダーク）。--icon-green-* と同じ 16%透過方式。
+     ライトと違い、ダークはこの組み合わせで AA を満たす。
+     半透明なので背後の面ごとに合成結果が変わる。実測（合成後の値）:
+     --bg-page 上 8.49:1 / --bg-card 上 6.94:1 / --bg-card2 上 7.47:1。 */
   --slot-current-bg: rgba(52, 211, 153, 0.16);
   --slot-current-fg: #6ee7b7;
 
@@ -304,6 +415,30 @@
   --next-gauge-sub-fg: var(--text-secondary);
   --timeline-dot:      #4b5563;
   --timeline-line:     var(--border2);
+}
+
+/* ============================================================
+   ルート別テーマ色（松永発）— ダーク
+
+   ライト側と同じ考え方。半透明の作り方も大学発に揃えてある（--slot-current-bg /
+   --next-card-bg / --gauge-track は rgba で、背後の面に馴染ませる）。
+   テーマで反転させない --route-badge-fill / --route-selected-* は
+   ライトの [data-route] 側が担うので、ここには書かない。
+   ============================================================ */
+.dark [data-route="station_to_campus"] {
+  /* --route-solid はライトの #6366f1 から一段明るくしてある（大学発ダークと同じ理由。
+     溝との比が #6366f1 のままだと 2.20:1 まで落ちる）。実測: 溝に対し 3.36:1、
+     --bg-card 上 4.89:1。--route-accent-fg は --bg-card 上 7.28:1 / --bg-page 上 8.87:1。 */
+  --route-solid:      #818cf8;
+  --route-accent-fg:  #a5b4fc;
+
+  /* 現在便。実測（合成後）: --bg-page 上 6.71:1 / --bg-card 上 5.49:1 / --bg-card2 上 5.90:1。 */
+  --slot-current-bg:  rgba(129, 140, 248, 0.18);
+  --slot-current-fg:  #a5b4fc;
+
+  /* 次のバスカードの地は面積が広いぶん薄く（大学発と同じ配分）。 */
+  --next-card-bg:     rgba(129, 140, 248, 0.12);
+  --gauge-track:      rgba(165, 180, 252, 0.18);
 }
 
 /* ============================================================
@@ -688,6 +823,34 @@ html.bounce-native .header-cushion {
      この値がそのまま中身全体のオフセットになる。 */
   padding-top: 6px;
   transition: background .3s, border-color .3s;
+}
+
+/* 選択中タブのアイコン背後に敷く pill。
+   タブバーは全画面で見えるのでルート色を持たせられず、かといって緑を残すと
+   松永発でインディゴと同居する。そこで「色で塗る」のをやめ、墨と灰の明度差
+   （--tab-active-fg / --tab-inactive-fg）＋この pill の 2 つで選択中を示す。
+
+   pill 単体は地に対して淡い（ライト 1.14:1 / ダーク 1.42:1）。これは弱点ではなく
+   分業で、識別の主役は文字とアイコンの明度差のほう。pill は「どこにいるか」を
+   面の位置で補うだけなので、目立たせると原本のタブバーの静けさが壊れる。
+
+   幅・高さはアイコン（25〜26px）に上下 2px・左右 6px の余白を足した実寸。
+   ラベルは pill の外に出す（原本のタブの縦の詰まりを変えないため）。 */
+.tab-icon-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 30px;
+  border-radius: 9999px;
+  background: transparent;
+  transition: background .2s;
+}
+.tab-icon-slot.is-active {
+  background: var(--tab-active-pill-bg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-icon-slot { transition: none; }
 }
 
 /* ============================================================

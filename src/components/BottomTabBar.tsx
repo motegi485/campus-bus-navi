@@ -15,7 +15,12 @@ interface Props {
  * 固定3タブのボトムナビゲーション（改修たたき台 §11 相当）。
  * アイコンは選択・非選択で形を変えない。1 種類の図形を currentColor で
  * 塗り分けるだけ（色は index.css の --tab-active-fg / --tab-inactive-fg）。
- * 高さ・境界線・影の値は index.css の .bottom-tab-bar が単一の真実源。
+ * 高さ・境界線・影・pill の値は index.css の .bottom-tab-bar / .tab-icon-slot が
+ * 単一の真実源。
+ *
+ * タブバーはメニュータブや設定を開いている間も見えるので、ルート色を持たせない
+ * （ルート色は data-route で切り替わるが、この 3 タブはどのルートにも属さない）。
+ * 選択中は「墨の文字＋アイコン背後の pill」の 2 つで示す。色相は使わない。
  */
 export function BottomTabBar({ active, onChange, hasUnread }: Props) {
   return (
@@ -43,25 +48,31 @@ export function BottomTabBar({ active, onChange, hasUnread }: Props) {
               font: 'inherit',
             }}
           >
-            {key === 'bus' && <BusGlyph size={26} body="currentColor" />}
-            {key === 'map' && <MapPin size={25} weight="fill" aria-hidden="true" />}
-            {key === 'menu' && (
-              <span style={{ position: 'relative', width: 25, height: 25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ListBullets size={25} weight="bold" aria-hidden="true" />
-                {hasUnread && (
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      position: 'absolute', top: -1, right: -2,
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: 'var(--menu-unread-fg)',
-                      boxShadow: '0 0 0 2px var(--bg-card)',
-                    }}
-                  />
-                )}
-              </span>
-            )}
-            <span style={{ fontSize: 11, fontWeight: 700 }}>{label}</span>
+            {/* 選択中は pill を敷く。未読ドットは pill の内側に置くと縁で切れるので、
+                これまでどおりアイコン自身を基準に位置を取る（pill はその外側の面）。 */}
+            <span className={`tab-icon-slot${isActive ? ' is-active' : ''}`}>
+              {key === 'bus' && <BusGlyph size={26} body="currentColor" />}
+              {key === 'map' && <MapPin size={25} weight="fill" aria-hidden="true" />}
+              {key === 'menu' && (
+                <span style={{ position: 'relative', width: 25, height: 25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ListBullets size={25} weight="bold" aria-hidden="true" />
+                  {hasUnread && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute', top: -1, right: -2,
+                        width: 8, height: 8, borderRadius: '50%',
+                        background: 'var(--menu-unread-fg)',
+                        // ドットを地から切り離すリング。選択中はアイコンの背後が
+                        // pill に変わるので、リングの色もそちらに合わせる
+                        boxShadow: `0 0 0 2px ${isActive ? 'var(--tab-active-pill-bg)' : 'var(--bg-card)'}`,
+                      }}
+                    />
+                  )}
+                </span>
+              )}
+            </span>
+            <span style={{ fontSize: 11, fontWeight: isActive ? 800 : 700 }}>{label}</span>
           </button>
         )
       })}

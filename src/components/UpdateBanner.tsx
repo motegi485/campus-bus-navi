@@ -64,7 +64,9 @@ export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
         onClick={() => { tapFeedback(10); onUpdate() }}
         {...updatePress.pressHandlers}
         style={{
-          color: '#34d399',
+          // バナーはテーマに関わらず暗い面（rgba(15,23,42,.92)）なので、
+          // テーマで反転する --ui-accent-fg ではなく固定側のトークンを使う
+          color: 'var(--ui-accent-on-dark)',
           fontWeight: 800,
           fontSize: '13px',
           background: 'none',

@@ -26,8 +26,8 @@ const FONT_SIZE_MAP: Record<FontSize, number> = {
 
 /**
  * 「今後の発車時刻」タイムライン（改修たたき台 1a）。
- * 先頭行は次発（NextBusCard と同じ便）を大きい緑ドットで強調し、以降の便は
- * 小さいグレーのドットでつなぐ。見出しは呼び出し側（App.tsx）が持つ。
+ * 先頭行は次発（NextBusCard と同じ便）を大きいルート色のドットで強調し、
+ * 以降の便は小さいグレーのドットでつなぐ。見出しは呼び出し側（App.tsx）が持つ。
  */
 export function UpcomingList({ buses, nowMinutes, fontSize, marked }: Props) {
   if (buses.length === 0) return null
@@ -51,7 +51,10 @@ export function UpcomingList({ buses, nowMinutes, fontSize, marked }: Props) {
               <span
                 style={{
                   width: isNext ? 14 : 11, height: isNext ? 14 : 11, borderRadius: '50%', flexShrink: 0,
-                  background: isNext ? 'var(--tab-active-fg)' : 'var(--timeline-dot)',
+                  // 次発ドットはルート色。以前は --tab-active-fg を読んでいたが、
+                  // あれはタブバーの選択色であって次発の色ではない（タブバーが
+                  // 色を持たなくなった時点で意味が合わなくなる）
+                  background: isNext ? 'var(--route-solid)' : 'var(--timeline-dot)',
                 }}
               />
               <span style={{ flex: 1, width: 2, background: isLastRow ? 'transparent' : 'var(--timeline-line)', marginTop: 3 }} />
@@ -68,7 +71,7 @@ export function UpcomingList({ buses, nowMinutes, fontSize, marked }: Props) {
                   {bus.departure}
                 </p>
                 {marked?.has(bus.departure) && (
-                  <span role="img" aria-label="発車前の通知を設定済み" style={{ color: 'var(--accent-fg)', display: 'flex' }}>
+                  <span role="img" aria-label="発車前の通知を設定済み" style={{ color: 'var(--route-accent-fg)', display: 'flex' }}>
                     <BellIcon width={12} height={12} />
                   </span>
                 )}
