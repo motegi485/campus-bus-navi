@@ -80,7 +80,7 @@ export function MenuTab({ hasUnread, onOpenNews, onOpenWeekly, onOpenSettings, o
       </MenuGroup>
 
       <p style={{ margin: '16px 0 22px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>
-        ver {__APP_VERSION__}
+        © 2026 campus-bus-navi
       </p>
     </div>
   )
