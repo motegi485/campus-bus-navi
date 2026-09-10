@@ -6,7 +6,7 @@ import { useTimetable } from './hooks/useTimetable'
 import { useWeekTimetables } from './hooks/useWeekTimetables'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { useSettings } from './hooks/useSettings'
-import { usePushSubscription } from './hooks/usePushSubscription'
+import { usePushSubscription, type PushStatus } from './hooks/usePushSubscription'
 import { useDepartureReminders } from './hooks/useDepartureReminders'
 import { useNews } from './hooks/useNews'
 import { useNativeBounce } from './hooks/useNativeBounce'
@@ -37,6 +37,18 @@ import { DayBadge, resolveDiagramType } from './components/DayBadge'
 import { MobilePwaGuide, shouldShowMobilePwaGuide } from './components/MobilePwaGuide'
 
 const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
+
+/**
+ * 通知が未購読のときに「発車前に通知」行へ出す説明。
+ * 到達条件を誤解させないため、状態ごとに理由を書き分ける（ReminderSection と同じ方針）。
+ * この状態で行をタップしたときの行き先はいずれも設定画面（通知トグル）。
+ */
+const REMINDER_OFF_TEXT: Record<Exclude<PushStatus, 'subscribed'>, string> = {
+  idle: 'オフ ・ タップして通知をオンにする',
+  'ios-needs-install': 'ホーム画面に追加すると使えます',
+  denied: '通知が拒否されています',
+  unsupported: 'この環境では利用できません',
+}
 
 export default function App() {
   const { settings, setDefaultRoute, setTheme, setFontSize } = useSettings()
@@ -193,6 +205,21 @@ export default function App() {
   // 前日のダイヤを当日の日付見出しの下に出さない。正典の「推測するより出さない」に合わせる。
   const showTimes = !loading && !!currentRoute && !stale
 
+  // 「発車前に通知」行（改修たたき台 1a）。たたき台どおり通知がオフでも行自体は必ず出し、
+  // 説明とタップ先だけを状態で変える。オフのまま行を隠すと、機能の存在に気づけない。
+  const reminderReady = push.status === 'subscribed'
+  // reminderReady ではなく push.status を直接見る（boolean では union が絞り込めない）
+  const reminderSummary = push.status !== 'subscribed'
+    ? REMINDER_OFF_TEXT[push.status]
+    : reminders.loadState === 'loading'
+    ? '設定を読み込み中...'
+    : reminders.loadState === 'error'
+    // 読めていない状態を「未設定」と言い換えない（useDepartureReminders と同じ方針）
+    ? '設定を読み込めませんでした'
+    : reminders.marked.size > 0
+    ? `本日 ${reminders.marked.size} 件設定中 ・ ${reminders.lead}分前`
+    : '未設定'
+
   // データの状態を 1 つに畳む。上から順に判定し、最初に該当したものだけを描く。
   const dataStatus = deriveDataStatus({
     loading,
@@ -316,7 +343,7 @@ export default function App() {
               nowMinutes={nowMinutes}
               remaining={remainingCount}
               marked={reminders.marked}
-              reminderReady={push.status === 'subscribed'}
+              reminderReady={reminderReady}
               reminderLoadState={reminders.loadState}
               onReloadReminders={reminders.reload}
               lead={reminders.lead}
@@ -543,37 +570,37 @@ export default function App() {
                           marked={reminders.marked}
                         />
 
-                        {/* 発車前の通知の入口（本日の予約状況を1行で見せ、シートへ導く） */}
-                        {push.status === 'subscribed' && (
-                          <button
-                            type="button"
-                            onClick={() => { tapFeedback(8); setFullTimetableOpen(true) }}
-                            className="flex items-center w-full"
+                        {/* 発車前の通知の入口。購読済みなら本日の予約状況を1行で見せて
+                            全時刻表シート（便ごとの指定）へ、未購読なら理由を出して
+                            設定画面の通知トグルへ導く。 */}
+                        <button
+                          type="button"
+                          onClick={() => { tapFeedback(8); reminderReady ? setFullTimetableOpen(true) : setSettingsOpen(true) }}
+                          className="flex items-center w-full"
+                          style={{
+                            gap: 12, margin: '14px 0 22px', padding: '13px 14px', borderRadius: 16,
+                            background: 'var(--menu-group-bg)', border: '1px solid var(--row-card-border)',
+                            cursor: 'pointer', font: 'inherit', textAlign: 'left',
+                          }}
+                        >
+                          <span
+                            aria-hidden="true"
                             style={{
-                              gap: 12, margin: '14px 0 22px', padding: '13px 14px', borderRadius: 16,
-                              background: 'var(--menu-group-bg)', border: '1px solid var(--row-card-border)',
-                              cursor: 'pointer', font: 'inherit', textAlign: 'left',
+                              width: 38, height: 38, flexShrink: 0, borderRadius: 12,
+                              background: 'var(--slot-current-bg)', color: 'var(--slot-current-fg)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}
                           >
-                            <span
-                              aria-hidden="true"
-                              style={{
-                                width: 38, height: 38, flexShrink: 0, borderRadius: 12,
-                                background: 'var(--slot-current-bg)', color: 'var(--slot-current-fg)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              }}
-                            >
-                              <BellIcon width={20} height={20} />
-                            </span>
-                            <span className="min-w-0" style={{ flex: 1 }}>
-                              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>発車前に通知</p>
-                              <p style={{ margin: '3px 0 0', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)' }}>
-                                {reminders.marked.size > 0 ? `本日 ${reminders.marked.size} 件設定中 ・ ${reminders.lead}分前` : '未設定'}
-                              </p>
-                            </span>
-                            <span aria-hidden="true" style={{ flexShrink: 0, fontSize: 15, color: 'var(--text-muted)' }}>›</span>
-                          </button>
-                        )}
+                            <BellIcon width={20} height={20} />
+                          </span>
+                          <span className="min-w-0" style={{ flex: 1 }}>
+                            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>発車前に通知</p>
+                            <p style={{ margin: '3px 0 0', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)' }}>
+                              {reminderSummary}
+                            </p>
+                          </span>
+                          <span aria-hidden="true" style={{ flexShrink: 0, fontSize: 15, color: 'var(--text-muted)' }}>›</span>
+                        </button>
                       </div>
                     )}
                   </>
