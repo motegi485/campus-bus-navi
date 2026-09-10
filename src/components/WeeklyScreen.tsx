@@ -1,4 +1,4 @@
-import { CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { CalendarDots, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import type dayjs from 'dayjs'
 import type { RouteKey } from '../types/timetable'
@@ -307,42 +307,47 @@ function DayDetailView({
        効かないため、ここにも touchAction を付けて NavBar 起点の貫通スクロールを防ぐ */
     <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 10, transition: 'background 0.35s', touchAction: 'pinch-zoom' }}>
       <div ref={backRef} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
-        <BackButton label="週間ダイヤ" onClick={onBack} />
-      </div>
-
-      {/* 見出し帯。ホームのヘッダーと同じグラデ（.header.campus / .header.station）を
-          使うので、どちらのルートを見ているかが色で分かる。色と角度の定義は
-          index.css が単一の真実源 */}
-      <div
-        className={route === 'campus_to_station' ? 'header campus' : 'header station'}
-        style={{ padding: '18px 20px', flexShrink: 0, transition: 'background 0.55s' }}
-      >
-        <div className="flex items-center gap-[9px] flex-wrap">
-          <span className="text-[26px] font-extrabold tabular-nums" style={{ color: '#fff', letterSpacing: '-.5px' }}>
-            {day.date.month() + 1}/{day.date.date()}
-          </span>
-          <span className="text-[16px] font-semibold" style={{ color: '#fff' }}>
-            （{DAYS_JA[weekday]}）
-          </span>
-          {nowMinutes !== null && (
-            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: 'rgba(255,255,255,.28)', color: '#fff' }}>
-              今日
-            </span>
-          )}
-        </div>
-        <div className="mt-2 flex items-center gap-2 flex-wrap">
-          <DayBadge type={day.diagramType} />
-          {day.timetable && (
-            <span className="text-[12px]" style={{ color: 'rgba(255,255,255,.88)' }}>
-              {day.timetable.name}
-            </span>
-          )}
-        </div>
+        <BackButton label="戻る" onClick={onBack} />
       </div>
 
       {/* 本文スクローラ（contain + 常時スクロール可能化。露出色 = --bg-page） */}
       <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
         <div style={{ minHeight: 'calc(100% + 1px)', padding: '14px 14px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+          {/* 日付表示。ホーム（バスタブ）の日付ピルと同じ作り・同じアイコン（CalendarDots /
+              Regular）に揃える。ホームと違いここはタップ導線を持たない（すでに週間ダイヤの中）。
+              固定ヘッダーではなく本文の先頭に置くのは、「戻る」のナビ以外は本文と一緒に
+              スクロールさせ、ダイヤバッジだけが画面上部に取り残されないようにするため。
+              以前はルート別グラデーションの見出し帯（.header.campus / .header.station）
+              だったが、3タブ構成への改修でそのクラス自体が廃止されており、帯が地に溶けて
+              白文字が読めずバッジだけが浮いて見える状態になっていた。
+              ルートは本文カードの「大学発 → 松永行き」で分かるため、色では示さない。 */}
+          <div style={{ padding: '0 2px' }}>
+            <div className="flex items-center justify-between gap-[10px]">
+              <div
+                className="flex items-center gap-2 rounded-[14px]"
+                style={{ background: 'var(--bg-input)', padding: '10px 13px', flexWrap: 'wrap', minWidth: 0 }}
+              >
+                <CalendarDots size={18} weight="regular" color="var(--text-muted)" aria-hidden="true" />
+                <span className="tabular-nums" style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                  {day.date.month() + 1}/{day.date.date()}（{DAYS_JA[weekday]}）
+                </span>
+                <DayBadge type={day.diagramType} />
+              </div>
+              {nowMinutes !== null && (
+                <span className="text-[13.5px] font-bold" style={{ color: 'var(--route-solid-campus)', flexShrink: 0 }}>
+                  今日
+                </span>
+              )}
+            </div>
+            {/* ダイヤ名（例: 教育懇談会ダイヤ）はバッジの種別名より具体的なので残す */}
+            {day.timetable && (
+              <p className="text-[12px]" style={{ color: 'var(--text-secondary)', marginTop: 7, paddingLeft: 2 }}>
+                {day.timetable.name}
+              </p>
+            )}
+          </div>
+
           {body}
         </div>
       </div>
