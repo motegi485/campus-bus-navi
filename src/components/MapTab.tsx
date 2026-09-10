@@ -89,7 +89,7 @@ export function MapTab({ coords, stopName, destination, route, onChangeRoute }: 
         <h2 style={{ margin: '0 0 8px', padding: '0 4px', fontSize: 15, fontWeight: 700, color: 'var(--chip-text)' }}>
           乗り場の様子
         </h2>
-        <div style={{ height: 176, borderRadius: 22, border: '1px solid var(--row-card-border)', overflow: 'hidden' }}>
+        <div style={{ height: 326, borderRadius: 22, border: '1px solid var(--row-card-border)', overflow: 'hidden' }}>
           <iframe
             title={`${stopName}のストリートビュー`}
             src={buildEmbedStreetViewUrl(coords)}
