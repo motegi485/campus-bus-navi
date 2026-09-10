@@ -9,6 +9,7 @@ import { DayBadge } from './DayBadge'
 import { Spinner } from './StatusParts'
 import { BellIcon } from './BellIcon'
 import { useOverlayA11y } from '../hooks/useOverlayA11y'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -64,6 +65,9 @@ export function FullTimetableSheet({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const rootRef = useOverlayA11y(open, { covered: false, onEscape: onClose })
 
+  // 開いている間は背面のホームを固定する（シートの非スクロール領域から背面が動くため）
+  useBodyScrollLock(open)
+
   // 閉じたら選択モードも畳む。開き直したときに前回の選択が残っていると
   // 「保存したつもり」の取り違えが起きる
   useEffect(() => {
@@ -117,28 +121,29 @@ export function FullTimetableSheet({
           <div style={{ width: 36, height: 5, borderRadius: 9999, background: 'var(--sheet-grabber)' }} />
         </div>
 
-        {/* ヘッダー: タイトル + 閉じるボタン */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px 0', flexShrink: 0 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-.4px' }}>本日の全時刻表</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="閉じる"
-            style={{
-              width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-              background: 'var(--past-bg)', border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--chip-text)" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-              <path d="M5.5 5.5 18.5 18.5" />
-              <path d="M18.5 5.5 5.5 18.5" />
-            </svg>
-          </button>
-        </div>
-
-        {/* 本文スクローラ */}
+        {/* 本文スクローラ。タイトルと閉じるボタンもこの中に入れる（外に固定すると
+            下に引っ張ったとき本文だけが動き、見出しだけ取り残されて見えるため）。 */}
         <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+          {/* ヘッダー: タイトル + 閉じるボタン */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px 0' }}>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-.4px' }}>本日の全時刻表</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="閉じる"
+              style={{
+                width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                background: 'var(--past-bg)', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--chip-text)" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                <path d="M5.5 5.5 18.5 18.5" />
+                <path d="M18.5 5.5 5.5 18.5" />
+              </svg>
+            </button>
+          </div>
+
           <div style={{ padding: '14px 20px 0' }}>
             {/* ルートトグル（シート内にも置く） */}
             <RouteToggle route={route} onChange={onChangeRoute} />
