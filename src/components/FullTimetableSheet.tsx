@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Dayjs } from 'dayjs'
 import type { ScheduleEntry, RouteKey, DiagramType } from '../types/timetable'
 import { tapFeedback } from '../utils/haptics'
@@ -10,6 +10,7 @@ import { Spinner } from './StatusParts'
 import { BellIcon } from './BellIcon'
 import { useOverlayA11y } from '../hooks/useOverlayA11y'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
+import { useSheetDragToClose } from '../hooks/useSheetDragToClose'
 
 const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -64,9 +65,12 @@ export function FullTimetableSheet({
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const rootRef = useOverlayA11y(open, { covered: false, onEscape: onClose })
+  const grabberRef = useRef<HTMLDivElement>(null)
 
   // 開いている間は背面のホームを固定する（シートの非スクロール領域から背面が動くため）
   useBodyScrollLock(open)
+  // 上グラバーを下へ引いて閉じる
+  useSheetDragToClose(rootRef, grabberRef, open, onClose)
 
   // 閉じたら選択モードも畳む。開き直したときに前回の選択が残っていると
   // 「保存したつもり」の取り違えが起きる
@@ -116,8 +120,19 @@ export function FullTimetableSheet({
         className={`sheet-panel${open ? '' : ' sheet-panel-closed'}`}
         style={{ zIndex: 46, pointerEvents: open ? 'auto' : 'none' }}
       >
-        {/* 上グラバー */}
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8, flexShrink: 0 }}>
+        {/* 上グラバー（下へ引くと閉じるハンドル）。
+            当たり判定は横いっぱい・上下の余白込みで確保する。指で掴む対象なので
+            見た目の 36×5 のままでは狭い。touchAction: none はハンドル上での
+            ブラウザ既定のスクロールを止め、ドラッグを確実に拾うために必要。 */}
+        <div
+          ref={grabberRef}
+          aria-hidden="true"
+          style={{
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            padding: '10px 0 12px', flexShrink: 0,
+            touchAction: 'none', cursor: 'grab',
+          }}
+        >
           <div style={{ width: 36, height: 5, borderRadius: 9999, background: 'var(--sheet-grabber)' }} />
         </div>
 
@@ -125,7 +140,7 @@ export function FullTimetableSheet({
             下に引っ張ったとき本文だけが動き、見出しだけ取り残されて見えるため）。 */}
         <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
           {/* ヘッダー: タイトル + 閉じるボタン */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 20px 0' }}>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-.4px' }}>本日の全時刻表</h2>
             <button
               type="button"
