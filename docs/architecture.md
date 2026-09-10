@@ -22,7 +22,7 @@
 | UI | React 18、TypeScript |
 | ビルド | Vite 5、Tailwind CSS v4（`@tailwindcss/vite`） |
 | 日時 | Day.js と `utc` / `timezone` プラグイン、`Asia/Tokyo` 固定 |
-| 地図 | Leaflet、react-leaflet、OpenStreetMap タイル |
+| 地図 | Google マップ / Street View の埋め込み iframe（APIキー不要の非公式方式） |
 | PWA | vite-plugin-pwa、Workbox、workbox-window |
 | 配信 | Cloudflare Pages |
 
@@ -42,7 +42,7 @@ flowchart TD
   Calendar --> Rules[resolveCalendar]
   Rules --> Today[/data/timetables/当日ID.json]
   Rules --> Tomorrow[/data/timetables/翌日ID.json]
-  App --> Cards[次発・一覧・地図・オーバーレイ]
+  App --> Tabs[バス/マップ/メニュー タブ]
 ```
 
 ### `index.html`
@@ -55,22 +55,24 @@ flowchart TD
 
 - `StrictMode` と `ErrorBoundary` の内側に `App` を描画します。
 - 実ビューポート高を `--app-height` に同期します。
-- 画面幅・向きの複数信号から `html.bp-active` を付け、PC / 横向き時の 2 カラム表示を制御します。単純な `innerWidth` だけの判定ではありません。
+- レイアウトビューポートが実画面より短く確定していないか実測し、短ければ viewport メタを一度書き換えて WebKit に再評価させます（`recoverShortViewport()`）。iOS の PWA では起動直後（特に待機サービスワーカー適用のためのリロード直後）に高さが「実画面高 − 上部セーフエリア」で確定し、`position: fixed; bottom: 0` のボトムタブバーが下端から浮くことがあるためです。判定は全画面の iOS PWA に限り、1 セッション 1 回だけ試みます。**タブバーをビューポート外へ押し出す方向の補正はしないでください**（iOS は fixed の描画をビューポートでクリップするため中身が消えます。[design-decisions.md](design-decisions.md) 参照）。
 - React マウント前に待機中サービスワーカーを確認する iOS PWA 向けの救済処理を持ちます。
+
+3タブ構成への改修（2026-09）以降、PC / 横向き専用の2カラム表示（旧 `html.bp-active`）は廃止しました。画面幅に関わらず常に同じ縦1カラムのタブ構成で表示します。
 
 ### `src/App.tsx`
 
 `App` は画面全体の状態を合成します。
 
 - 現在時刻、時刻表、オンライン状態、設定、お知らせを接続する
-- 選択路線、ドロワー、お知らせ、設定、ヘルプ、更新中、Toast の状態を管理する
+- 表示中のタブ（`バス` / `マップ` / `メニュー`）、全時刻表シート、お知らせ、設定、ヘルプ、更新中、Toast の状態を管理する
 - 次発、残り本数、次発後の最大 4 本、終バス、翌日始発を毎分再計算する
 - 特別ダイヤ、全便運休日、日付跨ぎでデータが古い状態を安全に分岐する
 - `deriveDataStatus()` でデータ状態を 1 つに畳み、状態表示を排他的に描く
 - PWA 更新検知とアプリ初期化を担当する
-- オーバーレイが開いている間、背面を `inert` にする
+- オーバーレイ（全時刻表シート・お知らせ・週間ダイヤ・設定・ヘルプ）が開いている間、背面を `inert` にする
 
-地図だけは `React.lazy` で遅延読み込みされます。
+ナビゲーションはルーティングライブラリを使わず、`App` が持つ `activeTab` state（`useState<'bus' | 'map' | 'menu'>`）で3つのタブ本文を排他的に描画します（`BottomTabBar` が切替UIを担う）。バス・メニュータブはタブ切替のたびに再マウントしますが、マップタブだけは非アクティブ時に地図・Street ViewのiframeをDOMから外し、アクティブな間だけマウントする条件付きレンダリングにしています（`MapTab`）。非表示中のiframeを保持し続ける必然性はないが、タブ切替のたびにGoogle埋め込みを再読み込みする無駄を避けるための方式。
 
 ## 時刻表のデータフロー
 
@@ -89,11 +91,11 @@ flowchart TD
 
 1. `/data/calendar_rules.json` を取得します。キャッシュバスターは付けません。
 2. 各日に `resolveCalendar()` を適用し、日付・時刻表 ID・`resolveDiagramType()` の結果を先に返します。ダイヤ種別はカレンダーだけで決まるため、時刻表の取得を待たずに一覧が成立します。
-3. **時刻表の本文は、週間ダイヤ画面が開いている間だけ**取得します。ホームの帯（`WeekStrip`）が使うのは種別だけなので、初回表示で 7 日分の本文まで先読みすると低速回線で無駄に待たせます。
+3. **時刻表の本文は、週間ダイヤ画面が開いている間だけ**取得します。`days`（日付とダイヤ種別）は起動時から先読みしますが、本文が要るのは週間ダイヤ画面を開いたときだけなので、初回表示で 7 日分の本文まで先読みすると低速回線で無駄に待たせます。
 4. 本文は時刻表 ID を一意化してから並列取得し、`normalizeTimetable()` を通します。7 日で参照されるユニークな ID は実測で 3 件程度に収束するため、日数分のリクエストにはなりません。
 5. 取得できなかった ID の日は `status: 'error'` になります。前後の日のダイヤで代用しません。
 
-`App` がこのフックを 1 回だけ呼び、結果を `WeekStrip` と `WeeklyScreen` の両方へ渡します。画面ごとに呼ぶと同じ 7 日分を二重に取得します。`useTimetable` と同じくリクエスト世代で古い応答を破棄します。
+`App` がこのフックを 1 回だけ呼び、結果を `WeeklyScreen` へ渡します（改修たたき台への移行でホームの帯は廃止し、バスタブの日付ピルをタップすると `WeeklyScreen` を直接開くようにした）。画面ごとに呼ぶと同じ 7 日分を二重に取得します。`useTimetable` と同じくリクエスト世代で古い応答を破棄します。
 
 本文の取得は「`status: 'loading'` の日が残っているときだけ走る」effect が担います。取り終えると全日が `ok` / `error` になるので再入しません。`reload()` はカレンダーから読み直すので、全日が `loading` に戻り、本文も取り直されます。
 
@@ -136,21 +138,23 @@ flowchart TD
 
 | コンポーネント | 主な責務 |
 |---|---|
-| `NextBusCard` | 次発、残り本数、分単位の案内。通知を設定済みの便ならベルの印を出す |
-| `UpcomingList` | 次発の後に続く最大 4 本。通知を設定済みの便にベルの印を出す |
-| `FullTimetable` | 開閉式の全時刻表。空 `schedule` は描画しない |
-| `TimetableGrid` | 発車時刻のグリッド本体。`FullTimetable` と日別ビューが共用する。`nowMinutes` が `null` の日は過去便を灰色にしない |
-| `WeekStrip` | ホームの週間ダイヤ帯。曜日・日付・ダイヤ種別の色だけを出し、遷移は「すべて見る」チップのみが担う |
-| `WeeklyScreen` | 週間ダイヤ（今日を含む 7 日）と、その入れ子の日別ビュー |
-| `RouteSwitch` | ページ面に置くルート切替。ヘッダー用の `RouteToggle` とは面の作りが違う |
+| `BottomTabBar` | バス／マップ／メニューの固定3タブ。選択表示は色のみ。`position: fixed` で viewport 下端に常時表示する（各タブ本文は `--tabbar-h` ぶんの下パディングでスペースを確保する） |
+| `NextBusCard` | 次発、残り本数、分単位の案内、円形ゲージ。通知を設定済みの便ならベルの印を出す |
+| `UpcomingList` | 今後の発車時刻タイムライン。先頭行は次発（`NextBusCard` と同じ便）で以降4本が続く、計最大5本。通知を設定済みの便にベルの印を出す |
+| `FullTimetableSheet` | ホームの「全時刻表 ›」から開く全画面シート。上端を58px開けて背後のヘッダーを覗かせ、シート自体は角丸。ルートトグルと日付ピルをシート内にも再掲し、通知選択フローを内包する。空 `schedule` は「本日の運行はありません」を表示する |
+| `TimetableGrid` | 発車時刻のグリッド本体。`FullTimetableSheet` と週間ダイヤの日別ビューが共用する。`nowMinutes` が `null` の日は過去便を灰色にしない。未来便セルの背景は `futureBg` prop で呼び出し元ごとに変える |
+| `WeeklyScreen` | 週間ダイヤ（今日を含む 7 日）と、その入れ子の日別ビュー。バスタブの日付ピル（タップ）とメニュータブの「週間ダイヤ」から開く |
+| `RouteToggle` | バスタブヘッダー・全時刻表シート・マップタブで共用するルート切替（塗りつぶしピル、選択中はグラデーション） |
+| `RouteSwitch` | ページ面に置くルート切替。`RouteToggle` とは面の作りが違う。`WeeklyScreen` が使う |
 | `EndOfServiceCard` | 終バス後または全便運休日と翌日始発 |
 | `SpecialScheduleCard` | 時刻を出さず大学公式ページの確認先を示す |
 | `DayBadge` | 時刻表 ID の命名規約からダイヤ種別を示す。`stale` 中と時刻表未取得時は描かない |
 | `StatusCard` | 時刻を出せない状態のカード。取得時刻と再試行を持つ |
 | `StatusBand` | 時刻を出せる状態の帯。ヘッダー直下に全幅で敷く |
 | `StatusParts` | 上記 2 つが共有する状態アイコンと再試行ボタン |
-| `BusStopMap` | 乗り場、OSM タイル、徒歩ナビリンク |
-| `DrawerMenu` / `NewsScreen` / `SettingsScreen` / `HelpScreen` | 全画面・ドロワー型のオーバーレイ |
+| `MapTab` | マップタブのヘッダー・ルートトグル・ルート案内行（`buildMapUrl` の徒歩ナビリンク）・地図とStreet ViewのGoogle埋め込みiframe（`buildEmbedUrl.ts`、APIキー不要の非公式方式）を直接持つ |
+| `MenuTab` | メニュータブ。リンク／アプリ／その他の3グループを行ごとに個別カードで並べる。項目の並び・アイコン・配色は固定 |
+| `NewsScreen` / `SettingsScreen` / `HelpScreen` | 全画面型のオーバーレイ（メニュータブの各項目から開く） |
 | `UpdateBanner` / `Toast` / `MobilePwaGuide` | 更新通知、短い通知、PWA 導入案内 |
 
 ## 端末内に保存する状態
@@ -167,9 +171,9 @@ flowchart TD
 
 ## お知らせと地図
 
-`useNews` は初回マウント時に `/data/news.json` を取得します。未読状態は `App` で一元化され、メニューとお知らせ画面で同じ状態を共有します。`news.json` の `body` は `dangerouslySetInnerHTML` で描画されるため、Git 管理された信頼できる静的データだけを前提にしています。動的 CMS 等へ移す場合は、サニタイズを導入する必要があります。
+`useNews` は初回マウント時に `/data/news.json` を取得します。未読状態は `App` で一元化され、メニュータブとお知らせ画面で同じ状態を共有します。`news.json` の `body` は `dangerouslySetInnerHTML` で描画されるため、Git 管理された信頼できる静的データだけを前提にしています。動的 CMS 等へ移す場合は、サニタイズを導入する必要があります。
 
-地図はオフライン時にもマウントします。取得済みの OSM タイルだけが表示でき、未取得範囲は空白になり得ます。iOS / iPadOS は Apple Maps、それ以外は Google Maps の徒歩経路 URL を生成します。iPadOS のデスクトップ UA は `maxTouchPoints` で補完して iOS 判定します。
+地図はマップタブがアクティブな間だけマウントします（前述のとおり、Google埋め込みの不要な再読み込みを避けるため）。地図・Street Viewとも`maps.google.com`のクロスオリジンiframeのため Service Worker ではキャッシュできず、オフライン時はこの2枚のカードが表示されません。徒歩経路 URL は OS を問わず Google マップのもの（`https://www.google.com/maps/dir/?api=1&...`）を生成します（`buildMapUrl.ts`、地図埋め込みとは別の仕組み）。この URL は Google マップアプリのユニバーサルリンク／App Link でもあるため、アプリがあればアプリが、無ければブラウザが開きます。以前は iOS / iPadOS だけ Apple Maps のリンクを返していましたが、実機で「Google マップで見たいのに Apple マップが開く」ことになるため 2026-09 に統一しました。
 
 ## 関連文書
 

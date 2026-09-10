@@ -33,7 +33,8 @@ Pages では **Functions が `_redirects` より先に評価される**ため、
 |---|---|---|
 | JS、CSS、HTML、アイコン等 | Workbox のプリキャッシュ | ビルド成果物 |
 | `/data/*.json` | NetworkFirst | ネットワーク 3 秒待機後に `timetable-data` キャッシュへフォールバック、最大 60 件・7 日 |
-| OSM タイル | CacheFirst | `osm-tiles`、最大 500 件・30 日 |
+
+マップタブの地図・Street View は `maps.google.com` の埋め込み（`src/utils/buildEmbedUrl.ts`、[design-decisions.md](design-decisions.md) 参照）で、クロスオリジンの iframe のため Service Worker ではキャッシュできません。**オフライン時はこの2枚のカードだけ表示されない**（既知の制限として許容。以前の Leaflet + OSM タイル構成では `osm-tiles` キャッシュでオフライン表示できていたが、2026-09 の変更で失われた）。
 
 ### データ JSON をプリキャッシュしない理由
 
@@ -111,7 +112,7 @@ Cache API はクエリ文字列を既定では無視しません。したがっ�
 
 - Google Fonts は `index.html` の `<link>` から読み込みます。
 - Cloudflare Web Analytics のビーコンが `index.html` に埋め込まれています。フォークや別の運用へ移すときは、運用先に応じて削除または差し替えてください。
-- OSM タイルは `https://tile.openstreetmap.org/{z}/{x}/{y}.png` を使います。旧 `a` / `b` / `c` サブドメインのキャッシュも読めるよう、Workbox のパターンでは任意扱いにしています。
+- マップタブの地図・Street View は `maps.google.com` の APIキー不要な埋め込み（`output=embed` / `output=svembed`）を `<iframe>` で読み込みます。Google Cloud の公式 Maps Embed API ではなく非公式・無登録の方式のため、経緯は [design-decisions.md](design-decisions.md) を参照してください。
 
 ## 変更時の確認
 
