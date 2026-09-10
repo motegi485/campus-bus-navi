@@ -71,7 +71,7 @@ export function NextBusCard({ fontSize, remaining, next, reminded = false }: Pro
             fontSize: 12, fontWeight: 800, color: 'var(--slot-current-fg)',
           }}
         >
-          <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--route-solid-campus)', display: 'inline-block' }} />
+          <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--route-solid)', display: 'inline-block' }} />
           {isLastBus ? '最終便' : `残り${remaining}本`}
         </span>
       </div>
@@ -96,7 +96,7 @@ export function NextBusCard({ fontSize, remaining, next, reminded = false }: Pro
           style={{
             flexShrink: 0,
             width: 104, height: 104, borderRadius: '50%',
-            background: `conic-gradient(var(--route-solid-campus) 0deg ${gaugeDeg}deg, var(--gauge-track) ${gaugeDeg}deg 360deg)`,
+            background: `conic-gradient(var(--route-solid) 0deg ${gaugeDeg}deg, var(--gauge-track) ${gaugeDeg}deg 360deg)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >

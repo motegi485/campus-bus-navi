@@ -109,8 +109,8 @@ export function HelpScreen({ open, onClose }: Props) {
     <div ref={rootRef} aria-hidden={!open} style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', touchAction: 'pinch-zoom' }}>
       {/* ナビバー */}
       <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
-        <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
-          <CaretLeft size={18} weight="bold" color="var(--accent-fg)" aria-hidden="true" />
+        <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
+          <CaretLeft size={18} weight="bold" color="var(--ui-accent-fg)" aria-hidden="true" />
           戻る
         </button>
         <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>ヘルプ</span>
@@ -121,7 +121,7 @@ export function HelpScreen({ open, onClose }: Props) {
         <div style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* バナー */}
-        <div style={{ background: 'linear-gradient(135deg,#0d9966,#34d399)', borderRadius: 20, padding: '25px 20px', color: '#fff', textAlign: 'center' }}>
+        <div style={{ background: 'var(--ui-accent-grad)', borderRadius: 20, padding: '25px 20px', color: '#fff', textAlign: 'center' }}>
           <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>スクールバス時刻表</div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,.8)' }}>ver {__APP_VERSION__}</div>
         </div>
@@ -153,7 +153,7 @@ export function HelpScreen({ open, onClose }: Props) {
             </p>
             <button
               onClick={handleFeedback}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: 14, background: 'linear-gradient(135deg,#0d9966,#34d399)', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 14, border: 'none', cursor: 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: 14, background: 'var(--ui-accent-grad)', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 14, border: 'none', cursor: 'pointer' }}
             >
               <Chat size={15} weight="bold" color="white" aria-hidden="true" />
               フィードバックを送る

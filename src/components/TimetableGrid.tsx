@@ -1,10 +1,9 @@
-import type { ScheduleEntry, RouteKey } from '../types/timetable'
+import type { ScheduleEntry } from '../types/timetable'
 import { parseHHmmToMinutes } from '../utils/parseTime'
 import { BellIcon } from './BellIcon'
 
 interface Props {
   schedule: ScheduleEntry[]
-  route: RouteKey
   /** ハイライトする便の発車時刻（次発）。未指定ならハイライトしない */
   currentDeparture?: string
   /**
@@ -39,10 +38,13 @@ interface Props {
  *
  * ホームの「本日の全時刻表」（FullTimetableSheet）と、週間ダイヤの日別ビューが共用する。
  * 見出しや開閉トグルは持たず、時刻の並びだけを担当する。
+ *
+ * ルートは prop で受け取らない。現在便のハイライトも選択セルの塗りもルート色だが、
+ * どちらも index.css の [data-route] が切り替えるトークン経由で届く（App.tsx が
+ * アプリシェルに data-route を付けている）。ここで route を分岐すると二重管理になる。
  */
 export function TimetableGrid({
   schedule,
-  route,
   currentDeparture,
   nowMinutes,
   marked,
@@ -51,13 +53,11 @@ export function TimetableGrid({
   onToggle,
   futureBg = 'var(--bg-card2)',
 }: Props) {
-  const isCampus = route === 'campus_to_station'
-  // 現在便のハイライトは全時刻表シートの改修デザイン（§20）で緑に統一する。
-  // ルート色による塗り分けは選択モードの単色塗りにだけ残す。
   const activeBg = 'var(--slot-current-bg)'
   const activeText = 'var(--slot-current-fg)'
-  const selectedBg = isCampus ? '#065f46' : '#4f46e5'
-  const selectedRing = isCampus ? 'rgba(6,95,70,.35)' : 'rgba(79,70,229,.35)'
+  // 選択セルは白文字を載せる塗りなので、テーマで反転しないトークンを使う
+  const selectedBg = 'var(--route-selected-bg)'
+  const selectedRing = 'var(--route-selected-ring)'
 
   return (
     <div className="grid grid-cols-3 gap-[7px]">
@@ -88,8 +88,8 @@ export function TimetableGrid({
         const border = isSelected
           ? 'none'
           : `1px solid ${isCurrent ? activeBg : isPast ? 'var(--past-bg)' : 'var(--row-card-border)'}`
-        // 現在便だけ緑のリングを足す（過去/未来と混同しないための2つ目の手掛かり）
-        const ring = isCurrent && !isSelected ? '0 0 0 1.5px var(--route-solid-campus)' : 'none'
+        // 現在便だけルート色のリングを足す（過去/未来と混同しないための2つ目の手掛かり）
+        const ring = isCurrent && !isSelected ? '0 0 0 1.5px var(--route-solid)' : 'none'
 
         const content = (
           <>
@@ -114,7 +114,7 @@ export function TimetableGrid({
               <span
                 aria-hidden="true"
                 className="absolute"
-                style={{ top: -3, right: -2, color: 'var(--accent-fg)' }}
+                style={{ top: -3, right: -2, color: 'var(--route-accent-fg)' }}
               >
                 <BellIcon width={10} height={10} />
               </span>

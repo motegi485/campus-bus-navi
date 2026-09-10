@@ -61,7 +61,7 @@ function StepNumber({ n }: { n: number }) {
   return (
     <span style={{
       flexShrink: 0, width: 24, height: 24, borderRadius: '50%',
-      background: 'linear-gradient(135deg,#0d9966,#34d399)', color: '#fff',
+      background: 'var(--ui-accent-grad)', color: '#fff',
       fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>{n}</span>
   )
@@ -187,7 +187,7 @@ export function MobilePwaGuide({ open, onClose }: Props) {
             onClick={onClose}
             style={{
               padding: '9px 18px', borderRadius: 12, fontSize: 13, fontWeight: 700,
-              background: 'linear-gradient(135deg,#0d9966,#34d399)', color: '#fff',
+              background: 'var(--ui-accent-grad)', color: '#fff',
               border: 'none', cursor: 'pointer',
             }}
           >

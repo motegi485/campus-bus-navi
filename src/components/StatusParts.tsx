@@ -5,14 +5,28 @@ import type { DataStatus } from '../utils/deriveDataStatus'
 
 /** 状態表示は Phosphor の Bold を使い、メニューより強い輪郭で伝える。 */
 
-/** 取得中スピナー（ローディング表示と同じ emerald-400） */
-export function Spinner({ size = 16 }: { size?: number }) {
+/**
+ * 取得中スピナー。
+ *
+ * 既定はルートと無関係な中立色（--ui-accent-fg）。取得中であることはルートの
+ * 属性ではないので、緑（旧 emerald-400）にもルート色にも寄せない。
+ *
+ * 塗りつぶしボタンの上に載せるときだけ `color="currentColor"` を渡すこと
+ * （ボタンの文字色＝白を継ぐ。中立色のままだと塗りと同系で消える）。
+ */
+export function Spinner({ size = 16, color = 'var(--ui-accent-fg)' }: { size?: number; color?: string }) {
   return (
     <span
       role="img"
       aria-label="取得中"
-      className="rounded-full border-2 border-emerald-400 border-t-transparent animate-spin"
-      style={{ width: size, height: size, display: 'block' }}
+      className="rounded-full border-2 animate-spin"
+      style={{
+        width: size,
+        height: size,
+        display: 'block',
+        borderColor: color,
+        borderTopColor: 'transparent',
+      }}
     />
   )
 }

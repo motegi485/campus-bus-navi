@@ -11,7 +11,7 @@ import { RouteSwitch } from './RouteSwitch'
 import { TimetableGrid } from './TimetableGrid'
 import { EndOfServiceCard } from './EndOfServiceCard'
 import { SpecialScheduleCard } from './SpecialScheduleCard'
-import { StatusIcon, RetryButton } from './StatusParts'
+import { StatusIcon, RetryButton, Spinner } from './StatusParts'
 
 const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -35,9 +35,9 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
   return (
     <button
       onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}
     >
-      <CaretLeft size={18} weight="bold" color="var(--accent-fg)" aria-hidden="true" />
+      <CaretLeft size={18} weight="bold" color="var(--ui-accent-fg)" aria-hidden="true" />
       {label}
     </button>
   )
@@ -131,7 +131,7 @@ function WeekRow({
         // 当日以外も、地（--bg-page）が白になった通常行（--bg-card = 白）は
         // 輪郭が無いと面として立たないので、同じやり方でヘアラインを敷く。
         boxShadow: isToday
-          ? 'inset 0 0 0 1.5px var(--accent-fg)'
+          ? 'inset 0 0 0 1.5px var(--route-accent-fg)'
           : 'inset 0 0 0 1px var(--row-card-border)',
         transition: pressed ? 'none' : 'background 0.3s',
       }}
@@ -147,12 +147,13 @@ function WeekRow({
 
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 5 }}>
         <DayBadge type={day.diagramType} />
-        {/* 背景は var(--accent-fg) にしない: ダークではこのトークンが明るいミント
-            (#6ee7b7) に変わり、白文字が読めなくなるため。白文字の上に敷く塗りは
-            TimetableGrid の選択セルと同じ考え方でテーマに関わらず固定値にする
-            （#047857 は --accent-fg のライト値と同一、実測 5.48:1）。 */}
+        {/* 背景は var(--route-accent-fg) にしない: ダークではこのトークンが明るい
+            ミント/藤色に変わり、白文字が読めなくなるため。白文字の上に敷く塗りは
+            TimetableGrid の選択セルと同じ考え方で、テーマで反転しないトークン
+            （--route-badge-fill）を使う。ルートでは切り替わる。
+            実測: 白文字に対し 大学発 #047857 5.55:1 / 松永発 #4338ca 7.90:1。 */}
         {isToday && (
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: '#047857', color: '#fff' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: 'var(--route-badge-fill)', color: '#fff' }}>
             今日
           </span>
         )}
@@ -293,7 +294,6 @@ function DayDetailView({
           </div>
           <TimetableGrid
             schedule={schedule}
-            route={route}
             currentDeparture={currentDeparture}
             nowMinutes={nowMinutes}
           />
@@ -335,7 +335,7 @@ function DayDetailView({
                 <DayBadge type={day.diagramType} />
               </div>
               {nowMinutes !== null && (
-                <span className="text-[13.5px] font-bold" style={{ color: 'var(--route-solid-campus)', flexShrink: 0 }}>
+                <span className="text-[13.5px] font-bold" style={{ color: 'var(--route-accent-fg)', flexShrink: 0 }}>
                   今日
                 </span>
               )}
@@ -454,7 +454,7 @@ export function WeeklyScreen({
 
           {loading && days.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <div className="w-8 h-8 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+              <Spinner size={32} />
               <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>運行予定を読み込み中...</p>
             </div>
           )}

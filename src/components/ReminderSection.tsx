@@ -66,7 +66,10 @@ function Switch({ on, disabled }: { on: boolean; disabled: boolean }) {
       aria-hidden="true"
       style={{
         width: 46, height: 27, borderRadius: 20, flexShrink: 0,
-        background: on ? '#10b981' : 'var(--bg-input)',
+        // オンの緑は「動いている」を表す意味色で、アプリのテーマ色ではない。
+        // 松永発でアプリ全体がインディゴになっても、ここは緑のまま据え置く
+        // （--status-success-fg と対をなす。詳細は index.css のトークン定義）
+        background: on ? 'var(--switch-on-bg)' : 'var(--bg-input)',
         border: on ? 'none' : '1px solid var(--chip-border)',
         position: 'relative',
         opacity: disabled ? 0.5 : 1,

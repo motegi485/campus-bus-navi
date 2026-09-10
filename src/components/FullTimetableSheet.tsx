@@ -180,7 +180,7 @@ export function FullTimetableSheet({
                   className="inline-flex items-center whitespace-nowrap"
                   style={{ gap: 6, borderRadius: 9999, padding: '7px 12px', fontSize: 12.5, fontWeight: 800, background: 'var(--slot-current-bg)', color: 'var(--slot-current-fg)' }}
                 >
-                  <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--route-solid-campus)', display: 'inline-block' }} />
+                  <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--route-solid)', display: 'inline-block' }} />
                   {isLastBus ? '最終便' : `残り${remaining}本`}
                 </span>
                 {lastEntry && (
@@ -211,7 +211,7 @@ export function FullTimetableSheet({
                       type="button"
                       onClick={() => { tapFeedback(8); setSelectMode(false) }}
                       className="text-[12px] font-bold"
-                      style={{ color: 'var(--accent-fg)', background: 'none', border: 'none', cursor: 'pointer' }}
+                      style={{ color: 'var(--route-accent-fg)', background: 'none', border: 'none', cursor: 'pointer' }}
                     >
                       キャンセル
                     </button>
@@ -232,7 +232,7 @@ export function FullTimetableSheet({
                           className="flex-1 rounded-[18px] py-[5px] text-[11.5px] font-bold tabular-nums"
                           style={{
                             background: active ? 'var(--bg-card)' : 'transparent',
-                            color: active ? 'var(--accent-fg)' : 'var(--chip-text)',
+                            color: active ? 'var(--route-accent-fg)' : 'var(--chip-text)',
                             border: 'none',
                             boxShadow: active ? '0 1px 2px rgba(15,23,42,.14)' : 'none',
                             cursor: 'pointer',
@@ -253,7 +253,6 @@ export function FullTimetableSheet({
               <div style={{ padding: '14px 20px 22px' }}>
                 <TimetableGrid
                   schedule={schedule}
-                  route={route}
                   currentDeparture={currentDeparture}
                   nowMinutes={nowMinutes}
                   marked={marked}
@@ -277,7 +276,8 @@ export function FullTimetableSheet({
                         color: '#fff', border: 'none', cursor: saving ? 'default' : 'pointer',
                       }}
                     >
-                      {saving && <Spinner size={13} />}
+                      {/* 塗りつぶしボタンの上なので、中立色ではなくボタンの文字色（白）を継ぐ */}
+                      {saving && <Spinner size={13} color="currentColor" />}
                       {saving
                         ? '保存中...'
                         : selected.size === 0
