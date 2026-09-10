@@ -60,7 +60,9 @@ function markHinted(): void {
 
 /**
  * ルート切替セグメント（改修たたき台 1a/2a/2b 共通）。
- * 選択中はグラデーションの塗りつぶしボタン、非選択はラベルのみ。
+ * 選択中はグラデーションの塗りつぶし、非選択はラベルのみ。
+ * 面は共有の1個のノブが担い、選択位置へスプリングでスライドする
+ * （大規模改修前の動きを復元。docs/design-decisions.md 参照）。
  * バスアイコンは選択状態で本体色を切り替える（BusGlyph）。
  */
 export function RouteToggle({ route, onChange }: Props) {
@@ -89,12 +91,18 @@ export function RouteToggle({ route, onChange }: Props) {
     onChange(key)
   }
 
+  const index = route === 'campus_to_station' ? 0 : 1
+  // gap を挟む現行トラックでもノブが2ボタン分にきっちり収まるよう、
+  // 「自分の幅 + gap」だけ動かす（gap 分を translateX 側の +4px で補う）
+  const knobOffset = `calc(${index} * (100% + 4px))`
+
   return (
     <div
       role="group"
       aria-label="ルート切替"
       className="flex"
       style={{
+        position: 'relative',
         gap: 4,
         padding: 5,
         borderRadius: 9999,
@@ -103,6 +111,25 @@ export function RouteToggle({ route, onChange }: Props) {
         boxShadow: 'inset 0 2px 4px rgba(15,23,42,.11)',
       }}
     >
+      {/* ノブ。位置・色・影はここに集約し、ボタン側はラベルとアイコンだけ描く */}
+      <div
+        aria-hidden="true"
+        className={`route-toggle-knob${nudging ? ' route-toggle-nudge' : ''}`}
+        style={{
+          position: 'absolute',
+          top: 5,
+          bottom: 5,
+          left: 5,
+          width: 'calc(50% - 7px)',
+          borderRadius: 9999,
+          background: OPTIONS[index].gradient,
+          border: '1px solid rgba(255,255,255,.28)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,.42), 0 4px 10px -2px rgba(20,120,60,.45), 0 1px 2px rgba(15,23,42,.18)',
+          ['--nudge-pos' as string]: knobOffset,
+          transform: `translateX(${knobOffset})`,
+        }}
+      />
+
       {OPTIONS.map((opt) => {
         const active = route === opt.key
         return (
@@ -111,7 +138,6 @@ export function RouteToggle({ route, onChange }: Props) {
             type="button"
             onClick={() => handle(opt.key)}
             aria-pressed={active}
-            className={nudging && active ? 'route-toggle-nudge' : undefined}
             style={{
               position: 'relative',
               flex: 1,
@@ -125,14 +151,12 @@ export function RouteToggle({ route, onChange }: Props) {
               fontWeight: 700,
               whiteSpace: 'nowrap',
               cursor: 'pointer',
-              background: active ? opt.gradient : 'transparent',
-              border: active ? '1px solid rgba(255,255,255,.28)' : 'none',
-              boxShadow: active
-                ? 'inset 0 1px 0 rgba(255,255,255,.42), 0 4px 10px -2px rgba(20,120,60,.45), 0 1px 2px rgba(15,23,42,.18)'
-                : 'none',
+              background: 'transparent',
+              border: 'none',
+              boxShadow: 'none',
               color: active ? '#ffffff' : 'var(--route-toggle-inactive-fg)',
               textShadow: active ? '0 1px 1px rgba(0,0,0,.16)' : 'none',
-              transition: 'background .2s, box-shadow .2s, color .2s, border-color .2s',
+              transition: 'color .2s',
             }}
           >
             <BusGlyph

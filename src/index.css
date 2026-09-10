@@ -945,6 +945,19 @@ html.bounce-native .header-cushion {
 }
 
 /* ============================================================
+   ルート切替トグルのノブ（大規模改修前の動きを復元）
+   位置・色・影はすべて RouteToggle が inline で持ち、ここでは
+   トランジションだけを定義する。.route-switch-knob と同じ考え方で、
+   reduced-motion 時はスプリングの移動だけ止め、色・影の切替は残す。
+   ============================================================ */
+.route-toggle-knob {
+  transition: transform .34s cubic-bezier(.34, 1.4, .64, 1), background .2s, box-shadow .2s, border-color .2s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-toggle-knob { transition: background .2s, box-shadow .2s, border-color .2s; }
+}
+
+/* ============================================================
    未読インジケーター パルスリング
    ハンバーガーボタン / ドロワー「お知らせ」項目の未読ドットで使用。
    transform + opacity のみ（GPU 合成）。reduce 設定でアニメーション停止。
