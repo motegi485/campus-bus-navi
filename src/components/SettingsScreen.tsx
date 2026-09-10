@@ -191,7 +191,7 @@ export function SettingsScreen({
 
   return (
     /* fixed: ビューポート基準の全画面パネル。touchAction: NavBar 等起点の
-       背後 body への貫通スクロールを防ぐ（詳細は DrawerMenu.tsx のコメント参照） */
+       背後 body への貫通スクロールを防ぐ（詳細は NewsScreen.tsx のコメント参照） */
     <div ref={rootRef} aria-hidden={!open} style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', touchAction: 'pinch-zoom' }}>
       <NavBar title="設定" onBack={onClose} covered={selKey !== null} />
 
@@ -239,7 +239,7 @@ export function SettingsScreen({
           <NavBar title={SELECTS[selKey].title} onBack={closeSelect} backLabel="設定" />
           <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
             <div style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px' }}>
-            <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px var(--row-card-border)', transition: 'background 0.35s' }}>
               {SELECTS[selKey].options.map((opt, i) => {
                 const isSelected = opt === SELECTS[selKey].current
                 return (
@@ -276,7 +276,10 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   return (
     <div>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>{label}</div>
-      <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', transition: 'background 0.35s' }}>{children}</div>
+      {/* 地（--bg-page）が白になったので、白いカードは輪郭が無いと面として立たない。
+          border ではなく inset の影で描くのは、行の内側余白・高さを 1px も
+          変えないため（.section-card::after と同じ考え方）。 */}
+      <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px var(--row-card-border)', transition: 'background 0.35s' }}>{children}</div>
     </div>
   )
 }

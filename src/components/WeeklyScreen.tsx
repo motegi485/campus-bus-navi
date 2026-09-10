@@ -128,8 +128,12 @@ function WeekRow({
         gap: 11,
         background: pressed ? 'var(--row-active)' : sunken ? 'var(--bg-card2)' : 'var(--bg-card)',
         // 当日は行全体を細く囲う。border ではなく inset の影にすることで、
-        // 他の行と内側の余白・行高が 1px も変わらない
-        boxShadow: isToday ? 'inset 0 0 0 1.5px var(--accent-fg)' : 'none',
+        // 他の行と内側の余白・行高が 1px も変わらない。
+        // 当日以外も、地（--bg-page）が白になった通常行（--bg-card = 白）は
+        // 輪郭が無いと面として立たないので、同じやり方でヘアラインを敷く。
+        boxShadow: isToday
+          ? 'inset 0 0 0 1.5px var(--accent-fg)'
+          : 'inset 0 0 0 1px var(--row-card-border)',
         transition: pressed ? 'none' : 'background 0.3s',
       }}
     >
@@ -176,8 +180,8 @@ function DayStats({ first, last, count }: { first: string; last: string; count: 
     </div>
   )
   return (
-    // padding は --card-pad-list/-message のスケールに含めない。WeekStrip と同じ理由で
-    // 3分割の密なストリップ型のため個別の値のまま。
+    // padding は --card-pad-list/-message のスケールに含めない。3分割の密なストリップ型
+    // のため個別の値のまま。
     <div className="section-card rounded-[20px] p-[14px_12px]">
       <div style={{ display: 'flex', alignItems: 'center' }}>
         {cell('始発', first)}
