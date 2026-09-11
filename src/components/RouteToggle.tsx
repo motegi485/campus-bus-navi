@@ -98,76 +98,101 @@ export function RouteToggle({ route, onChange }: Props) {
   const knobOffset = `calc(${index} * (100% + 4px))`
 
   return (
-    <div
-      role="group"
-      aria-label="ルート切替"
-      className="flex"
-      style={{
-        position: 'relative',
-        gap: 4,
-        padding: 5,
-        borderRadius: 9999,
-        background: 'var(--pill-track-bg)',
-        border: '1px solid var(--pill-track-border)',
-        boxShadow: 'inset 0 2px 4px rgba(15,23,42,.11)',
-      }}
-    >
-      {/* ノブ。位置・色・影はここに集約し、ボタン側はラベルとアイコンだけ描く */}
+    <div>
+      <div
+        role="group"
+        aria-label="ルート切替"
+        className="flex"
+        style={{
+          position: 'relative',
+          gap: 4,
+          padding: 5,
+          borderRadius: 9999,
+          background: 'var(--pill-track-bg)',
+          border: '1px solid var(--pill-track-border)',
+          boxShadow: 'inset 0 2px 4px rgba(15,23,42,.11)',
+        }}
+      >
+        {/* ノブ。位置・色・影はここに集約し、ボタン側はラベルとアイコンだけ描く */}
+        <div
+          aria-hidden="true"
+          className={`route-toggle-knob${nudging ? ' route-toggle-nudge' : ''}`}
+          style={{
+            position: 'absolute',
+            top: 5,
+            bottom: 5,
+            left: 5,
+            width: 'calc(50% - 7px)',
+            borderRadius: 9999,
+            background: OPTIONS[index].gradient,
+            border: '1px solid rgba(255,255,255,.28)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,.42), 0 4px 10px -2px rgba(20,120,60,.45), 0 1px 2px rgba(15,23,42,.18)',
+            ['--nudge-pos' as string]: knobOffset,
+            transform: `translateX(${knobOffset})`,
+          }}
+        />
+
+        {OPTIONS.map((opt) => {
+          const active = route === opt.key
+          return (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => handle(opt.key)}
+              aria-pressed={active}
+              style={{
+                position: 'relative',
+                flex: 1,
+                height: 46,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                borderRadius: 9999,
+                fontSize: fs(15),
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+                cursor: 'pointer',
+                background: 'transparent',
+                border: 'none',
+                boxShadow: 'none',
+                color: active ? '#ffffff' : 'var(--route-toggle-inactive-fg)',
+                textShadow: active ? '0 1px 1px rgba(0,0,0,.16)' : 'none',
+                transition: 'color .2s',
+              }}
+            >
+              <BusGlyph
+                size={21}
+                body={active ? '#ffffff' : opt.inactiveIconColor}
+              />
+              {opt.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* ナッジ中のヒント（3タブ化の際に落ちていたものを復元）。
+          装飾なので支援技術には渡さない（状態は aria-pressed で伝わっている）。
+          高さごと開閉させ、消えた後は余白を残さない。
+          以前は緑ヘッダー上の白文字＋影だったが、いまは白地（header-plain）なので
+          --text-muted で描く。 */}
       <div
         aria-hidden="true"
-        className={`route-toggle-knob${nudging ? ' route-toggle-nudge' : ''}`}
         style={{
-          position: 'absolute',
-          top: 5,
-          bottom: 5,
-          left: 5,
-          width: 'calc(50% - 7px)',
-          borderRadius: 9999,
-          background: OPTIONS[index].gradient,
-          border: '1px solid rgba(255,255,255,.28)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,.42), 0 4px 10px -2px rgba(20,120,60,.45), 0 1px 2px rgba(15,23,42,.18)',
-          ['--nudge-pos' as string]: knobOffset,
-          transform: `translateX(${knobOffset})`,
+          marginTop: nudging ? 8 : 0,
+          height: nudging ? fs(16) : 0,
+          overflow: 'hidden',
+          fontSize: fs(11),
+          lineHeight: fs(16),
+          fontWeight: 600,
+          textAlign: 'center',
+          color: 'var(--text-muted)',
+          opacity: nudging ? 1 : 0,
+          transition: 'opacity .3s, height .3s, margin-top .3s',
         }}
-      />
-
-      {OPTIONS.map((opt) => {
-        const active = route === opt.key
-        return (
-          <button
-            key={opt.key}
-            type="button"
-            onClick={() => handle(opt.key)}
-            aria-pressed={active}
-            style={{
-              position: 'relative',
-              flex: 1,
-              height: 46,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              borderRadius: 9999,
-              fontSize: fs(15),
-              fontWeight: 700,
-              whiteSpace: 'nowrap',
-              cursor: 'pointer',
-              background: 'transparent',
-              border: 'none',
-              boxShadow: 'none',
-              color: active ? '#ffffff' : 'var(--route-toggle-inactive-fg)',
-              textShadow: active ? '0 1px 1px rgba(0,0,0,.16)' : 'none',
-              transition: 'color .2s',
-            }}
-          >
-            <BusGlyph
-              size={21}
-              body={active ? '#ffffff' : opt.inactiveIconColor}
-            />
-            {opt.label}
-          </button>
-        )
-      })}
+      >
+        タップでルートを切り替え
+      </div>
     </div>
   )
 }
