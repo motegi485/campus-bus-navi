@@ -34,13 +34,19 @@ export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
         borderRadius: '24px',
         display: 'flex',
         alignItems: 'center',
+        justifyContent: 'center',
+        flexWrap: 'wrap',
         gap: '12px',
         fontSize: fs(13),
         fontWeight: 600,
         backdropFilter: 'blur(8px)',
         // レイヤー: 全時刻表シート(z-45/46) < NewsScreen等(50) < MobilePwaGuide(100) < UpdateBanner(110)
         zIndex: 110,
-        whiteSpace: 'nowrap',
+        // 文字サイズ「大」+ 狭い画面幅では1行の幅が画面をはみ出しうるため、
+        // 画面端に余白を残す maxWidth を設け、あふれる場合だけ折り返す
+        // （幅・余白・角丸など他の見た目は変えない。実測: 320px幅で「大」設定時に
+        // 1行の必要幅が約320pxとほぼ余白ゼロになることを確認済み）。
+        maxWidth: 'calc(100vw - 32px)',
       }}
     >
       <span>更新データがあります</span>
