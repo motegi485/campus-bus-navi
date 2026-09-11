@@ -137,7 +137,7 @@ function WeekRow({
         transition: pressed ? 'none' : 'background 0.3s',
       }}
     >
-      <div style={{ width: 50, flexShrink: 0 }}>
+      <div style={{ width: fs(50), flexShrink: 0 }}>
         <div className="tabular-nums" style={{ fontSize: fs(16), fontWeight: 800, letterSpacing: '-.4px', lineHeight: 1.1, color: 'var(--text-primary)' }}>
           {day.date.month() + 1}/{day.date.date()}
         </div>
