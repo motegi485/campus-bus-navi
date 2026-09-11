@@ -146,6 +146,28 @@ Bot が管理した override を人が変更または削除すると、その日
 
 **2026-08-16 以降、Bot の変更は人間のレビューを経ずに `main` へ直接コミットされます。** そのため、これらのファイルを手で編集している最中に Bot の日次実行（07:00 JST）が同じファイルを書き換えることがあります。作業前に最新の `main` を取り込み、コンフリクトしたときは「どちらが新しい掲示に基づくか」で判断してください。手動 override と保護ファイルは Bot が触らないので、恒久的に固定したい内容はそちらに置きます。
 
+### 乗り場のピン位置と Street View の調整
+
+マップタブの「乗り場マップ」のピンは `bus_stop_coords`、「乗り場の様子」は `src/utils/buildEmbedUrl.ts` の `STREET_VIEW_SPOTS`（ルート別の `panoid` / `heading` / `pitch`）で決まります（背景は [design-decisions.md](design-decisions.md) の「Street View はパノラマを人が選んで固定する」）。
+
+**ピン位置（`bus_stop_coords`）を変える**
+
+1. Google マップで乗り場の地点を右クリックし、メニュー先頭の座標をクリックしてコピーする。
+2. 同じ座標が次のすべてに入っているので、一括で置き換える: `public/data/timetables/*.json`（全ファイル）、`public/data/_examples/*.json`、`bot/src/config.ts`、`bot/fixtures/expected/*.json`、`bot/fixtures/_planning/*.json`、`bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`。`bot/src/config.ts` を忘れると Bot の次回実行で旧座標に戻り、`bot/fixtures/expected` を忘れると Bot のテストが落ちる。
+3. `npm run validate:data` と Bot の `npx vitest run` を実行する。
+
+**Street View（`STREET_VIEW_SPOTS`）を変える**
+
+1. Google マップで乗り場が写る道路上の地点からストリートビューに入り、ドラッグで向きと上下を決める。
+2. アドレスバーの URL から値を読む: `.../@lat,lng,3a,75y,<heading>h,<t>t/data=...!1s<panoid>!...`。
+   - `panoid` = `!1s` の直後から次の `!` まで
+   - `heading` = `h` の前の数値
+   - `pitch` = `90 - t`（埋め込みは正が下向き）
+3. `STREET_VIEW_SPOTS` の該当ルートを書き換え、`npm run dev` のマップタブで確認する。埋め込みはアプリの縦長カードで表示されるため、Google マップ本体と見え方が変わる。数値を直接いじって微調整する。
+4. ズーム（画角）は埋め込みに指定手段が無い。寄せたい場合は乗り場に近い撮影地点のパノラマを選び直す。
+
+`panoid` と座標（`cbll`）は併用しない（`buildEmbedStreetViewUrl` は `spot` があれば `panoid` だけを使う）。
+
 ## ビルド前検証
 
 `npm run validate:data` は `scripts/validate-data.mjs` を実行し、次を検証します。

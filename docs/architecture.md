@@ -156,7 +156,7 @@ flowchart TD
 | `StatusCard` | 時刻を出せない状態のカード。取得時刻と再試行を持つ |
 | `StatusBand` | 時刻を出せる状態の帯。ヘッダー直下に全幅で敷く |
 | `StatusParts` | 上記 2 つが共有する状態アイコンと再試行ボタン |
-| `MapTab` | マップタブのヘッダー・ルートトグル・ルート案内行（`buildMapUrl` の徒歩ナビリンク）・地図とStreet ViewのGoogle埋め込みiframe（`buildEmbedUrl.ts`、APIキー不要の非公式方式）を直接持つ |
+| `MapTab` | マップタブのヘッダー・ルートトグル・ルート案内行（`buildMapUrl` の徒歩ナビリンク）・地図とStreet ViewのGoogle埋め込みiframe（`buildEmbedUrl.ts`、APIキー不要の非公式方式。Street Viewのパノラマ・向きはルート別定数 `STREET_VIEW_SPOTS` で固定）を直接持つ |
 | `MenuTab` | メニュータブ。リンク／アプリ／その他の3グループを行ごとに個別カードで並べる。通知する便の指定はメニューに重複させず、バスタブの「発車前に通知」行から行う |
 | `NewsScreen` / `SettingsScreen` / `HelpScreen` | 全画面型のオーバーレイ（メニュータブの各項目から開く） |
 | `UpdateBanner` / `Toast` / `MobilePwaGuide` | 更新通知、短い通知、PWA 導入案内 |

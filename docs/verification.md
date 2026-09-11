@@ -94,6 +94,24 @@ Cloudflare Pages の実デプロイ、HTTP ヘッダー、キャッシュ、Anal
 - 地図・Street Viewのオフライン非表示（クロスオリジンiframeのためService Workerキャッシュ不可）は、オフライン状態を作っての実機確認はしていない（挙動はコードの構造上明らかなため理論確認のみ）
 - APIキー不要のGoogle埋め込み方式は非公式のため、将来Googleが変更・停止すると地図・Street Viewが両方表示されなくなる可能性がある（[design-decisions.md](design-decisions.md) 参照）
 
+### 乗り場ピンと Street View パノラマの固定（2026-09-11）
+
+上記「松永発＝店舗内観」の解消として、Street View をルート別の `panoid` / `heading` / `pitch`（`src/utils/buildEmbedUrl.ts` の `STREET_VIEW_SPOTS`）で固定し、松永発のピン座標を修正したパス（経緯は [design-decisions.md](design-decisions.md)、手順は [data-model-and-operations.md](data-model-and-operations.md)）。
+
+`output=svembed` のパラメータ挙動は、値だけを変えた iframe を並べた検証ページ（プロジェクト外）を Chrome で開いて比較した:
+
+- `panoid` 単独指定で狙ったパノラマが出る。`heading` と `pitch` も効く（`pitch` は正が下向き）
+- `panoid` と `cbll` を同時に付けると意図しない別パノラマになった → 併用しない
+- 存在しない `panoid` を渡すと座標最寄りにフォールバックした
+- ズームは指定できない: `cbp` の4番目は向きのオフセットとして働き、`cbp` の3・6・7番目、`fov` / `zoom` / `cbz` / `svz` クエリは無視、新形式 URL（`/maps/@…,3a,30y,…?output=svembed`）は表示不能
+- Google マップ URL の `130t` を開くと上向きになり、埋め込みで同じ向きにするには `pitch=-40`（= 90 − 130）だった
+
+確定値は、アプリと同じ大きさ（358×326px）のカードで地図と Street View を並べた調整ページで、利用者が Google マップから座標と URL を貼って目視で選んだもの。反映後 `npm run validate:data`・`npx tsc --noEmit`・Bot の `npx vitest run`（198件）と `npx tsc --noEmit` が成功。
+
+**未確認:**
+- 反映後の `npm run dev` およびスマートフォン実機での表示は、この記録時点では未確認
+- `pitch` は調整ページのプレビュー（埋め込みそのもの）で見た向きをそのまま採用しているが、調整ページの初版は Google マップ URL からの `pitch` 読み取り符号が逆だったため、URL を貼っただけで目視確認していなければ上下が逆の可能性がある（実機確認で要チェック）
+
 ### 実機実測フィードバックの反映（2026-09-10）
 
 iPhone のホーム画面 PWA での実測スクリーンショットをもとに 6 件を修正したパス。`npx tsc --noEmit` と `npm run build` は成功。`npm run dev` の実ブラウザ（Chrome）で確認済み:
