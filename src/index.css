@@ -858,6 +858,13 @@ html.bounce-native .header-cushion {
     background: var(--bg-card);
     border-right: 1px solid var(--border2);
     transition: background .3s, border-color .3s;
+    /* .app-shell は align-items:flex-start なので、サイドバーは中身ぶんの高さしか
+       持たず、本文が長いとダークモードで --bg-card の帯が途中で切れて --bg-page が
+       露出していた。サイドバーだけ stretch にして .app-shell（= 本文と同じ高さ、
+       下限は --app-height）いっぱいに伸ばし、どこまでスクロールしても左端が
+       サイドバー色で埋まるようにする。position:sticky は祖先の
+       .phone-shell-inner（overflow:hidden）を基準にしてしまい効かないので使わない。 */
+    align-self: stretch;
   }
 }
 .pc-sidebar-title {
