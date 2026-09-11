@@ -555,18 +555,22 @@ html.bounce-stretch body {
    ============================================================ */
 /* 改修たたき台 1a のヘッダーブロックは `padding:22px 20px 0;background:#fff` だけで、
    本文との間に区切り線を持たない（地とヘッダーが同じ白で連続する）。ヘッダーは
-   sticky ではなく本文と一緒にスクロールするので、境界線が無くても重なりは起きない。 */
+   sticky ではなく本文と一緒にスクロールするので、境界線が無くても重なりは起きない。
+   塗りは地と同じ --bg-page にする（--bg-card だとライトでは同じ白でも、ダークでは
+   --bg-page と別値のためヘッダーだけグレーの帯になっていた）。.header-cushion も
+   これと同色にすること。 */
 .header-plain {
-  background: var(--bg-card);
+  background: var(--bg-page);
   transition: background .3s;
 }
 
 /* ホーム上端バウンス時に露出するクッション（iOS ネイティブバウンス専用）。
    iOS はドキュメント上端より上の描画内容をラバーバンド露出域に表示しない
    （出せるのは viewport 固定レイヤーとベース背景のみ）ため、viewport 固定・
-   コンテンツ背面（z-index:-1）のレイヤーとし、ヘッダーと同じ単色（--bg-card）を敷く。
-   静止時はオペークな shell に完全に覆われて不可視。下端バウンスの露出域
-   （body 背景 --bg-page）に掛からないよう高さは viewport 上部 70% に留める。
+   コンテンツ背面（z-index:-1）のレイヤーとし、ヘッダー（.header-plain）と同じ
+   単色（--bg-page）を敷く。静止時はオペークな shell に完全に覆われて不可視。
+   下端バウンスの露出域（body 背景 --bg-page）と同色になったので高さの制約は
+   実質なくなったが、役割の分かりやすさのため viewport 上部 70% のままにしている。
    Android はストレッチ表現（隙間が開かない）のためクッション自体を使わない。 */
 .header-cushion {
   display: none;
@@ -580,7 +584,7 @@ html.bounce-native .header-cushion {
   right: 0;
   height: 70vh;
   z-index: -1;
-  background: var(--bg-card);
+  background: var(--bg-page);
   transition: background .3s;
 }
 
