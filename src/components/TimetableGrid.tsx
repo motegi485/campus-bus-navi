@@ -109,14 +109,16 @@ export function TimetableGrid({
                 {bus.note}
               </span>
             )}
-            {/* 通知を設定済みの印。選択モード中は選択状態のほうが情報として新しいので出さない */}
+            {/* 通知を設定済みの印。選択モード中は選択状態のほうが情報として新しいので出さない。
+                以前は 10px をマスの角の外側（top:-3 / right:-2）に掛けていたが、小さすぎて
+                見落とされたため、マスの内側の右上に 14px で置く（備考ラベルは左上なので重ならない） */}
             {isMarked && !selectMode && (
               <span
                 aria-hidden="true"
-                className="absolute"
-                style={{ top: -3, right: -2, color: 'var(--route-accent-fg)' }}
+                className="absolute flex"
+                style={{ top: 4, right: 6, color: 'var(--route-accent-fg)' }}
               >
-                <BellIcon width={10} height={10} />
+                <BellIcon width={14} height={14} />
               </span>
             )}
           </>

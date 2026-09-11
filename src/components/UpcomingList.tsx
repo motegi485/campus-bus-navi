@@ -64,7 +64,7 @@ export function UpcomingList({ buses, nowMinutes, marked }: Props) {
                 </p>
                 {marked?.has(bus.departure) && (
                   <span role="img" aria-label="発車前の通知を設定済み" style={{ color: 'var(--route-accent-fg)', display: 'flex' }}>
-                    <BellIcon width={12} height={12} />
+                    <BellIcon width={16} height={16} />
                   </span>
                 )}
               </span>
