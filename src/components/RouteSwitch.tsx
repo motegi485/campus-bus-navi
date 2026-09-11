@@ -8,9 +8,9 @@ interface Props {
   onChange: (route: RouteKey) => void
 }
 
-const OPTIONS: { key: RouteKey; label: string; color: string }[] = [
-  { key: 'campus_to_station', label: '大学発', color: 'var(--toggle-on-campus)' },
-  { key: 'station_to_campus', label: '松永発', color: 'var(--toggle-on-station)' },
+const OPTIONS: { key: RouteKey; label: string }[] = [
+  { key: 'campus_to_station', label: '大学発' },
+  { key: 'station_to_campus', label: '松永発' },
 ]
 
 /**
@@ -19,15 +19,21 @@ const OPTIONS: { key: RouteKey; label: string; color: string }[] = [
  * ヘッダーの RouteToggle は使えない。あちらの .frost-surface は「半透明の白ガラスで
  * ヘッダーのグラデが透ける」ことが前提の面で、ページ面の上では地の色が抜けてしまう。
  *
- * 「押せる部品」に見えることを最優先にしてある。面と影は index.css の
- * .route-switch-track / .route-switch-knob が単一の真実源で、ここには書かない。
+ * 「押せる部品」に見えることを最優先にしてある。ノブはルート色の縦グラデ
+ * （--route-badge-grad、ヘッダーと同じ立体感）で塗り、選択中ラベルを白文字にする。
+ * 以前の「白ノブ＋色文字」は白いページ面と明度差が小さく、ぱっと見でスイッチと
+ * 分からなかった（2026-09-12 に変更）。塗られた側が選択中、という文法はヘッダーの
+ * RouteToggle と同じ。
+ * 面と影は index.css の .route-switch-track / .route-switch-knob が単一の真実源で、
+ * ここには書かない。
  * 左の入替アイコンは何のスイッチかを示す静的な手掛かり（装飾なので aria-hidden）。
  *
  * 幾何は RouteToggle と同じ契約: トラックの padding・gap なしの 2 分割・
  * ノブ幅 calc(50% - 3px) が対になっている。gap を足すとノブ位置が崩れる。
  *
- * 文字色は AA を満たす組み合わせだけを使う。未選択に --text-secondary を使うと
- * ライトで 4.20:1 となり AA を割るため、この問題のために用意された --chip-text を使う。
+ * 文字色は AA を満たす組み合わせだけを使う。選択中の白文字はグラデの最も明るい上端でも
+ * 大学発 4.54:1 / 松永発 5.72:1（index.css の実測）。未選択に --text-secondary を
+ * 使うとライトで 4.20:1 となり AA を割るため、この問題のために用意された --chip-text を使う。
  */
 export function RouteSwitch({ route, onChange }: Props) {
   const index = route === 'campus_to_station' ? 0 : 1
@@ -86,7 +92,8 @@ export function RouteSwitch({ route, onChange }: Props) {
                 lineHeight: 1.2,
                 whiteSpace: 'nowrap',
                 cursor: 'pointer',
-                color: active ? opt.color : 'var(--chip-text)',
+                color: active ? '#ffffff' : 'var(--chip-text)',
+                textShadow: active ? '0 1px 1px rgba(0,0,0,.16)' : 'none',
                 transition: 'color .2s',
               }}
             >
