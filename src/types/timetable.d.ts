@@ -33,6 +33,11 @@ export interface NextBusInfo {
   entry: ScheduleEntry
   minutesUntil: number
   index: number
+  /**
+   * 前便の発車から次発の発車までの間隔（分）。次のバスカードの円形ゲージが
+   * 「満タン」とみなす基準に使う。始発（前便なし）や前便の時刻が不正なときは null。
+   */
+  headwayMinutes: number | null
 }
 
 export type DiagramType =

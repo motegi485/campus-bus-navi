@@ -990,3 +990,29 @@ html.bounce-native .header-cushion {
 @media (prefers-reduced-motion: reduce) {
   .refresh-spin { animation: none; }
 }
+
+/* ============================================================
+   次のバスカードの円形ゲージ（NextBusCard）
+   塗りの角度 --gauge-deg は NextBusCard.tsx がインライン style で毎分渡す。
+   conic-gradient の角度はそのままでは transition できないので、@property で
+   <angle> として登録し、角度の変化だけを滑らかに動かす。
+   @property 非対応のブラウザでは --gauge-deg が普通の変数として働き、
+   transition だけが効かない（毎分カクッと変わる、従来どおりの見た目）。
+   便の切替や復帰で大きく飛ぶときは NextBusCard.tsx が .next-gauge-jump を付けて
+   その描画だけ transition を切る。
+   ============================================================ */
+@property --gauge-deg {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.next-gauge {
+  background: conic-gradient(var(--route-solid) 0deg var(--gauge-deg), var(--gauge-track) var(--gauge-deg) 360deg);
+  transition: --gauge-deg .55s ease;
+}
+.next-gauge-jump {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .next-gauge { transition: none; }
+}
