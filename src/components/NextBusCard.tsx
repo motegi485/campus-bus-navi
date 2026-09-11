@@ -1,11 +1,11 @@
 import { useEffect, useRef, type CSSProperties } from 'react'
-import type { NextBusInfo, FontSize } from '../types/timetable'
+import type { NextBusInfo } from '../types/timetable'
 import { BellIcon } from './BellIcon'
 import { formatWaitLabel, formatGaugeCenter } from '../utils/findNextBus'
+import { fs } from '../utils/fontScale'
 
 interface Props {
   next: NextBusInfo
-  fontSize: FontSize
   /** 本日の残り運行本数（次発を含む） */
   remaining: number
   /**
@@ -18,12 +18,6 @@ interface Props {
   reminded?: boolean
 }
 
-const FONT_SIZE_MAP: Record<FontSize, string> = {
-  small:  'text-5xl',
-  medium: 'text-[52px]',
-  large:  'text-6xl',
-}
-
 /**
  * 円形ゲージが減り始める上限（分）。
  * ゲージは「前便の発車〜次発の発車」の実間隔（headwayMinutes）を満タンとして
@@ -34,9 +28,7 @@ const FONT_SIZE_MAP: Record<FontSize, string> = {
  */
 const GAUGE_CAP_MINUTES = 60
 
-export function NextBusCard({ fontSize, remaining, next, reminded = false }: Props) {
-  const fs = FONT_SIZE_MAP[fontSize]
-
+export function NextBusCard({ remaining, next, reminded = false }: Props) {
   // remaining === 1 のとき、次発が本日の最終便
   const isLastBus = remaining === 1
 
@@ -69,7 +61,7 @@ export function NextBusCard({ fontSize, remaining, next, reminded = false }: Pro
       {/* 見出し行: 左「次のバス」（＋通知の印）／右に本日の残数バッジ */}
       <div className="flex items-center justify-between">
         <div className="flex items-center min-w-0">
-          <p style={{ margin: 0, fontSize: 15, fontWeight: 800, letterSpacing: '.06em', color: 'var(--slot-current-fg)' }}>
+          <p style={{ margin: 0, fontSize: fs(15), fontWeight: 800, letterSpacing: '.06em', color: 'var(--slot-current-fg)' }}>
             次のバス
           </p>
           {reminded && (
@@ -80,7 +72,7 @@ export function NextBusCard({ fontSize, remaining, next, reminded = false }: Pro
               style={{
                 marginLeft: 8, padding: '3px 8px', borderRadius: 9999,
                 background: 'var(--bg-card)', color: 'var(--slot-current-fg)',
-                fontSize: 11, fontWeight: 800,
+                fontSize: fs(11), fontWeight: 800,
               }}
             >
               <BellIcon width={10} height={10} /> 通知
@@ -91,7 +83,7 @@ export function NextBusCard({ fontSize, remaining, next, reminded = false }: Pro
           className="inline-flex items-center whitespace-nowrap"
           style={{
             gap: 6, background: 'var(--bg-card)', borderRadius: 9999, padding: '6px 12px',
-            fontSize: 12, fontWeight: 800, color: 'var(--slot-current-fg)',
+            fontSize: fs(12), fontWeight: 800, color: 'var(--slot-current-fg)',
           }}
         >
           <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--route-solid)', display: 'inline-block' }} />
@@ -102,12 +94,12 @@ export function NextBusCard({ fontSize, remaining, next, reminded = false }: Pro
       <div className="flex items-center justify-between gap-[14px] mt-3">
         <div className="min-w-0">
           <p
-            className={`${fs} font-black leading-none`}
-            style={{ margin: 0, color: 'var(--next-time-fg)', letterSpacing: '-2.6px' }}
+            className="font-black leading-none"
+            style={{ margin: 0, fontSize: fs(52), color: 'var(--next-time-fg)', letterSpacing: '-2.6px' }}
           >
             {next.entry.departure}
           </p>
-          <p style={{ margin: '9px 0 0', fontSize: 20, fontWeight: 800, color: 'var(--route-toggle-inactive-fg)', letterSpacing: '-.3px' }}>
+          <p style={{ margin: '9px 0 0', fontSize: fs(20), fontWeight: 800, color: 'var(--route-toggle-inactive-fg)', letterSpacing: '-.3px' }}>
             {waitLabel}
           </p>
         </div>
@@ -120,14 +112,14 @@ export function NextBusCard({ fontSize, remaining, next, reminded = false }: Pro
           className={animate ? 'next-gauge' : 'next-gauge next-gauge-jump'}
           style={{
             flexShrink: 0,
-            width: 104, height: 104, borderRadius: '50%',
+            width: fs(104), height: fs(104), borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             '--gauge-deg': `${gaugeDeg}deg`,
           } as CSSProperties}
         >
           <div
             style={{
-              width: 80, height: 80, borderRadius: '50%', background: 'var(--bg-card)',
+              width: fs(80), height: fs(80), borderRadius: '50%', background: 'var(--bg-card)',
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             }}
           >
@@ -135,16 +127,16 @@ export function NextBusCard({ fontSize, remaining, next, reminded = false }: Pro
                 下の「あと1時間30分」と語を揃える（formatGaugeCenter）。
                 端数ありの時間表示だけ数字を一回り小さくして単位「時間」を添える。 */}
             {center.primaryUnit ? (
-              <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--next-time-fg)', lineHeight: 1, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: fs(28), fontWeight: 900, color: 'var(--next-time-fg)', lineHeight: 1, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>
                 {center.primary}
-                <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0, marginLeft: 1 }}>{center.primaryUnit}</span>
+                <span style={{ fontSize: fs(13), fontWeight: 800, letterSpacing: 0, marginLeft: 1 }}>{center.primaryUnit}</span>
               </span>
             ) : (
-              <span style={{ fontSize: 34, fontWeight: 900, color: 'var(--next-time-fg)', lineHeight: 1, letterSpacing: '-1.5px' }}>
+              <span style={{ fontSize: fs(34), fontWeight: 900, color: 'var(--next-time-fg)', lineHeight: 1, letterSpacing: '-1.5px' }}>
                 {center.primary}
               </span>
             )}
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--next-gauge-sub-fg)', marginTop: 2, whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: fs(11.5), fontWeight: 700, color: 'var(--next-gauge-sub-fg)', marginTop: 2, whiteSpace: 'nowrap' }}>
               {center.unit}
             </span>
           </div>

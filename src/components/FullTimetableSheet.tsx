@@ -13,6 +13,7 @@ import { useOverlayA11y } from '../hooks/useOverlayA11y'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 import { useSheetDragToClose } from '../hooks/useSheetDragToClose'
 import { useIsDesktop } from '../hooks/useIsDesktop'
+import { fs } from '../utils/fontScale'
 
 const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -151,7 +152,7 @@ export function FullTimetableSheet({
         <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
           {/* ヘッダー: タイトル + 閉じるボタン。グラバーが無い分、PCでは上の余白を足す */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: desktop ? '18px 20px 0' : '2px 20px 0' }}>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-.4px' }}>本日の全時刻表</h2>
+            <h2 style={{ fontSize: fs(20), fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-.4px' }}>本日の全時刻表</h2>
             <button
               type="button"
               onClick={onClose}
@@ -176,7 +177,7 @@ export function FullTimetableSheet({
               style={{ background: 'var(--past-bg)', borderRadius: 14, padding: '10px 13px', marginTop: 14 }}
             >
               <CalendarBlank size={18} weight="regular" color="var(--text-muted)" aria-hidden="true" />
-              <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)' }}>
+              <span style={{ fontSize: fs(14.5), fontWeight: 700, color: 'var(--text-primary)' }}>
                 {now.month() + 1}/{now.date()}（{DAYS_JA[now.day()]}）
               </span>
               <DayBadge type={diagramType} />
@@ -187,7 +188,7 @@ export function FullTimetableSheet({
               <div className="flex items-center" style={{ gap: 8, marginTop: 12 }}>
                 <span
                   className="inline-flex items-center whitespace-nowrap"
-                  style={{ gap: 6, borderRadius: 9999, padding: '7px 12px', fontSize: 12.5, fontWeight: 800, background: 'var(--slot-current-bg)', color: 'var(--slot-current-fg)' }}
+                  style={{ gap: 6, borderRadius: 9999, padding: '7px 12px', fontSize: fs(12.5), fontWeight: 800, background: 'var(--slot-current-bg)', color: 'var(--slot-current-fg)' }}
                 >
                   <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--route-solid)', display: 'inline-block' }} />
                   {isLastBus ? '最終便' : `残り${remaining}本`}
@@ -195,7 +196,7 @@ export function FullTimetableSheet({
                 {lastEntry && (
                   <span
                     className="whitespace-nowrap"
-                    style={{ borderRadius: 9999, padding: '7px 12px', fontSize: 12.5, fontWeight: 800, background: 'var(--past-bg)', color: 'var(--text-secondary)' }}
+                    style={{ borderRadius: 9999, padding: '7px 12px', fontSize: fs(12.5), fontWeight: 800, background: 'var(--past-bg)', color: 'var(--text-secondary)' }}
                   >
                     最終 {lastEntry.departure}
                   </span>
@@ -205,7 +206,7 @@ export function FullTimetableSheet({
           </div>
 
           {schedule.length === 0 ? (
-            <p className="text-[13px] text-center py-10" style={{ color: 'var(--text-muted)', padding: '0 20px' }}>
+            <p className="text-[calc(13px*var(--font-scale))] text-center py-10" style={{ color: 'var(--text-muted)', padding: '0 20px' }}>
               本日の運行はありません
             </p>
           ) : (
@@ -213,20 +214,20 @@ export function FullTimetableSheet({
               {selectMode && (
                 <div className="mb-3" style={{ padding: '0 20px' }}>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold" style={{ color: 'var(--text-primary)' }}>
+                    <span className="inline-flex items-center gap-1.5 text-[calc(12.5px*var(--font-scale))] font-bold" style={{ color: 'var(--text-primary)' }}>
                       <BellIcon width={13} height={13} /> 通知する便を選ぶ
                     </span>
                     <button
                       type="button"
                       onClick={() => { tapFeedback(8); setSelectMode(false) }}
-                      className="text-[12px] font-bold"
+                      className="text-[calc(12px*var(--font-scale))] font-bold"
                       style={{ color: 'var(--route-accent-fg)', background: 'none', border: 'none', cursor: 'pointer' }}
                     >
                       キャンセル
                     </button>
                   </div>
 
-                  <p className="text-[11px] mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  <p className="text-[calc(11px*var(--font-scale))] mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                     何分前に通知しますか
                   </p>
                   <div className="flex gap-[2px] rounded-[20px] p-[3px] mb-3" style={{ background: 'var(--bg-input)' }}>
@@ -238,7 +239,7 @@ export function FullTimetableSheet({
                           type="button"
                           onClick={() => { tapFeedback(6); onChangeLead(option) }}
                           aria-pressed={active}
-                          className="flex-1 rounded-[18px] py-[5px] text-[11.5px] font-bold tabular-nums"
+                          className="flex-1 rounded-[18px] py-[5px] text-[calc(11.5px*var(--font-scale))] font-bold tabular-nums"
                           style={{
                             background: active ? 'var(--bg-card)' : 'transparent',
                             color: active ? 'var(--route-accent-fg)' : 'var(--chip-text)',
@@ -253,7 +254,7 @@ export function FullTimetableSheet({
                     })}
                   </div>
 
-                  <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                  <p className="text-[calc(11px*var(--font-scale))]" style={{ color: 'var(--text-secondary)' }}>
                     通知したい便をタップしてください（複数選べます）。過ぎた便は選べません。
                   </p>
                 </div>
@@ -279,7 +280,7 @@ export function FullTimetableSheet({
                       type="button"
                       onClick={commit}
                       disabled={saving}
-                      className="w-full rounded-[12px] py-[11px] text-[13px] font-extrabold flex items-center justify-center gap-2"
+                      className="w-full rounded-[12px] py-[11px] text-[calc(13px*var(--font-scale))] font-extrabold flex items-center justify-center gap-2"
                       style={{
                         background: 'var(--slot-current-fg)',
                         color: '#fff', border: 'none', cursor: saving ? 'default' : 'pointer',
@@ -294,20 +295,20 @@ export function FullTimetableSheet({
                         : `${selected.size} 件の通知を設定`}
                     </button>
                     {reminderError && (
-                      <p role="alert" className="text-[11.5px] mt-2 leading-relaxed" style={{ color: 'var(--status-danger-fg)' }}>
+                      <p role="alert" className="text-[calc(11.5px*var(--font-scale))] mt-2 leading-relaxed" style={{ color: 'var(--status-danger-fg)' }}>
                         {reminderError}
                       </p>
                     )}
                   </>
                 ) : reminderReady && reminderLoadState === 'error' ? (
                   <div>
-                    <p className="text-[11.5px] text-center leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                    <p className="text-[calc(11.5px*var(--font-scale))] text-center leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                       設定済みの通知を読み込めませんでした。通信を確認して読み込み直してください。
                     </p>
                     <button
                       type="button"
                       onClick={() => { tapFeedback(8); onReloadReminders() }}
-                      className="w-full mt-2 rounded-[12px] py-[10px] text-[12px] font-bold"
+                      className="w-full mt-2 rounded-[12px] py-[10px] text-[calc(12px*var(--font-scale))] font-bold"
                       style={{ background: 'transparent', color: 'var(--text-secondary)', border: '1px dashed var(--chip-border)', cursor: 'pointer' }}
                     >
                       ↻ 読み込み直す
@@ -318,7 +319,7 @@ export function FullTimetableSheet({
                     type="button"
                     onClick={enterSelectMode}
                     disabled={reminderLoadState !== 'ok'}
-                    className="w-full rounded-[12px] py-[10px] text-[12px] font-bold flex items-center justify-center gap-1.5"
+                    className="w-full rounded-[12px] py-[10px] text-[calc(12px*var(--font-scale))] font-bold flex items-center justify-center gap-1.5"
                     style={{
                       background: 'transparent',
                       color: 'var(--text-secondary)',
@@ -337,7 +338,7 @@ export function FullTimetableSheet({
                     )}
                   </button>
                 ) : (
-                  <p className="text-[11px] text-center leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                  <p className="text-[calc(11px*var(--font-scale))] text-center leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                     発車前の通知を使うには、メニューの「表示・通知オプション」で通知をオンにしてください。
                   </p>
                 )}

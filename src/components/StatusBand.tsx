@@ -45,7 +45,7 @@ export function StatusBand({ status, fetchedAt, now, refreshing, onRetry }: Prop
     >
       <StatusIcon status={status} size={16} />
 
-      <p className="flex-1 min-w-[130px] text-[12px] leading-normal">
+      <p className="flex-1 min-w-[130px] text-[calc(12px*var(--font-scale))] leading-normal">
         <span className="font-bold" style={{ color: 'var(--text-primary)' }}>
           {HEADLINE[status]}
         </span>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RouteKey } from '../types/timetable'
 import { tapFeedback } from '../utils/haptics'
+import { fs } from '../utils/fontScale'
 import { BusGlyph } from './BusGlyph'
 
 interface Props {
@@ -147,7 +148,7 @@ export function RouteToggle({ route, onChange }: Props) {
               justifyContent: 'center',
               gap: 8,
               borderRadius: 9999,
-              fontSize: 15,
+              fontSize: fs(15),
               fontWeight: 700,
               whiteSpace: 'nowrap',
               cursor: 'pointer',

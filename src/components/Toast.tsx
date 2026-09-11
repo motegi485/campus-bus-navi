@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
+import { fs } from '../utils/fontScale'
 
 interface ToastState {
   message: string
@@ -41,7 +42,7 @@ export function Toast({ message, visible }: ToastProps) {
         transform: `translateX(-50%) translateY(${visible ? '0' : '-8px'})`,
         background: 'rgba(15,23,42,0.88)',
         color: 'white',
-        fontSize: '12px',
+        fontSize: fs(12),
         fontWeight: 600,
         padding: '8px 16px',
         borderRadius: '20px',

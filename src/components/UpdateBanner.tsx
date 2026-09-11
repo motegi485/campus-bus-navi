@@ -1,5 +1,6 @@
 import { usePressable } from '../hooks/usePressable'
 import { tapFeedback } from '../utils/haptics'
+import { fs } from '../utils/fontScale'
 
 interface UpdateBannerProps {
   onUpdate: () => void
@@ -34,7 +35,7 @@ export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
-        fontSize: '13px',
+        fontSize: fs(13),
         fontWeight: 600,
         backdropFilter: 'blur(8px)',
         // レイヤー: 全時刻表シート(z-45/46) < NewsScreen等(50) < MobilePwaGuide(100) < UpdateBanner(110)
@@ -49,7 +50,7 @@ export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
         style={{
           color: 'rgba(255,255,255,0.7)',
           fontWeight: 600,
-          fontSize: '13px',
+          fontSize: fs(13),
           background: 'none',
           border: 'none',
           cursor: 'pointer',
@@ -68,7 +69,7 @@ export function UpdateBanner({ onUpdate, onDismiss }: UpdateBannerProps) {
           // テーマで反転する --ui-accent-fg ではなく固定側のトークンを使う
           color: 'var(--ui-accent-on-dark)',
           fontWeight: 800,
-          fontSize: '13px',
+          fontSize: fs(13),
           background: 'none',
           border: 'none',
           cursor: 'pointer',

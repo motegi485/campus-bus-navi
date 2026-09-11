@@ -21,29 +21,29 @@ export function EndOfServiceCard({ tomorrowFirstBus, tomorrowTimetableName, mess
         ['--hero-tint' as string]: '55, 65, 81',
       }}
     >
-      <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
+      <p className="text-[calc(13px*var(--font-scale))] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
         {eyebrow}
       </p>
-      <p className="text-[60px] font-black text-white tracking-tight leading-none mb-[7px]">
+      <p className="text-[calc(60px*var(--font-scale))] font-black text-white tracking-tight leading-none mb-[7px]">
         --:--
       </p>
-      <p className="text-[17px] text-white/90 font-semibold mb-4">
+      <p className="text-[calc(17px*var(--font-scale))] text-white/90 font-semibold mb-4">
         {message}
       </p>
 
       {tomorrowFirstBus && (
         <div className="bg-white/15 rounded-[16px] p-4">
-          <p className="text-[10px] font-bold tracking-widest uppercase text-white/60 mb-1">
+          <p className="text-[calc(10px*var(--font-scale))] font-bold tracking-widest uppercase text-white/60 mb-1">
             明日の始発
           </p>
           {tomorrowTimetableName && (
-            <p className="text-[11px] text-white/50 mb-1">{tomorrowTimetableName}</p>
+            <p className="text-[calc(11px*var(--font-scale))] text-white/50 mb-1">{tomorrowTimetableName}</p>
           )}
-          <p className="text-[38px] font-black text-white tracking-tight leading-none">
+          <p className="text-[calc(38px*var(--font-scale))] font-black text-white tracking-tight leading-none">
             {tomorrowFirstBus.departure}
           </p>
           {tomorrowFirstBus.note && (
-            <p className="text-[13px] text-white/70 mt-1">{tomorrowFirstBus.note}</p>
+            <p className="text-[calc(13px*var(--font-scale))] text-white/70 mt-1">{tomorrowFirstBus.note}</p>
           )}
         </div>
       )}

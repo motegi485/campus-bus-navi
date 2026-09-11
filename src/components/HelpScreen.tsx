@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useOverlayA11y } from '../hooks/useOverlayA11y'
 import { usePressable } from '../hooks/usePressable'
 import { FEEDBACK_URL } from '../constants/links'
+import { fs } from '../utils/fontScale'
 
 interface Props {
   open: boolean
@@ -69,11 +70,11 @@ function FaqRow({ faq, isOpen, isLast, onToggle }: FaqRowProps) {
           transition: pressed ? 'none' : 'background 0.3s',
         }}
       >
-        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>{faq.q}</span>
-        <span aria-hidden="true" style={{ fontSize: 10, color: 'var(--text-muted)', transition: 'transform 0.22s', transform: isOpen ? 'rotate(180deg)' : '' }}>▼</span>
+        <span style={{ fontSize: fs(14), fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>{faq.q}</span>
+        <span aria-hidden="true" style={{ fontSize: fs(10), color: 'var(--text-muted)', transition: 'transform 0.22s', transform: isOpen ? 'rotate(180deg)' : '' }}>▼</span>
       </button>
       {isOpen && (
-        <div style={{ padding: '0 16px 14px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+        <div style={{ padding: '0 16px 14px', fontSize: fs(13), color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
           {faq.a}
         </div>
       )}
@@ -110,11 +111,11 @@ export function HelpScreen({ open, onClose }: Props) {
       {/* ナビバー */}
       <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
         <div className="pc-bounded" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
+          <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: fs(15), fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
             <CaretLeft size={18} weight="bold" color="var(--ui-accent-fg)" aria-hidden="true" />
             戻る
           </button>
-          <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>ヘルプ</span>
+          <span style={{ fontSize: fs(17), fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>ヘルプ</span>
         </div>
       </div>
 
@@ -124,13 +125,13 @@ export function HelpScreen({ open, onClose }: Props) {
 
         {/* バナー */}
         <div style={{ background: 'var(--ui-accent-grad)', borderRadius: 20, padding: '25px 20px', color: '#fff', textAlign: 'center' }}>
-          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>スクールバス時刻表</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,.8)' }}>ver {__APP_VERSION__}</div>
+          <div style={{ fontSize: fs(20), fontWeight: 800, marginBottom: 4 }}>スクールバス時刻表</div>
+          <div style={{ fontSize: fs(12), color: 'rgba(255,255,255,.8)' }}>ver {__APP_VERSION__}</div>
         </div>
 
         {/* FAQ */}
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>よくある質問</div>
+          <div style={{ fontSize: fs(11), fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>よくある質問</div>
           {/* 白地に白いカードなので、輪郭は inset の影のヘアラインで作る（行高は不変） */}
           <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px var(--row-card-border)', transition: 'background 0.35s' }}>
             {FAQ.map((faq, i) => (
@@ -147,20 +148,20 @@ export function HelpScreen({ open, onClose }: Props) {
 
         {/* フィードバック — Googleフォーム接続口 */}
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>お問い合わせ</div>
+          <div style={{ fontSize: fs(11), fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>お問い合わせ</div>
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: 20, boxShadow: 'inset 0 0 0 1px var(--row-card-border)', transition: 'background 0.35s' }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>ご意見・不具合のご報告</p>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 16 }}>
+            <p style={{ fontSize: fs(14), fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>ご意見・不具合のご報告</p>
+            <p style={{ fontSize: fs(12), color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 16 }}>
               アプリをより良くするためのご意見や、気になった不具合などをお気軽にお寄せください。いただいた内容は今後の改善に活用させていただきます。
             </p>
             <button
               onClick={handleFeedback}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: 14, background: 'var(--ui-accent-grad)', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 14, border: 'none', cursor: 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: 14, background: 'var(--ui-accent-grad)', color: '#fff', fontSize: fs(14), fontWeight: 700, borderRadius: 14, border: 'none', cursor: 'pointer' }}
             >
               <Chat size={15} weight="bold" color="white" aria-hidden="true" />
               フィードバックを送る
             </button>
-            <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+            <p style={{ textAlign: 'center', fontSize: fs(11), color: 'var(--text-muted)', marginTop: 8 }}>
               Googleフォームで回答を受け付けます
             </p>
           </div>

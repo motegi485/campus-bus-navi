@@ -1,5 +1,6 @@
 import { MapPin, ListBullets } from '@phosphor-icons/react'
 import { tapFeedback } from '../utils/haptics'
+import { fs } from '../utils/fontScale'
 import { BusGlyph } from './BusGlyph'
 
 export type AppTab = 'bus' | 'map' | 'menu'
@@ -72,7 +73,7 @@ export function BottomTabBar({ active, onChange, hasUnread }: Props) {
                 </span>
               )}
             </span>
-            <span style={{ fontSize: 11, fontWeight: isActive ? 800 : 700 }}>{label}</span>
+            <span style={{ fontSize: fs(11), fontWeight: isActive ? 800 : 700 }}>{label}</span>
           </button>
         )
       })}

@@ -4,6 +4,7 @@ import { setInert, useOverlayA11y } from '../hooks/useOverlayA11y'
 import { usePressable } from '../hooks/usePressable'
 import { RetryButton, StatusIcon } from './StatusParts'
 import type { NewsItem } from '../types/timetable'
+import { fs } from '../utils/fontScale'
 
 // news.json は Git 管理の信頼できる静的ソース前提。CMS 等の動的ソースに切り替える場合は body のサニタイズ（DOMPurify 等）を必須にすること。
 
@@ -33,7 +34,7 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
   return (
     <button
       onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: fs(15), fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}
     >
       <CaretLeft size={18} weight="bold" color="var(--ui-accent-fg)" aria-hidden="true" />
       {label}
@@ -44,7 +45,7 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
 function NewsTag({ tag, tagLabel }: { tag: string; tagLabel: string }) {
   const style = TAG_STYLES[tag] ?? TAG_STYLES.info
   return (
-    <span style={{ ...style, fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center' }}>
+    <span style={{ ...style, fontSize: fs(10), fontWeight: 700, padding: '3px 8px', borderRadius: 20, display: 'inline-flex', alignItems: 'center' }}>
       {tagLabel}
     </span>
   )
@@ -84,15 +85,15 @@ function NewsListItem({ item, isUnread, onOpen }: NewsListItemProps) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <NewsTag tag={item.tag} tagLabel={item.tagLabel} />
           {isUnread && (
-            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: 'var(--news-unread-accent)', color: 'var(--news-unread-on-accent)' }}>
+            <span style={{ fontSize: fs(10), fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: 'var(--news-unread-accent)', color: 'var(--news-unread-on-accent)' }}>
               未読
             </span>
           )}
         </div>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.date}</span>
+        <span style={{ fontSize: fs(11), color: 'var(--text-muted)' }}>{item.date}</span>
       </div>
-      <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>{item.title}</p>
-      <p style={{ fontSize: 12, color: 'var(--chip-text)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+      <p style={{ fontSize: fs(15), fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>{item.title}</p>
+      <p style={{ fontSize: fs(12), color: 'var(--chip-text)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
         {item.preview}
       </p>
     </button>
@@ -120,14 +121,14 @@ function NewsDetail({ item, onBack }: { item: NewsItem; onBack: () => void }) {
         <div className="pc-bounded" style={{ minHeight: 'calc(100% + 1px)', padding: '24px 20px 40px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <NewsTag tag={item.tag} tagLabel={item.tagLabel} />
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item.date}</span>
+          <span style={{ fontSize: fs(12), color: 'var(--text-muted)' }}>{item.date}</span>
         </div>
-        <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 16, letterSpacing: '-.3px' }}>
+        <p style={{ fontSize: fs(20), fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 16, letterSpacing: '-.3px' }}>
           {item.title}
         </p>
         <div style={{ height: .5, background: 'var(--border2)', marginBottom: 16 }} />
         <div
-          style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.8 }}
+          style={{ fontSize: fs(14), color: 'var(--text-secondary)', lineHeight: 1.8 }}
           dangerouslySetInnerHTML={{ __html: item.body }}
         />
         </div>{/* / 内側ラッパー */}
@@ -195,7 +196,7 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
       <div ref={navRef} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
         <div className="pc-bounded" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <BackButton label="戻る" onClick={onClose} />
-          <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>お知らせ</span>
+          <span style={{ fontSize: fs(17), fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>お知らせ</span>
         </div>
       </div>
 
@@ -204,7 +205,7 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
           内容が短くても常にスクロール可能にする（iOS の連鎖遮断の成立条件）。 */}
       <div ref={listRef} style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
         <div className="pc-bounded" style={{ minHeight: 'calc(100% + 1px)', padding: '16px 14px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {loading && <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '32px 0' }}>読み込み中...</p>}
+        {loading && <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: fs(13), padding: '32px 0' }}>読み込み中...</p>}
         {error && !loading && (
           <div
             className="section-card rounded-[20px] text-center"
@@ -212,10 +213,10 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
           >
             <div className="flex flex-col items-center gap-2">
               <div className="mb-0.5"><StatusIcon status="no-data" /></div>
-              <p className="text-[14px] font-bold leading-normal" style={{ color: 'var(--text-primary)' }}>
+              <p className="text-[calc(14px*var(--font-scale))] font-bold leading-normal" style={{ color: 'var(--text-primary)' }}>
                 お知らせを取得できませんでした
               </p>
-              <p className="text-[12px] leading-relaxed" style={{ color: 'var(--chip-text)' }}>
+              <p className="text-[calc(12px*var(--font-scale))] leading-relaxed" style={{ color: 'var(--chip-text)' }}>
                 {error}
               </p>
               <RetryButton size="lg" refreshing={reloading} onRetry={handleRetry} />

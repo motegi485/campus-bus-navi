@@ -1,7 +1,8 @@
-import type { ScheduleEntry, FontSize } from '../types/timetable'
+import type { ScheduleEntry } from '../types/timetable'
 import { parseHHmmToMinutes } from '../utils/parseTime'
 import { formatWaitLabel, formatDiffLabel } from '../utils/findNextBus'
 import { BellIcon } from './BellIcon'
+import { fs } from '../utils/fontScale'
 
 interface Props {
   /**
@@ -10,7 +11,6 @@ interface Props {
    */
   buses: ScheduleEntry[]
   nowMinutes: number
-  fontSize: FontSize
   /**
    * 発車前の通知を設定済みの便（"HH:mm"）。ベル印を付ける。
    * 改修たたき台の静的モックには無いが、実用機能として残す（ターン2チャットでの確定指示）。
@@ -18,21 +18,13 @@ interface Props {
   marked?: ReadonlySet<string>
 }
 
-const FONT_SIZE_MAP: Record<FontSize, number> = {
-  small:  19,
-  medium: 22,
-  large:  26,
-}
-
 /**
  * 「今後の発車時刻」タイムライン（改修たたき台 1a）。
  * 先頭行は次発（NextBusCard と同じ便）を大きいルート色のドットで強調し、
  * 以降の便は小さいグレーのドットでつなぐ。見出しは呼び出し側（App.tsx）が持つ。
  */
-export function UpcomingList({ buses, nowMinutes, fontSize, marked }: Props) {
+export function UpcomingList({ buses, nowMinutes, marked }: Props) {
   if (buses.length === 0) return null
-
-  const timeSize = FONT_SIZE_MAP[fontSize]
 
   return (
     <div style={{ position: 'relative', paddingLeft: 2 }}>
@@ -67,7 +59,7 @@ export function UpcomingList({ buses, nowMinutes, fontSize, marked }: Props) {
               }}
             >
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: timeSize, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-.6px' }}>
+                <p style={{ margin: 0, fontSize: fs(22), fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-.6px' }}>
                   {bus.departure}
                 </p>
                 {marked?.has(bus.departure) && (
@@ -78,7 +70,7 @@ export function UpcomingList({ buses, nowMinutes, fontSize, marked }: Props) {
               </span>
               <span
                 style={{
-                  fontSize: 12.5, fontWeight: 800, whiteSpace: 'nowrap', borderRadius: 9999, padding: '7px 12px',
+                  fontSize: fs(12.5), fontWeight: 800, whiteSpace: 'nowrap', borderRadius: 9999, padding: '7px 12px',
                   color: isNext ? 'var(--slot-current-fg)' : 'var(--text-secondary)',
                   background: isNext ? 'var(--slot-current-bg)' : 'var(--past-bg)',
                 }}

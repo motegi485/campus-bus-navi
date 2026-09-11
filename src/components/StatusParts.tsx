@@ -2,6 +2,7 @@ import { WarningCircle, CalendarBlank, ClockCounterClockwise, CloudSlash, type I
 import { usePressable } from '../hooks/usePressable'
 import { tapFeedback } from '../utils/haptics'
 import type { DataStatus } from '../utils/deriveDataStatus'
+import { fs } from '../utils/fontScale'
 
 /** 状態表示は Phosphor の Bold を使い、メニューより強い輪郭で伝える。 */
 
@@ -97,7 +98,7 @@ export function RetryButton({ size, refreshing, onRetry }: RetryButtonProps) {
         justifyContent: 'center',
         gap: lg ? 7 : 6,
         flexShrink: 0,
-        fontSize: lg ? 13 : 11.5,
+        fontSize: fs(lg ? 13 : 11.5),
         fontWeight: 700,
         lineHeight: 1,
         padding: lg ? '11px 20px' : '8px 13px',
