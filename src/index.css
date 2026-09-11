@@ -79,11 +79,6 @@
      専用に一段濃い値を持つ（--bg-input に対し 6.65:1）。 */
   --chip-text:     #4b5563;
 
-  /* ルート切替トグルの選択中ラベル。ライトは白ノブに載るので濃いルート色
-     （地の色そのままだと 3.64:1 なので emerald-700 / indigo-600 を使う）。 */
-  --toggle-on-campus:  #047857;
-  --toggle-on-station: #4f46e5;
-
   /* 週間ダイヤの土日の曜日文字。カレンダーの慣習（土=青・日=赤）で走査を助ける。
      日付と曜日の文字自体は色を落としても残るので、情報は色だけに依存しない。
 
@@ -126,7 +121,7 @@
   --icon-pink-bg:   #fce7f3;  --icon-pink-fg:   #db2777;
 
   /* ルート強調色（今後の発車バッジ・現在便ハイライト共通）。
-     campus側は既存の activeText と同値、station側は --toggle-on-station と同値に統一。
+     campus側は既存の activeText と同値、station側は indigo-600 (#4f46e5) に統一。
      実測: campus 6.78:1(自bg) / 7.68:1(--bg-card)、station 5.30:1(自bg) / 6.29:1(--bg-card)。 */
   --route-tint-campus-bg:  #d1fae5;  --route-tint-campus-fg:  #065f46;
   --route-tint-station-bg: #ede9fe; --route-tint-station-fg: #4f46e5;
@@ -149,6 +144,10 @@
   --route-badge-fill:   #047857;
   --route-selected-bg:  #065f46;
   --route-selected-ring: rgba(6, 95, 70, .35);
+  /* --route-badge-fill を中間色とする縦グラデ（週間ダイヤの RouteSwitch のノブ）。
+     ヘッダー RouteToggle のグラデと同じ明度配分だが、12.5px の白文字を載せるため
+     最も明るい上端でも AA を保つ値に留める。実測（白文字）: 上端 #08875a 4.54:1。 */
+  --route-badge-grad: linear-gradient(180deg, #08875a 0%, #047857 55%, #065f46 100%);
 
   /* ── 中立アクセント（route と無関係な文脈）──
      戻るボタン・設定の選択チェック・取得中スピナー。旧 --accent-fg（緑）の後継。
@@ -266,6 +265,8 @@
   --route-badge-fill:  #4338ca;
   --route-selected-bg: #4f46e5;
   --route-selected-ring: rgba(79, 70, 229, .35);
+  /* 実測（白文字）: 上端 #5851e0 5.72:1。 */
+  --route-badge-grad: linear-gradient(180deg, #5851e0 0%, #4338ca 55%, #3730a3 100%);
 
   /* 現在便。実測: --slot-current-fg は 自 bg 上 5.15:1 / --bg-card 上 6.31:1 /
      --next-card-bg 上 5.55:1 でいずれも AA を満たす。 */
@@ -314,12 +315,6 @@
   /* チップ文字（ダーク。--bg-input #374151 に対し 7.00:1） */
   --chip-text:     #d1d5db;
 
-  /* トグルの選択中ラベル（ダーク）。ノブが黒ガラスなので明るいルート色にする。
-     変更前の元デザインの dark:text-emerald-300 / dark:text-indigo-300 と同じ値。
-     ノブ最薄部の上で 7.69 / 6.89。 */
-  --toggle-on-campus:  #6ee7b7;
-  --toggle-on-station: #a5b4fc;
-
   /* 土日の曜日文字（ダーク）。実測 --bg-card / --bg-card2 の順で
      #60a5fa → 5.77 / 6.21、#f87171 → 5.31 / 5.71。ダークは面が地より明るいので
      ライトのような濃色化は要らない。 */
@@ -353,7 +348,7 @@
   --icon-red-bg:    rgba(248, 113, 113, 0.16);  --icon-red-fg:    #f87171;
   --icon-pink-bg:   rgba(244, 114, 182, 0.16);  --icon-pink-fg:   #f472b6;
 
-  /* ルート強調色（ダーク）。fg は --toggle-on-campus/station のダーク値と同値。
+  /* ルート強調色（ダーク）。fg は emerald-300 / indigo-300（#6ee7b7 / #a5b4fc）。
      bg は --icon-*-bg のような rgba(16%) 方式ではなく不透明値にしてある。
      route-tint は11px/14pxの太字テキストを直接載せるため、背後の合成色に依存しない
      opaque な値でないと 4.5:1 を保証できない（アイコンタイルは非文字3:1要件のみで済むため方式が異なる）。
@@ -1059,9 +1054,12 @@ html.bounce-native .header-cushion {
    --bg-input (#f0f0f5) は白地 (--bg-page) との明度差が小さく、
    1px の境界だけでは面として立たない。溝の影がここでは必須。
 
-   ライトは白いノブ（地より明るい）。ダークは .toggle-knob と同じ考え方で、
-   地より暗いノブの上端に光のリムを置いて縁を立てる（ダークで明るいノブにすると、
-   選択中ラベル #a5b4fc が 3.77:1 まで落ちて AA を割るため、面の側は暗いままにする）。
+   ノブはルート色の縦グラデ --route-badge-grad（--route-badge-fill を中間色とする、
+   テーマ不変・白文字 AA 実測済み）で塗る。ヘッダー RouteToggle と同じ立体感。
+   以前は白ノブ＋色文字だったが、白いページ面との明度差が小さく、ぱっと見で
+   スイッチと分からなかった（2026-09-12 に変更）。ルートが変わると data-route 経由で
+   同じ名前の値が切り替わるので、ノブの色はここで分岐しない。
+   ノブ上端の白いリムはライト・ダーク共通（塗りが同じ濃さなので同じ量でよい）。
    ============================================================ */
 .route-switch-track {
   background: var(--bg-input);
@@ -1070,16 +1068,17 @@ html.bounce-native .header-cushion {
   transition: background .35s, border-color .35s, box-shadow .35s;
 }
 .route-switch-knob {
-  background: var(--bg-card);
+  background: var(--route-badge-grad);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 1px 0 rgba(15, 23, 42, 0.07),
-    0 2px 6px rgba(15, 23, 42, 0.20);
+    inset 0 1px 0 rgba(255, 255, 255, 0.36),
+    0 1px 0 rgba(15, 23, 42, 0.10),
+    0 2px 6px rgba(15, 23, 42, 0.24);
   transition: transform .34s cubic-bezier(.34, 1.4, .64, 1), background .35s, box-shadow .35s;
 }
 .dark .route-switch-knob {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36),
     0 1px 0 rgba(0, 0, 0, 0.55),
     0 3px 9px rgba(0, 0, 0, 0.50);
 }
