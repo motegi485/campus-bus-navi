@@ -1,7 +1,7 @@
 import { MapPin } from '@phosphor-icons/react'
 import type { BusStopCoords, RouteKey } from '../types/timetable'
 import { buildMapUrl } from '../utils/buildMapUrl'
-import { buildEmbedMapUrl, buildEmbedStreetViewUrl } from '../utils/buildEmbedUrl'
+import { buildEmbedMapUrl, buildEmbedStreetViewUrl, STREET_VIEW_SPOTS } from '../utils/buildEmbedUrl'
 import { RouteToggle } from './RouteToggle'
 import { ExternalLinkIcon } from './ExternalLinkIcon'
 
@@ -84,7 +84,7 @@ export function MapTab({ coords, stopName, destination, route, onChangeRoute }: 
         </a>
       </div>
 
-      {/* 乗り場の様子（Street View 埋め込み） */}
+      {/* 乗り場の様子（Street View 埋め込み）。パノラマ・向きはルート別に固定（STREET_VIEW_SPOTS） */}
       <div style={{ padding: '14px 16px 0' }}>
         <h2 style={{ margin: '0 0 8px', padding: '0 4px', fontSize: 15, fontWeight: 700, color: 'var(--chip-text)' }}>
           乗り場の様子
@@ -92,7 +92,7 @@ export function MapTab({ coords, stopName, destination, route, onChangeRoute }: 
         <div style={{ height: 326, borderRadius: 22, border: '1px solid var(--row-card-border)', overflow: 'hidden' }}>
           <iframe
             title={`${stopName}のストリートビュー`}
-            src={buildEmbedStreetViewUrl(coords)}
+            src={buildEmbedStreetViewUrl(coords, STREET_VIEW_SPOTS[route])}
             style={{ border: 0, width: '100%', height: '100%' }}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
