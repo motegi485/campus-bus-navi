@@ -853,11 +853,13 @@ html.bounce-native .header-cushion {
   }
 }
 .pc-sidebar-title {
-  padding: 8px 12px 18px;
-  font-size: 15px;
+  padding: 8px 12px 14px;
+  margin-bottom: 8px;
+  font-size: 18px;
   font-weight: 800;
   color: var(--text-primary);
-  letter-spacing: -.3px;
+  letter-spacing: -.4px;
+  border-bottom: 1px solid var(--border2);
 }
 .pc-sidebar-item {
   display: flex;
