@@ -70,12 +70,12 @@ export function NextBusCard({ remaining, next, reminded = false }: Props) {
               aria-label="この便は発車前の通知を設定済みです"
               className="inline-flex items-center gap-1 whitespace-nowrap"
               style={{
-                marginLeft: 8, padding: '3px 8px', borderRadius: 9999,
+                marginLeft: 8, padding: '4px 10px', borderRadius: 9999,
                 background: 'var(--bg-card)', color: 'var(--slot-current-fg)',
-                fontSize: fs(11), fontWeight: 800,
+                fontSize: fs(12), fontWeight: 800,
               }}
             >
-              <BellIcon width={10} height={10} /> 通知
+              <BellIcon width={13} height={13} /> 通知
             </span>
           )}
         </div>
