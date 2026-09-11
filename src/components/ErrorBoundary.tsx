@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { fs } from '../utils/fontScale'
 
 interface Props {
   children: ReactNode
@@ -36,10 +37,10 @@ export class ErrorBoundary extends Component<Props, State> {
           color: 'var(--text-primary)',
         }}
       >
-        <p style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>
+        <p style={{ fontSize: fs(17), fontWeight: 700, marginBottom: 8 }}>
           問題が発生しました
         </p>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
+        <p style={{ fontSize: fs(13), color: 'var(--text-muted)', marginBottom: 20 }}>
           お手数ですが、再読み込みをお試しください。
         </p>
         <button
@@ -49,7 +50,7 @@ export class ErrorBoundary extends Component<Props, State> {
             borderRadius: 999,
             background: '#0ea5e9',
             color: '#fff',
-            fontSize: 14,
+            fontSize: fs(14),
             fontWeight: 600,
           }}
         >

@@ -1,4 +1,5 @@
 import { MapPin, ListBullets } from '@phosphor-icons/react'
+import { fs } from '../utils/fontScale'
 import { BusGlyph } from './BusGlyph'
 import type { AppTab } from './BottomTabBar'
 
@@ -52,7 +53,7 @@ export function Sidebar({ active, onChange, hasUnread }: Props) {
                 />
               )}
             </span>
-            <span style={{ fontSize: 14 }}>{label}</span>
+            <span style={{ fontSize: fs(14) }}>{label}</span>
           </button>
         )
       })}

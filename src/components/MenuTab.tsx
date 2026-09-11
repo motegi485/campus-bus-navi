@@ -1,6 +1,7 @@
 import { CaretRight } from '@phosphor-icons/react'
 import { type ReactNode } from 'react'
 import { usePressable } from '../hooks/usePressable'
+import { fs } from '../utils/fontScale'
 import {
   IconGradCap,
   IconBusStop,
@@ -44,10 +45,10 @@ export function MenuTab({ hasUnread, onOpenNews, onOpenWeekly, onOpenSettings, o
       {/* 上端の余白はバスタブのヘッダー（App.tsx）と同じ計算にする。safe-area を
           足さないと、ノッチ機でタイトルが端末のステータスバー（時刻・電池）と重なる。 */}
       <header style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 22px) 20px 0' }}>
-        <h1 style={{ margin: 0, fontSize: 27, fontWeight: 800, letterSpacing: '-0.7px', lineHeight: 1.2, color: 'var(--text-primary)' }}>
+        <h1 style={{ margin: 0, fontSize: fs(27), fontWeight: 800, letterSpacing: '-0.7px', lineHeight: 1.2, color: 'var(--text-primary)' }}>
           メニュー
         </h1>
-        <p style={{ margin: '5px 0 0', fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>
+        <p style={{ margin: '5px 0 0', fontSize: fs(14), fontWeight: 500, color: 'var(--text-muted)' }}>
           お知らせ・設定・外部リンク
         </p>
       </header>
@@ -79,7 +80,7 @@ export function MenuTab({ hasUnread, onOpenNews, onOpenWeekly, onOpenSettings, o
           titleColor="var(--status-danger-fg)" onClick={onInitApp} />
       </MenuGroup>
 
-      <p style={{ margin: '16px 0 22px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>
+      <p style={{ margin: '16px 0 22px', textAlign: 'center', fontSize: fs(11), fontWeight: 500, color: 'var(--text-muted)' }}>
         © 2026 campus-bus-navi
       </p>
     </div>
@@ -139,8 +140,8 @@ function MenuRow({ icon, tone, title, sub, chevron, external, onClick, titleColo
         )}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: titleColor ?? 'var(--text-primary)' }}>{title}</div>
-        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginTop: 1 }}>{sub}</div>
+        <div style={{ fontSize: fs(14), fontWeight: 700, color: titleColor ?? 'var(--text-primary)' }}>{title}</div>
+        <div style={{ fontSize: fs(12), fontWeight: 500, color: 'var(--text-secondary)', marginTop: 1 }}>{sub}</div>
       </div>
       {external ? (
         <span aria-hidden="true" style={{ flexShrink: 0, color: 'var(--text-muted)' }}>

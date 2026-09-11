@@ -1,7 +1,7 @@
 import { ArrowsClockwise, CalendarDots, CaretRight } from '@phosphor-icons/react'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
-import type { RouteKey } from './types/timetable'
+import type { RouteKey, FontSize } from './types/timetable'
 import { useJSTClock } from './hooks/useJSTClock'
 import { useTimetable } from './hooks/useTimetable'
 import { useWeekTimetables } from './hooks/useWeekTimetables'
@@ -14,6 +14,7 @@ import { useNativeBounce } from './hooks/useNativeBounce'
 import { setInert } from './hooks/useOverlayA11y'
 import { usePressable } from './hooks/usePressable'
 import { tapFeedback } from './utils/haptics'
+import { fs } from './utils/fontScale'
 import { findNextBus, findUpcomingBuses, findFirstBus, countRemainingBuses } from './utils/findNextBus'
 import { deriveDataStatus, hidesTimes, showsBand } from './utils/deriveDataStatus'
 import { StatusCard } from './components/StatusCard'
@@ -49,6 +50,17 @@ const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
  * 「回転を止めてよい時刻」の計算にこの周期を使う。
  */
 const SPIN_PERIOD_MS = 1100
+
+/**
+ * 設定「フォントサイズ」の乗数。CSS カスタムプロパティ --font-scale へ渡し、
+ * アプリ内のテキストはすべてこれ経由で拡大縮小する（index.css / fs() を参照）。
+ * 値は既存の NextBusCard の見た目（48/52/60px）にほぼ一致する比率に揃えてある。
+ */
+const FONT_SCALE_MAP: Record<FontSize, number> = {
+  small: 0.92,
+  medium: 1,
+  large: 1.15,
+}
 
 /**
  * 通知が未購読のときに「発車前に通知」行へ出す説明。
@@ -249,9 +261,6 @@ export default function App() {
     nowMs: now.valueOf(),
   })
 
-  // フォントサイズクラス（CSS変数経由ではなくコンポーネントprops渡し）
-  const fontSize = settings.fontSize
-
   // 更新ボタン（window.location.reload() は使用しない）
   const handleRefresh = useCallback(async () => {
     if (refreshing) return
@@ -329,6 +338,13 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark)
   }, [isDark])
+
+  // --font-scale も --app-height（main.tsx）と同じく document.documentElement に
+  // 直接 setProperty する。html のカスタムプロパティなので、指定を持つあらゆる子要素へ
+  // カスケードする（.phone-shell-inner に限らずポータルにも届く、data-route より広い経路）。
+  useEffect(() => {
+    document.documentElement.style.setProperty('--font-scale', String(FONT_SCALE_MAP[settings.fontSize]))
+  }, [settings.fontSize])
 
   // オーバースクロール表現は OS ネイティブに委譲する（useNativeBounce）:
   // iOS はルートのネイティブバウンスを解放（html.bounce-native）し、上端露出は
@@ -452,10 +468,10 @@ export default function App() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h1 className="text-[27px] font-extrabold" style={{ color: 'var(--text-primary)', letterSpacing: '-.7px' }}>
+                      <h1 className="text-[calc(27px*var(--font-scale))] font-extrabold" style={{ color: 'var(--text-primary)', letterSpacing: '-.7px' }}>
                         {originLabel} → {destination}
                       </h1>
-                      <p className="text-[14px] font-medium mt-[2px]" style={{ color: 'var(--text-muted)' }}>
+                      <p className="text-[calc(14px*var(--font-scale))] font-medium mt-[2px]" style={{ color: 'var(--text-muted)' }}>
                         {route === 'campus_to_station' ? 'スクールバス乗り場（緑のこかげ）' : 'スクールバス発着場'}
                       </p>
                     </div>
@@ -496,7 +512,7 @@ export default function App() {
                         style={{ background: 'var(--bg-input)', padding: '10px 13px', border: 'none', cursor: 'pointer', font: 'inherit' }}
                       >
                         <CalendarDots size={18} weight="regular" color="var(--text-muted)" aria-hidden="true" />
-                        <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        <span style={{ fontSize: fs(14.5), fontWeight: 700, color: 'var(--text-primary)' }}>
                           {now.month() + 1}/{now.date()}（{DAYS_JA[now.day()]}）
                         </span>
                         <DayBadge type={diagramType} />
@@ -506,7 +522,7 @@ export default function App() {
                       </button>
                       {/* 文字なので --route-solid（非文字用）ではなく --route-accent-fg を使う。
                           13.5px bold は large text に当たらず 4.5:1 が要る。 */}
-                      <span className="text-[13.5px] font-bold" style={{ color: 'var(--route-accent-fg)' }}>今日</span>
+                      <span className="text-[calc(13.5px*var(--font-scale))] font-bold" style={{ color: 'var(--route-accent-fg)' }}>今日</span>
                     </div>
                   )}
                 </header>
@@ -534,7 +550,7 @@ export default function App() {
                 {loading && (
                   <div className="flex flex-col items-center justify-center py-16 gap-3" style={{ padding: '0 20px' }}>
                     <Spinner size={32} />
-                    <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>時刻表を読み込み中...</p>
+                    <p className="text-[calc(13px*var(--font-scale))]" style={{ color: 'var(--text-muted)' }}>時刻表を読み込み中...</p>
                   </div>
                 )}
 
@@ -572,7 +588,6 @@ export default function App() {
                         nextBus && (
                           <NextBusCard
                             next={nextBus}
-                            fontSize={fontSize}
                             remaining={remainingCount}
                             reminded={reminders.marked.has(nextBus.entry.departure)}
                           />
@@ -583,11 +598,11 @@ export default function App() {
                     {!isEndOfService && nextBus && (
                       <div style={{ padding: '0 20px' }}>
                         <div className="flex items-baseline justify-between" style={{ marginBottom: 2 }}>
-                          <h2 className="text-[15px] font-bold" style={{ color: 'var(--chip-text)' }}>今後の発車時刻</h2>
+                          <h2 className="text-[calc(15px*var(--font-scale))] font-bold" style={{ color: 'var(--chip-text)' }}>今後の発車時刻</h2>
                           <button
                             type="button"
                             onClick={() => { tapFeedback(8); setFullTimetableOpen(true) }}
-                            className="text-[13px] font-semibold"
+                            className="text-[calc(13px*var(--font-scale))] font-semibold"
                             style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit' }}
                           >
                             全時刻表 <CaretRight size={18} weight="bold" aria-hidden="true" style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }} />
@@ -596,7 +611,6 @@ export default function App() {
                         <UpcomingList
                           buses={[nextBus.entry, ...upcoming]}
                           nowMinutes={nowMinutes}
-                          fontSize={fontSize}
                           marked={reminders.marked}
                         />
 
@@ -624,8 +638,8 @@ export default function App() {
                             <BellIcon width={20} height={20} />
                           </span>
                           <span className="min-w-0" style={{ flex: 1 }}>
-                            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>発車前に通知</p>
-                            <p style={{ margin: '3px 0 0', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)' }}>
+                            <p style={{ margin: 0, fontSize: fs(14), fontWeight: 700, color: 'var(--text-primary)' }}>発車前に通知</p>
+                            <p style={{ margin: '3px 0 0', fontSize: fs(12), fontWeight: 500, color: 'var(--text-secondary)' }}>
                               {reminderSummary}
                             </p>
                           </span>

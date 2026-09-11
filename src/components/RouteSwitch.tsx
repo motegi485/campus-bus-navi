@@ -1,5 +1,6 @@
 import type { RouteKey } from '../types/timetable'
 import { tapFeedback } from '../utils/haptics'
+import { fs } from '../utils/fontScale'
 import { IconRouteSwap } from './AppIcons'
 
 interface Props {
@@ -80,7 +81,7 @@ export function RouteSwitch({ route, onChange }: Props) {
                 border: 'none',
                 background: 'transparent',
                 font: 'inherit',
-                fontSize: 12.5,
+                fontSize: fs(12.5),
                 fontWeight: 700,
                 lineHeight: 1.2,
                 whiteSpace: 'nowrap',

@@ -1,4 +1,5 @@
 import type { DiagramType } from '../types/timetable'
+import { fs } from '../utils/fontScale'
 
 // 種別の判定そのものは UI から独立した純関数として utils にある（server/ とも共有する）。
 // 既存の import 元を壊さないよう、ここから再エクスポートする。
@@ -52,7 +53,7 @@ export function DayBadge({ type }: Props) {
       className="flex items-center whitespace-nowrap"
       style={{
         gap: 4,
-        fontSize: 11.5,
+        fontSize: fs(11.5),
         fontWeight: 700,
         color,
         padding: '4px 8px',
@@ -60,7 +61,7 @@ export function DayBadge({ type }: Props) {
         backgroundColor: `rgb(${rgb})`,
       }}
     >
-      <span style={{ fontSize: 6 }}>●</span>
+      <span style={{ fontSize: fs(6) }}>●</span>
       {label}
     </span>
   )

@@ -1,6 +1,7 @@
 import { usePressable } from '../hooks/usePressable'
 import type { PushStatus } from '../hooks/usePushSubscription'
 import { tapFeedback } from '../utils/haptics'
+import { fs } from '../utils/fontScale'
 
 /**
  * 設定画面の「通知」セクション。
@@ -117,11 +118,11 @@ export function ReminderSection({ status, busy, error, onEnable, onDisable }: Pr
         }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>発車リマインダー</div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: TONE_COLOR[info.tone], marginTop: 3 }}>
+          <div style={{ fontSize: fs(15), fontWeight: 600, color: 'var(--text-primary)' }}>発車リマインダー</div>
+          <div style={{ fontSize: fs(12), fontWeight: 700, color: TONE_COLOR[info.tone], marginTop: 3 }}>
             {busy ? '処理中...' : info.label}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: 4 }}>
+          <div style={{ fontSize: fs(12), color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: 4 }}>
             {info.detail}
           </div>
         </div>
@@ -129,7 +130,7 @@ export function ReminderSection({ status, busy, error, onEnable, onDisable }: Pr
       </button>
 
       {error && (
-        <p role="alert" style={{ fontSize: 12, color: 'var(--status-danger-fg)', lineHeight: 1.6, margin: 0, padding: '0 16px 14px' }}>
+        <p role="alert" style={{ fontSize: fs(12), color: 'var(--status-danger-fg)', lineHeight: 1.6, margin: 0, padding: '0 16px 14px' }}>
           {error}
         </p>
       )}

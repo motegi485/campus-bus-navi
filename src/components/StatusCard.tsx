@@ -52,14 +52,14 @@ export function StatusCard({
           <StatusIcon status={status} />
         </div>
 
-        <p className="text-[14px] font-bold leading-normal" style={{ color: 'var(--text-primary)' }}>
+        <p className="text-[calc(14px*var(--font-scale))] font-bold leading-normal" style={{ color: 'var(--text-primary)' }}>
           {status === 'no-data' ? '時刻表を取得できませんでした' : '日付が変わりました'}
         </p>
 
         {/* 赤地では --text-secondary がライトで 4.29:1 と AA をわずかに割るため、
             この AA 問題のために用意された --chip-text（6.63:1）を使う */}
         <p
-          className="text-[12px] leading-relaxed"
+          className="text-[calc(12px*var(--font-scale))] leading-relaxed"
           style={{ color: isError ? 'var(--chip-text)' : 'var(--text-secondary)' }}
         >
           {status === 'no-data' && (
@@ -76,7 +76,7 @@ export function StatusCard({
         {/* 取得時刻が不明なときは行ごと出さない（推測するより出さない） */}
         {stamp && (
           <p
-            className="text-[12px] font-semibold tabular-nums"
+            className="text-[calc(12px*var(--font-scale))] font-semibold tabular-nums"
             style={{ color: isError ? 'var(--chip-text)' : 'var(--text-secondary)' }}
           >
             {stamp}
@@ -95,7 +95,7 @@ export function StatusCard({
                 href={SCHOOL_BUS_INFO_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[12px] font-semibold"
+                className="text-[calc(12px*var(--font-scale))] font-semibold"
                 style={{
                   color: 'var(--chip-text)',
                   textDecoration: 'none',
@@ -109,7 +109,7 @@ export function StatusCard({
                 href={FEEDBACK_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[12px] font-semibold"
+                className="text-[calc(12px*var(--font-scale))] font-semibold"
                 style={{
                   color: 'var(--chip-text)',
                   textDecoration: 'none',
@@ -122,14 +122,14 @@ export function StatusCard({
             </div>
 
             {!isOnline && (
-              <p className="text-[11px]" style={{ color: 'var(--chip-text)' }}>
+              <p className="text-[calc(11px*var(--font-scale))]" style={{ color: 'var(--chip-text)' }}>
                 オフラインのため、リンクを開くには通信が必要です
               </p>
             )}
 
             {/* 報告時の手掛かり。読ませる文ではないので最小サイズで置く */}
             {errorMessage && (
-              <p className="text-[10.5px] leading-snug break-all" style={{ color: 'var(--text-muted)' }}>
+              <p className="text-[calc(10.5px*var(--font-scale))] leading-snug break-all" style={{ color: 'var(--text-muted)' }}>
                 {errorMessage}
               </p>
             )}

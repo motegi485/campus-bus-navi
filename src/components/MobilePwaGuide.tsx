@@ -1,6 +1,7 @@
 import { Export, Plus, DotsThreeVertical, DownloadSimple, DotsThree } from '@phosphor-icons/react'
 import { isIOS, isAndroid, isStandalone } from '../utils/platform'
 import { useOverlayA11y } from '../hooks/useOverlayA11y'
+import { fs } from '../utils/fontScale'
 
 const STORAGE_KEY = 'campusBusNaviMobilePwaDismissed'
 
@@ -62,7 +63,7 @@ function StepNumber({ n }: { n: number }) {
     <span style={{
       flexShrink: 0, width: 24, height: 24, borderRadius: '50%',
       background: 'var(--ui-accent-grad)', color: '#fff',
-      fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: fs(12), fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>{n}</span>
   )
 }
@@ -124,14 +125,14 @@ export function MobilePwaGuide({ open, onClose }: Props) {
           boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
         }}
       >
-        <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 10, letterSpacing: '-.3px' }}>
+        <h2 style={{ fontSize: fs(18), fontWeight: 800, marginBottom: 10, letterSpacing: '-.3px' }}>
           アプリをインストールして使う
         </h2>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 18 }}>
+        <p style={{ fontSize: fs(13), color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 18 }}>
           ホーム画面に追加（インストール）すると、モバイルアプリとして使用できます。
         </p>
 
-        <ol style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13.5, marginBottom: 18 }}>
+        <ol style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: fs(13.5), marginBottom: 18 }}>
           {ios && (
             <>
               <li style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
@@ -175,7 +176,7 @@ export function MobilePwaGuide({ open, onClose }: Props) {
             type="button"
             onClick={handleDismiss}
             style={{
-              padding: '9px 14px', borderRadius: 12, fontSize: 13, fontWeight: 600,
+              padding: '9px 14px', borderRadius: 12, fontSize: fs(13), fontWeight: 600,
               background: 'transparent', color: 'var(--text-muted)',
               border: 'none', cursor: 'pointer',
             }}
@@ -186,7 +187,7 @@ export function MobilePwaGuide({ open, onClose }: Props) {
             type="button"
             onClick={onClose}
             style={{
-              padding: '9px 18px', borderRadius: 12, fontSize: 13, fontWeight: 700,
+              padding: '9px 18px', borderRadius: 12, fontSize: fs(13), fontWeight: 700,
               background: 'var(--ui-accent-grad)', color: '#fff',
               border: 'none', cursor: 'pointer',
             }}

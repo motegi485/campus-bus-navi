@@ -2,6 +2,7 @@ import { MapPin } from '@phosphor-icons/react'
 import type { BusStopCoords, RouteKey } from '../types/timetable'
 import { buildMapUrl } from '../utils/buildMapUrl'
 import { buildEmbedMapUrl, buildEmbedStreetViewUrl, STREET_VIEW_SPOTS } from '../utils/buildEmbedUrl'
+import { fs } from '../utils/fontScale'
 import { RouteToggle } from './RouteToggle'
 import { ExternalLinkIcon } from './ExternalLinkIcon'
 
@@ -26,10 +27,10 @@ export function MapTab({ coords, stopName, destination, route, onChangeRoute }: 
       {/* 上端の余白はバスタブのヘッダー（App.tsx）と同じ計算にする。safe-area を
           足さないと、ノッチ機でタイトルが端末のステータスバー（時刻・電池）と重なる。 */}
       <header style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 22px) 20px 0' }}>
-        <h1 style={{ margin: 0, fontSize: 27, fontWeight: 800, letterSpacing: '-0.7px', lineHeight: 1.2, color: 'var(--text-primary)' }}>
+        <h1 style={{ margin: 0, fontSize: fs(27), fontWeight: 800, letterSpacing: '-0.7px', lineHeight: 1.2, color: 'var(--text-primary)' }}>
           スクールバス乗り場
         </h1>
-        <p style={{ margin: '5px 0 0', fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>
+        <p style={{ margin: '5px 0 0', fontSize: fs(14), fontWeight: 500, color: 'var(--text-muted)' }}>
           {route === 'campus_to_station' ? '大学発' : '松永発'} → {destination}
         </p>
         <div className="mt-5">
@@ -39,7 +40,7 @@ export function MapTab({ coords, stopName, destination, route, onChangeRoute }: 
 
       <div style={{ padding: '16px 16px 0' }}>
         {/* 見出しは下の「乗り場の様子」と同じ形にそろえる */}
-        <h2 style={{ margin: '0 0 8px', padding: '0 4px', fontSize: 15, fontWeight: 700, color: 'var(--chip-text)' }}>
+        <h2 style={{ margin: '0 0 8px', padding: '0 4px', fontSize: fs(15), fontWeight: 700, color: 'var(--chip-text)' }}>
           乗り場マップ
         </h2>
         <div style={{ height: 326, borderRadius: 22, border: '1px solid var(--row-card-border)', overflow: 'hidden' }}>
@@ -75,8 +76,8 @@ export function MapTab({ coords, stopName, destination, route, onChangeRoute }: 
             <MapPin size={20} weight="fill" aria-hidden="true" />
           </span>
           <span className="min-w-0" style={{ flex: 1 }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>現在地からのルートを見る</p>
-            <p style={{ margin: '3px 0 0', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)' }}>Googleマップで徒歩ルートを開く</p>
+            <p style={{ margin: 0, fontSize: fs(14), fontWeight: 700, color: 'var(--text-primary)' }}>現在地からのルートを見る</p>
+            <p style={{ margin: '3px 0 0', fontSize: fs(12), fontWeight: 500, color: 'var(--text-secondary)' }}>Googleマップで徒歩ルートを開く</p>
           </span>
           <span style={{ flexShrink: 0, color: 'var(--text-muted)' }}>
             <ExternalLinkIcon width={13} height={13} />
@@ -86,7 +87,7 @@ export function MapTab({ coords, stopName, destination, route, onChangeRoute }: 
 
       {/* 乗り場の様子（Street View 埋め込み）。パノラマ・向きはルート別に固定（STREET_VIEW_SPOTS） */}
       <div style={{ padding: '14px 16px 0' }}>
-        <h2 style={{ margin: '0 0 8px', padding: '0 4px', fontSize: 15, fontWeight: 700, color: 'var(--chip-text)' }}>
+        <h2 style={{ margin: '0 0 8px', padding: '0 4px', fontSize: fs(15), fontWeight: 700, color: 'var(--chip-text)' }}>
           乗り場の様子
         </h2>
         <div style={{ height: 326, borderRadius: 22, border: '1px solid var(--row-card-border)', overflow: 'hidden' }}>

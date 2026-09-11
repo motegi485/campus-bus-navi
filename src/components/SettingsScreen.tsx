@@ -2,6 +2,7 @@ import { CaretLeft, CaretRight, Check } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import { setInert, useOverlayA11y } from '../hooks/useOverlayA11y'
 import { usePressable } from '../hooks/usePressable'
+import { fs } from '../utils/fontScale'
 import type { AppSettings, DefaultRoute, Theme, FontSize } from '../types/timetable'
 import { ReminderSection } from './ReminderSection'
 import type { PushStatus } from '../hooks/usePushSubscription'
@@ -36,7 +37,7 @@ type SelectKey = 'route' | 'theme' | 'font'
 
 function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
+    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: fs(15), fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
       <CaretLeft size={18} weight="bold" color="var(--ui-accent-fg)" aria-hidden="true" />
       {label}
     </button>
@@ -52,7 +53,7 @@ function NavBar({ title, onBack, backLabel = '戻る', covered = false }: { titl
     <div ref={ref} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
       <div className="pc-bounded" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <BackButton label={backLabel} onClick={onBack} />
-        <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>{title}</span>
+        <span style={{ fontSize: fs(17), fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>{title}</span>
       </div>
     </div>
   )
@@ -105,11 +106,11 @@ function SettingRow({ icon, tone, title, sub, value, onClick }: { icon: AppIcon;
     >
       <IconTile icon={icon} tone={tone} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>
+        <div style={{ fontSize: fs(15), fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
+        <div style={{ fontSize: fs(12), color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-        <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 500 }}>{value}</span>
+        <span style={{ fontSize: fs(14), color: 'var(--text-muted)', fontWeight: 500 }}>{value}</span>
         <CaretRight size={18} weight="bold" color="var(--text-muted)" aria-hidden="true" style={{ flexShrink: 0 }} />
       </div>
     </button>
@@ -209,7 +210,7 @@ export function SettingsScreen({
               このすぐ下の行が violet、その下が amber であるのと同列に扱う。 */}
           <SettingRow icon={IconRouteSwap} tone="green" title="デフォルトルート" sub="起動時に最初に表示するルート" value={SELECTS.route.current} onClick={() => openSelect('route')} />
           <SettingRow icon={IconContrast} tone="violet" title="カラーテーマ" sub="背景の表示モード" value={SELECTS.theme.current} onClick={() => openSelect('theme')} />
-          <SettingRow icon={IconFontSize} tone="amber" title="フォントサイズ" sub="時刻の文字の大きさ" value={SELECTS.font.current} onClick={() => openSelect('font')} />
+          <SettingRow icon={IconFontSize} tone="amber" title="フォントサイズ" sub="アプリ全体の文字の大きさ" value={SELECTS.font.current} onClick={() => openSelect('font')} />
         </Section>
 
         {/* 通知セクション（「近日公開」のプレースホルダをこの実装で置き換えた） */}
@@ -228,12 +229,12 @@ export function SettingsScreen({
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
             <IconTile icon={IconInfo} tone="indigo" />
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>バージョン</div>
-              <div style={{ fontSize: 12, color: updateAvailable ? 'var(--icon-amber-fg)' : 'var(--text-muted)', marginTop: 2 }}>
+              <div style={{ fontSize: fs(15), fontWeight: 600, color: 'var(--text-primary)' }}>バージョン</div>
+              <div style={{ fontSize: fs(12), color: updateAvailable ? 'var(--icon-amber-fg)' : 'var(--text-muted)', marginTop: 2 }}>
                 {updateAvailable ? '新しいバージョンがあります' : '最新の状態です'}
               </div>
             </div>
-            <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 500 }}>{__APP_VERSION__}</span>
+            <span style={{ fontSize: fs(14), color: 'var(--text-muted)', fontWeight: 500 }}>{__APP_VERSION__}</span>
           </div>
         </Section>
         </div>{/* / 内側ラッパー */}
@@ -264,7 +265,7 @@ export function SettingsScreen({
                       cursor: 'pointer',
                     }}
                   >
-                    <span style={{ fontSize: 15, fontWeight: isSelected ? 700 : 500, color: isSelected ? 'var(--ui-accent-fg)' : 'var(--text-primary)' }}>{opt}</span>
+                    <span style={{ fontSize: fs(15), fontWeight: isSelected ? 700 : 500, color: isSelected ? 'var(--ui-accent-fg)' : 'var(--text-primary)' }}>{opt}</span>
                     <Check size={20} weight="bold" color="var(--ui-accent-fg)" aria-hidden="true" style={{ flexShrink: 0, opacity: isSelected ? 1 : 0, transition: 'opacity 0.15s' }} />
                   </button>
                 )
@@ -281,7 +282,7 @@ export function SettingsScreen({
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>{label}</div>
+      <div style={{ fontSize: fs(11), fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '1.1px', textTransform: 'uppercase', padding: '0 4px 8px' }}>{label}</div>
       {/* 地（--bg-page）が白になったので、白いカードは輪郭が無いと面として立たない。
           border ではなく inset の影で描くのは、行の内側余白・高さを 1px も
           変えないため（.section-card::after と同じ考え方）。 */}

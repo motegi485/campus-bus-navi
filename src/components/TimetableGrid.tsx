@@ -93,7 +93,7 @@ export function TimetableGrid({
 
         const content = (
           <>
-            <span className="text-[16px] font-extrabold" style={{ color, letterSpacing: '-.3px' }}>
+            <span className="text-[calc(16px*var(--font-scale))] font-extrabold" style={{ color, letterSpacing: '-.3px' }}>
               {bus.departure}
             </span>
             {/*
@@ -103,7 +103,7 @@ export function TimetableGrid({
             */}
             {bus.note && (
               <span
-                className="absolute top-[3px] left-[5px] text-[9px] font-bold leading-none"
+                className="absolute top-[3px] left-[5px] text-[calc(9px*var(--font-scale))] font-bold leading-none"
                 style={{ color: 'var(--text-muted)' }}
               >
                 {bus.note}

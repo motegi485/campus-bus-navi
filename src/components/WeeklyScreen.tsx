@@ -12,6 +12,7 @@ import { TimetableGrid } from './TimetableGrid'
 import { EndOfServiceCard } from './EndOfServiceCard'
 import { SpecialScheduleCard } from './SpecialScheduleCard'
 import { StatusIcon, RetryButton, Spinner } from './StatusParts'
+import { fs } from '../utils/fontScale'
 
 const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -35,7 +36,7 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
   return (
     <button
       onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: fs(15), fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}
     >
       <CaretLeft size={18} weight="bold" color="var(--ui-accent-fg)" aria-hidden="true" />
       {label}
@@ -82,19 +83,19 @@ function WeekRow({
     right = <span aria-hidden="true" style={{ display: 'block', width: 34, height: 11, borderRadius: 6, background: 'var(--bg-input)' }} />
     rightLabel = '本数を取得中'
   } else if (day.status === 'error') {
-    right = <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--chip-text)', whiteSpace: 'nowrap' }}>取得できません</span>
+    right = <span style={{ fontSize: fs(11.5), fontWeight: 700, color: 'var(--chip-text)', whiteSpace: 'nowrap' }}>取得できません</span>
     rightLabel = '取得できません'
   } else if (day.diagramType === 'closed') {
-    right = <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--chip-text)', whiteSpace: 'nowrap' }}>運行なし</span>
+    right = <span style={{ fontSize: fs(12.5), fontWeight: 600, color: 'var(--chip-text)', whiteSpace: 'nowrap' }}>運行なし</span>
     rightLabel = '運行なし'
   } else if (day.diagramType === 'special') {
-    right = <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--chip-text)', whiteSpace: 'nowrap' }}>時刻なし</span>
+    right = <span style={{ fontSize: fs(12.5), fontWeight: 600, color: 'var(--chip-text)', whiteSpace: 'nowrap' }}>時刻なし</span>
     rightLabel = '発車時刻は大学ホームページで確認'
   } else {
     right = (
-      <span className="tabular-nums" style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+      <span className="tabular-nums" style={{ fontSize: fs(14), fontWeight: 700, color: 'var(--text-primary)' }}>
         {count ?? 0}
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginLeft: 1 }}>本</span>
+        <span style={{ fontSize: fs(11), fontWeight: 600, color: 'var(--text-secondary)', marginLeft: 1 }}>本</span>
       </span>
     )
     rightLabel = `${count ?? 0}本`
@@ -137,10 +138,10 @@ function WeekRow({
       }}
     >
       <div style={{ width: 50, flexShrink: 0 }}>
-        <div className="tabular-nums" style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-.4px', lineHeight: 1.1, color: 'var(--text-primary)' }}>
+        <div className="tabular-nums" style={{ fontSize: fs(16), fontWeight: 800, letterSpacing: '-.4px', lineHeight: 1.1, color: 'var(--text-primary)' }}>
           {day.date.month() + 1}/{day.date.date()}
         </div>
-        <div style={{ fontSize: 11, fontWeight: 700, marginTop: 1, color: weekdayColor }}>
+        <div style={{ fontSize: fs(11), fontWeight: 700, marginTop: 1, color: weekdayColor }}>
           {DAYS_JA[weekday]}
         </div>
       </div>
@@ -153,7 +154,7 @@ function WeekRow({
             （--route-badge-fill）を使う。ルートでは切り替わる。
             実測: 白文字に対し 大学発 #047857 5.55:1 / 松永発 #4338ca 7.90:1。 */}
         {isToday && (
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: 'var(--route-badge-fill)', color: '#fff' }}>
+          <span style={{ fontSize: fs(10), fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: 'var(--route-badge-fill)', color: '#fff' }}>
             今日
           </span>
         )}
@@ -171,10 +172,10 @@ function WeekRow({
 function DayStats({ first, last, count }: { first: string; last: string; count: number }) {
   const cell = (label: string, value: React.ReactNode) => (
     <div style={{ flex: 1, textAlign: 'center' }}>
-      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 3 }}>
+      <p style={{ fontSize: fs(10), fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 3 }}>
         {label}
       </p>
-      <p className="tabular-nums" style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-.3px', color: 'var(--text-primary)' }}>
+      <p className="tabular-nums" style={{ fontSize: fs(18), fontWeight: 800, letterSpacing: '-.3px', color: 'var(--text-primary)' }}>
         {value}
       </p>
     </div>
@@ -188,7 +189,7 @@ function DayStats({ first, last, count }: { first: string; last: string; count: 
         <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border2)' }} />
         {cell('最終', last)}
         <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border2)' }} />
-        {cell('本数', <>{count}<span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>本</span></>)}
+        {cell('本数', <>{count}<span style={{ fontSize: fs(11), fontWeight: 600, color: 'var(--text-secondary)' }}>本</span></>)}
       </div>
     </div>
   )
@@ -248,10 +249,10 @@ function DayDetailView({
       >
         <div className="flex flex-col items-center gap-2">
           <div className="mb-0.5"><StatusIcon status="no-data" /></div>
-          <p className="text-[14px] font-bold leading-normal" style={{ color: 'var(--text-primary)' }}>
+          <p className="text-[calc(14px*var(--font-scale))] font-bold leading-normal" style={{ color: 'var(--text-primary)' }}>
             この日の時刻表を取得できませんでした
           </p>
-          <p className="text-[12px] leading-relaxed" style={{ color: 'var(--chip-text)' }}>
+          <p className="text-[calc(12px*var(--font-scale))] leading-relaxed" style={{ color: 'var(--chip-text)' }}>
             通信環境をご確認のうえ、再試行してください。
             <br />
             他の日のダイヤで代用はしていません。
@@ -283,11 +284,11 @@ function DayDetailView({
         <DayStats first={schedule[0].departure} last={schedule[schedule.length - 1].departure} count={schedule.length} />
         <div className="section-card rounded-[20px]" style={{ padding: 'var(--card-pad-list)' }}>
           <div className="flex items-baseline justify-between mb-[14px]">
-            <span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>
+            <span className="text-[calc(11px*var(--font-scale))] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>
               {day.timetable?.routes[route]?.origin} → {day.timetable?.routes[route]?.destination}
             </span>
             {nowMinutes !== null && (
-              <span className="text-[10.5px] font-semibold tabular-nums" style={{ color: 'var(--text-muted)' }}>
+              <span className="text-[calc(10.5px*var(--font-scale))] font-semibold tabular-nums" style={{ color: 'var(--text-muted)' }}>
                 {String(Math.floor(nowMinutes / 60)).padStart(2, '0')}:{String(nowMinutes % 60).padStart(2, '0')} 現在
               </span>
             )}
@@ -331,20 +332,20 @@ function DayDetailView({
                 style={{ background: 'var(--bg-input)', padding: '10px 13px', flexWrap: 'wrap', minWidth: 0 }}
               >
                 <CalendarDots size={18} weight="regular" color="var(--text-muted)" aria-hidden="true" />
-                <span className="tabular-nums" style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                <span className="tabular-nums" style={{ fontSize: fs(14.5), fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                   {day.date.month() + 1}/{day.date.date()}（{DAYS_JA[weekday]}）
                 </span>
                 <DayBadge type={day.diagramType} />
               </div>
               {nowMinutes !== null && (
-                <span className="text-[13.5px] font-bold" style={{ color: 'var(--route-accent-fg)', flexShrink: 0 }}>
+                <span className="text-[calc(13.5px*var(--font-scale))] font-bold" style={{ color: 'var(--route-accent-fg)', flexShrink: 0 }}>
                   今日
                 </span>
               )}
             </div>
             {/* ダイヤ名（例: 教育懇談会ダイヤ）はバッジの種別名より具体的なので残す */}
             {day.timetable && (
-              <p className="text-[12px]" style={{ color: 'var(--text-secondary)', marginTop: 7, paddingLeft: 2 }}>
+              <p className="text-[calc(12px*var(--font-scale))]" style={{ color: 'var(--text-secondary)', marginTop: 7, paddingLeft: 2 }}>
                 {day.timetable.name}
               </p>
             )}
@@ -440,7 +441,7 @@ export function WeeklyScreen({
       <div ref={navRef} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
         <div className="pc-bounded" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <BackButton label="戻る" onClick={onClose} />
-          <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>週間ダイヤ</span>
+          <span style={{ fontSize: fs(17), fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>週間ダイヤ</span>
         </div>
       </div>
 
@@ -450,7 +451,7 @@ export function WeeklyScreen({
         <div className="pc-bounded" style={{ minHeight: 'calc(100% + 1px)', padding: '14px 14px 32px', display: 'flex', flexDirection: 'column', gap: 8 }}>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '0 2px 6px' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: fs(11), fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
               今日から7日間
             </span>
             <RouteSwitch route={route} onChange={onChangeRoute} />
@@ -459,7 +460,7 @@ export function WeeklyScreen({
           {loading && days.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Spinner size={32} />
-              <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>運行予定を読み込み中...</p>
+              <p className="text-[calc(13px*var(--font-scale))]" style={{ color: 'var(--text-muted)' }}>運行予定を読み込み中...</p>
             </div>
           )}
 
@@ -470,10 +471,10 @@ export function WeeklyScreen({
             >
               <div className="flex flex-col items-center gap-2">
                 <div className="mb-0.5"><StatusIcon status="no-data" /></div>
-                <p className="text-[14px] font-bold leading-normal" style={{ color: 'var(--text-primary)' }}>
+                <p className="text-[calc(14px*var(--font-scale))] font-bold leading-normal" style={{ color: 'var(--text-primary)' }}>
                   運行予定を取得できませんでした
                 </p>
-                <p className="text-[12px] leading-relaxed" style={{ color: 'var(--chip-text)' }}>
+                <p className="text-[calc(12px*var(--font-scale))] leading-relaxed" style={{ color: 'var(--chip-text)' }}>
                   通信環境をご確認のうえ、再試行してください。
                 </p>
                 <RetryButton size="lg" refreshing={reloading} onRetry={handleRetry} />
@@ -492,7 +493,7 @@ export function WeeklyScreen({
           ))}
 
           {days.length > 0 && (
-            <p className="text-[11px] leading-relaxed text-center" style={{ color: 'var(--text-muted)', padding: '12px 8px 0' }}>
+            <p className="text-[calc(11px*var(--font-scale))] leading-relaxed text-center" style={{ color: 'var(--text-muted)', padding: '12px 8px 0' }}>
               表示できるのは今日を含む 7 日間（6 日先まで）です。
               <br />
               予定は変更されることがあります。

@@ -34,13 +34,13 @@ export function SpecialScheduleCard({
         ['--hero-tint' as string]: '126, 34, 206',
       }}
     >
-      <p className="text-[13px] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
+      <p className="text-[calc(13px*var(--font-scale))] font-bold tracking-widest uppercase text-white/75 mb-[5px]">
         {eyebrow}
       </p>
-      <p className="text-[34px] font-black text-white tracking-tight leading-tight mb-[10px]">
+      <p className="text-[calc(34px*var(--font-scale))] font-black text-white tracking-tight leading-tight mb-[10px]">
         特別な運行日程
       </p>
-      <p className="text-[15px] text-white/90 font-semibold leading-relaxed mb-[18px]">
+      <p className="text-[calc(15px*var(--font-scale))] text-white/90 font-semibold leading-relaxed mb-[18px]">
         {description}
       </p>
 
@@ -51,12 +51,12 @@ export function SpecialScheduleCard({
         className="flex items-center justify-center gap-[6px] bg-white/20 rounded-[16px] px-4 py-[14px]"
         style={{ textDecoration: 'none' }}
       >
-        <span className="text-[15px] font-bold text-white">大学ホームページで確認</span>
-        <span aria-hidden="true" className="text-[14px] text-white/80">↗</span>
+        <span className="text-[calc(15px*var(--font-scale))] font-bold text-white">大学ホームページで確認</span>
+        <span aria-hidden="true" className="text-[calc(14px*var(--font-scale))] text-white/80">↗</span>
       </a>
 
       {!isOnline && (
-        <p className="text-[12px] text-white/70 mt-3 text-center">
+        <p className="text-[calc(12px*var(--font-scale))] text-white/70 mt-3 text-center">
           オフラインのため、リンクを開くには通信が必要です
         </p>
       )}
