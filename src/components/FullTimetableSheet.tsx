@@ -12,6 +12,7 @@ import { BellIcon } from './BellIcon'
 import { useOverlayA11y } from '../hooks/useOverlayA11y'
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 import { useSheetDragToClose } from '../hooks/useSheetDragToClose'
+import { useIsDesktop } from '../hooks/useIsDesktop'
 
 const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -67,10 +68,15 @@ export function FullTimetableSheet({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const rootRef = useOverlayA11y(open, { covered: false, onEscape: onClose })
   const grabberRef = useRef<HTMLDivElement>(null)
+  // 1024px以上は下からのシートではなく中央モーダル（見た目の入れ物だけの
+  // 切替。背面スクロールロック・Escape・背景タップ・×ボタンで閉じる・
+  // タップだけでは閉じない、という契約はここでは一切変更しない）。
+  const desktop = useIsDesktop()
 
   // 開いている間は背面のホームを固定する（シートの非スクロール領域から背面が動くため）
   useBodyScrollLock(open)
-  // 上グラバーを下へ引いて閉じる
+  // 上グラバーを下へ引いて閉じる（PCではグラバー自体を描画しないため、
+  // handleRef.current が null になり useSheetDragToClose は早期returnして無効化される）
   useSheetDragToClose(rootRef, grabberRef, open, onClose)
 
   // 閉じたら選択モードも畳む。開き直したときに前回の選択が残っていると
@@ -121,27 +127,30 @@ export function FullTimetableSheet({
         className={`sheet-panel${open ? '' : ' sheet-panel-closed'}`}
         style={{ zIndex: 46, pointerEvents: open ? 'auto' : 'none' }}
       >
-        {/* 上グラバー（下へ引くと閉じるハンドル）。
+        {/* 上グラバー（下へ引くと閉じるハンドル）。PC（中央モーダル）では
+            ドラッグクローズ自体が不要なため描画しない。
             当たり判定は横いっぱい・上下の余白込みで確保する。指で掴む対象なので
             見た目の 36×5 のままでは狭い。touchAction: none はハンドル上での
             ブラウザ既定のスクロールを止め、ドラッグを確実に拾うために必要。 */}
-        <div
-          ref={grabberRef}
-          aria-hidden="true"
-          style={{
-            display: 'flex', justifyContent: 'center', alignItems: 'center',
-            padding: '10px 0 12px', flexShrink: 0,
-            touchAction: 'none', cursor: 'grab',
-          }}
-        >
-          <div style={{ width: 36, height: 5, borderRadius: 9999, background: 'var(--sheet-grabber)' }} />
-        </div>
+        {!desktop && (
+          <div
+            ref={grabberRef}
+            aria-hidden="true"
+            style={{
+              display: 'flex', justifyContent: 'center', alignItems: 'center',
+              padding: '10px 0 12px', flexShrink: 0,
+              touchAction: 'none', cursor: 'grab',
+            }}
+          >
+            <div style={{ width: 36, height: 5, borderRadius: 9999, background: 'var(--sheet-grabber)' }} />
+          </div>
+        )}
 
         {/* 本文スクローラ。タイトルと閉じるボタンもこの中に入れる（外に固定すると
             下に引っ張ったとき本文だけが動き、見出しだけ取り残されて見えるため）。 */}
         <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
-          {/* ヘッダー: タイトル + 閉じるボタン */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 20px 0' }}>
+          {/* ヘッダー: タイトル + 閉じるボタン。グラバーが無い分、PCでは上の余白を足す */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: desktop ? '18px 20px 0' : '2px 20px 0' }}>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-.4px' }}>本日の全時刻表</h2>
             <button
               type="button"

@@ -49,9 +49,11 @@ function NavBar({ title, onBack, backLabel = '戻る', covered = false }: { titl
   useEffect(() => { setInert(ref.current, covered) }, [covered])
 
   return (
-    <div ref={ref} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
-      <BackButton label={backLabel} onClick={onBack} />
-      <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>{title}</span>
+    <div ref={ref} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
+      <div className="pc-bounded" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <BackButton label={backLabel} onClick={onBack} />
+        <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>{title}</span>
+      </div>
     </div>
   )
 }
@@ -198,7 +200,7 @@ export function SettingsScreen({
 
       {/* スクローラ（contain + 常時スクロール可能化。露出色 = --bg-page） */}
       <div ref={listRef} style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
-        <div style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div className="pc-bounded" style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         {/* 表示セクション */}
         <Section label="表示">
@@ -242,7 +244,7 @@ export function SettingsScreen({
         <div ref={subRef} style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', transform: selKey ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.3s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 60, display: 'flex', flexDirection: 'column', overflow: 'hidden', touchAction: 'pinch-zoom' }}>
           <NavBar title={SELECTS[selKey].title} onBack={closeSelect} backLabel="設定" />
           <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
-            <div style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px' }}>
+            <div className="pc-bounded" style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px' }}>
             <div style={{ background: 'var(--bg-card)', borderRadius: 18, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px var(--row-card-border)', transition: 'background 0.35s' }}>
               {SELECTS[selKey].options.map((opt, i) => {
                 const isSelected = opt === SELECTS[selKey].current
