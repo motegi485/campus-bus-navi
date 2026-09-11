@@ -9,8 +9,10 @@ public/                 -- Vite が dist/ へコピー
   _headers              -- Cloudflare の配信ヘッダー
   _redirects            -- SPA フォールバック
   manifest.json         -- PWA マニフェスト
+  icons/                -- 配信用アプリアイコン（scripts/make-icons.ps1 で生成）
   push-sw.js            -- push 受信ハンドラ（生成 SW から importScripts される）
   data/                 -- 実行時に取得する静的データ
+design/icons/           -- アイコン原本と旧アイコン（配信対象外）
 functions/api/          -- Pages Functions（通知の購読 API）
 src/ + index.html       -- Vite がビルド
 wrangler.toml           -- Pages のバインディング（D1、公開鍵）
@@ -24,6 +26,30 @@ dist/                   -- Cloudflare Pages の出力ディレクトリ
 `public/_redirects` の `/* /index.html 200` は直接 URL を開いたときにも SPA を表示するために必要です。`_headers` と `_redirects` をリポジトリ直下へ移すと、`dist` を配信する構成では効きません。
 
 Pages では **Functions が `_redirects` より先に評価される**ため、`/api/*` は SPA フォールバックに飲み込まれません（2026-08-16 に `/api/vapid-key` の応答で確認済み）。
+
+## アプリアイコン
+
+配信用のアイコンは `public/icons/` に置き、`index.html`（favicon、`apple-touch-icon`）、`public/manifest.json`、`public/push-sw.js`（通知アイコン）から参照します。3 枚とも原本 `design/icons/bus-icon.png`（1254×1254）から `scripts/make-icons.ps1` で生成したものです。
+
+| ファイル | 用途 | 生成方法 |
+|---|---|---|
+| `icon_192x192.png` | favicon、`apple-touch-icon`、push 通知、manifest `purpose: any` | 原本を全面縮小 |
+| `icon_512x512.png` | manifest `purpose: any` | 原本を全面縮小 |
+| `maskable_512x512.png` | manifest `purpose: maskable` | 原本を 80% に縮小し、白キャンバスの中央に配置 |
+
+`any` と `maskable` は 1 枚で兼ねず、別のファイルにしています。原本は屋根が左端付近、時計が右端付近まで伸びており、Android がホーム画面用に円形などへ切り抜く（`maskable`）と両端が欠けるためです。`maskable` 版は絵柄を中央の直径 80% のセーフゾーンへ収めています。iOS の `apple-touch-icon` は OS が角丸に切るだけなので `any` 版をそのまま使います。
+
+原本の背景は純白ではなく 251〜255 の範囲で揺らぐ「ほぼ白」です。`maskable` 版で塗り足した白との境目が出ないよう、スクリプトは縮小前に R・G・B すべてが 248 以上の画素を `#FFFFFF` へ平坦化してから、同じ `#FFFFFF` のキャンバスに置きます（生成時に貼り合わせ境界付近の全画素が純白であることを確認済み）。`any` 版にも同じ平坦化を掛け、全アイコンで背景色を揃えています。
+
+原本を差し替えるときは、リポジトリ直下で次を実行して 3 枚を再生成します。
+
+```powershell
+.\scripts\make-icons.ps1 -Source design\icons\bus-icon.png -OutDir public\icons
+```
+
+2026-09-12 以前に使っていた旧アイコン（緑の地図背景にバス）は `design/icons/legacy/` に保管しており、配信・プリキャッシュの対象外です。戻す場合は `public/icons/` へコピーし、`maskable_512x512.png` を用意するか `manifest.json` の `maskable` エントリを外してください。
+
+インストール済みの端末では、ホーム画面のアイコンは OS が manifest を再取得するまで切り替わりません。iOS は基本的に再インストールが必要です。
 
 ## Service Worker の構成
 
