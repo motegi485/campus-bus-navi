@@ -110,12 +110,14 @@ function NewsDetail({ item, onBack }: { item: NewsItem; onBack: () => void }) {
     /* overflow:hidden の本パネル自体がスクロールコンテナ扱いになり親の touchAction が
        効かないため、ここにも touchAction を付けて NavBar 起点の貫通スクロールを防ぐ */
     <div style={{ position: 'absolute', inset: 0, background: 'var(--bg-page)', display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 10, transition: 'background 0.35s', touchAction: 'pinch-zoom' }}>
-      <div ref={backRef} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
-        <BackButton label="お知らせ" onClick={onBack} />
+      <div ref={backRef} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
+        <div className="pc-bounded" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <BackButton label="お知らせ" onClick={onBack} />
+        </div>
       </div>
       {/* 本文スクローラ（contain + 常時スクロール可能化。露出色 = --bg-page） */}
       <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
-        <div style={{ minHeight: 'calc(100% + 1px)', padding: '24px 20px 40px' }}>
+        <div className="pc-bounded" style={{ minHeight: 'calc(100% + 1px)', padding: '24px 20px 40px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <NewsTag tag={item.tag} tagLabel={item.tagLabel} />
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item.date}</span>
@@ -190,16 +192,18 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
       touchAction: 'pinch-zoom',
     }}>
       {/* ナビバー */}
-      <div ref={navRef} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
-        <BackButton label="戻る" onClick={onClose} />
-        <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>お知らせ</span>
+      <div ref={navRef} style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
+        <div className="pc-bounded" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <BackButton label="戻る" onClick={onClose} />
+          <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>お知らせ</span>
+        </div>
       </div>
 
       {/* リスト。contain で外への連鎖を遮断し、バウンス/ストレッチは領域自身が担う
           （露出色 = パネル背景 --bg-page）。内側ラッパーの minHeight 100%+1px で
           内容が短くても常にスクロール可能にする（iOS の連鎖遮断の成立条件）。 */}
       <div ref={listRef} style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
-        <div style={{ minHeight: 'calc(100% + 1px)', padding: '16px 14px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="pc-bounded" style={{ minHeight: 'calc(100% + 1px)', padding: '16px 14px 32px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {loading && <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '32px 0' }}>読み込み中...</p>}
         {error && !loading && (
           <div

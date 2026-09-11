@@ -108,17 +108,19 @@ export function HelpScreen({ open, onClose }: Props) {
        背後 body への貫通スクロールを防ぐ（詳細は NewsScreen.tsx のコメント参照） */
     <div ref={rootRef} aria-hidden={!open} style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', touchAction: 'pinch-zoom' }}>
       {/* ナビバー */}
-      <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
-        <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
-          <CaretLeft size={18} weight="bold" color="var(--ui-accent-fg)" aria-hidden="true" />
-          戻る
-        </button>
-        <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>ヘルプ</span>
+      <div style={{ background: 'var(--bg-card)', padding: '52px 18px 14px', borderBottom: '.5px solid var(--border2)', flexShrink: 0, transition: 'background 0.35s' }}>
+        <div className="pc-bounded" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: 'var(--ui-accent-fg)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
+            <CaretLeft size={18} weight="bold" color="var(--ui-accent-fg)" aria-hidden="true" />
+            戻る
+          </button>
+          <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.3px' }}>ヘルプ</span>
+        </div>
       </div>
 
       {/* スクローラ（contain + 常時スクロール可能化。露出色 = --bg-page） */}
       <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
-        <div style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="pc-bounded" style={{ minHeight: 'calc(100% + 1px)', padding: '20px 16px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* バナー */}
         <div style={{ background: 'var(--ui-accent-grad)', borderRadius: 20, padding: '25px 20px', color: '#fff', textAlign: 'center' }}>

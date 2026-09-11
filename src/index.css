@@ -783,6 +783,116 @@ html.bounce-native .header-cushion {
 }
 
 /* ============================================================
+   PC レイアウト（1024px 以上・サイドバー＋中央寄せ単一カラム）
+
+   参考: 別プロジェクト（ToDo-Reminder）のサイドバー＋中央寄せ単一カラム構成。
+   ただし本アプリの流儀（構造はCSSクラス、色・細部はCSS変数経由のインライン
+   style）に合わせて再実装する。複数カラムのダッシュボード化はしない
+   （地図・時刻表を同時表示する構成は、旧・PC/横向き2カラム表示が抱えていた
+   高さ整合の問題を再燃させるため採用しない。詳細は design-decisions.md の
+   「レスポンシブの境界」を参照）。
+
+   Tailwind の @custom-variant は使わない（廃止済みの @custom-variant bp を
+   復活させない）。現在は tailwind.config.ts が無く、トークンは @theme で
+   一元管理、スタイルはCSS変数経由のインラインstyleが中心のため、専用CSS
+   クラス＋素の @media (min-width: 1024px) で分岐する。
+
+   ⚠️ ここと以下の複数の @media (min-width: 1024px) の値は、
+   src/constants/layout.ts の PC_BREAKPOINT_PX と必ず合わせること。
+   ============================================================ */
+:root {
+  /* サイドバー表示時の本文カラム幅の上限。お知らせ・週間ダイヤ・設定・
+     ヘルプの本文幅の上限（.pc-bounded）にも同じ値を使い、PC上での
+     「読む列の幅」の言語を統一する。 */
+  --pc-content-max: 768px;
+}
+
+/* App.tsx の backgroundRef（サイドバー・タブ本文・ボトムタブバーを包む
+   背面レイヤー）。1024px未満は縦1カラム（現状どおり）。1024px以上は
+   サイドバー＋本文の横並び。 */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+}
+@media (min-width: 1024px) {
+  .app-shell { flex-direction: row; align-items: flex-start; }
+}
+
+/* サイドバーの隣に並ぶ本文カラム。MapTab の flex-1 連鎖
+   （backgroundRef → このカラム → マップのラッパー）を保つため、
+   このクラス自体も常に flex:1 と縦flexを持つ。1024px以上でだけ
+   最大幅を絞って中央寄せにする。 */
+.app-content-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+@media (min-width: 1024px) {
+  .app-content-col {
+    max-width: var(--pc-content-max);
+    margin: 0 auto;
+    width: 100%;
+  }
+}
+
+/* PC専用サイドバー（Sidebar.tsx）。1024px未満はDOMに存在するが display:none。
+   BottomTabBar と同じく色を持たない（ルート色にもテーマにも属さない常設チロム）。 */
+.pc-sidebar { display: none; }
+@media (min-width: 1024px) {
+  .pc-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 232px;
+    flex-shrink: 0;
+    gap: 4px;
+    padding: 20px 12px;
+    background: var(--bg-card);
+    border-right: 1px solid var(--border2);
+    transition: background .3s, border-color .3s;
+  }
+}
+.pc-sidebar-title {
+  padding: 8px 12px 18px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -.3px;
+}
+.pc-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px; /* 1024px境界直上はiPad横向き実機になりうるため、タッチターゲットを確保 */
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: var(--tab-inactive-fg);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background .2s, color .2s;
+}
+.pc-sidebar-item.is-active {
+  background: var(--tab-active-pill-bg);
+  color: var(--tab-active-fg);
+  font-weight: 800;
+}
+@media (hover: hover) {
+  /* ホバーは実マウスでのみ。iPad横向き等のタッチ環境で擬似ホバーが張り付くのを防ぐ */
+  .pc-sidebar-item:hover:not(.is-active) { background: var(--row-active); }
+}
+
+/* お知らせ・週間ダイヤ・設定・ヘルプ（全画面オーバーレイ）の本文幅をPCで
+   頭打ちにする。パネル自体（全画面・背景色・スクロール）は変えず、内側の
+   読みやすい列幅だけを絞る。 */
+@media (min-width: 1024px) {
+  .pc-bounded { max-width: var(--pc-content-max); margin: 0 auto; }
+}
+
+/* ============================================================
    ボトムタブバー（バス/マップ/メニュー固定3タブ）
    高さ・境界線・影の値はここが単一の真実源（BottomTabBar.tsx には直書きしない）。
 
@@ -794,6 +904,14 @@ html.bounce-native .header-cushion {
    （App.tsx の <main>、MapTab.tsx、MenuTab.tsx）。 */
 :root {
   --tabbar-h: 76px;
+}
+/* ⚠️ 1024px は src/constants/layout.ts の PC_BREAKPOINT_PX と合わせること。
+   PCはボトムタブバーが無い（サイドバーに置き換え）ため、各タブ本文の
+   paddingBottom 予約分を0にする。App.tsx の <main>、MapTab.tsx、MenuTab.tsx の
+   calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px) + 16px) は変更不要で、
+   この変数だけで下端の余白が16px（+ ここでは常に0のsafe-area）に自動的に縮む。 */
+@media (min-width: 1024px) {
+  :root { --tabbar-h: 0px; }
 }
 .bottom-tab-bar {
   position: fixed;
@@ -823,6 +941,11 @@ html.bounce-native .header-cushion {
      この値がそのまま中身全体のオフセットになる。 */
   padding-top: 6px;
   transition: background .3s, border-color .3s;
+}
+/* ⚠️ 1024px は src/constants/layout.ts の PC_BREAKPOINT_PX と合わせること。
+   1024px以上はサイドバー（.pc-sidebar）に置き換わるため非表示にする。 */
+@media (min-width: 1024px) {
+  .bottom-tab-bar { display: none; }
 }
 
 /* 選択中タブのアイコン背後に敷く pill。
@@ -884,6 +1007,29 @@ html.bounce-native .header-cushion {
 }
 @media (prefers-reduced-motion: reduce) {
   .sheet-panel { transition: none; }
+}
+
+/* ⚠️ 1024px は src/constants/layout.ts の PC_BREAKPOINT_PX と合わせること。
+   PCでは下からのシートではなく中央モーダルにする（見た目の入れ物だけの
+   切替。背面スクロールロック・Escape・背景タップ・×ボタンで閉じる・
+   タップだけでは閉じない、という契約は FullTimetableSheet.tsx 側で維持する）。
+   margin:auto によるセンタリングを使う理由: useSheetDragToClose がドラッグ中
+   に transform を直接書き換えるため、中央寄せ自体を transform で行うと
+   アニメーション用とドラッグ用の transform が競合する。 */
+@media (min-width: 1024px) {
+  .sheet-panel {
+    inset: 0;
+    margin: auto;
+    width: min(680px, calc(100vw - 64px));
+    height: fit-content;
+    max-height: min(760px, calc(100vh - 96px));
+    border-radius: 24px;
+    transition: transform .28s cubic-bezier(.32, .72, 0, 1), opacity .28s ease;
+  }
+  .sheet-panel.sheet-panel-closed {
+    transform: scale(.96);
+    opacity: 0;
+  }
 }
 
 /* ============================================================

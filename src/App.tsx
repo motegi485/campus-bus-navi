@@ -27,6 +27,7 @@ import { BellIcon } from './components/BellIcon'
 import { EndOfServiceCard } from './components/EndOfServiceCard'
 import { SpecialScheduleCard } from './components/SpecialScheduleCard'
 import { BottomTabBar, type AppTab } from './components/BottomTabBar'
+import { Sidebar } from './components/Sidebar'
 import { MapTab } from './components/MapTab'
 import { MenuTab } from './components/MenuTab'
 import { NewsScreen } from './components/NewsScreen'
@@ -429,8 +430,16 @@ export default function App() {
               onClose={() => setHelpOpen(false)}
             />
 
-            {/* 背面レイヤー（タブ本文・バナー）。オーバーレイが開いている間は inert。 */}
-            <div ref={backgroundRef} className="flex flex-col" style={{ minHeight: 'var(--app-height, 100vh)' }}>
+            {/* 背面レイヤー（サイドバー・タブ本文・バナー）。オーバーレイが開いている間は inert。
+                Sidebar はこの内側に置く（backgroundRef の inert 化から漏れないようにするため。
+                外側の兄弟に置くと、オーバーレイ表示中でも Tab キーやクリックで操作できてしまう）。 */}
+            <div ref={backgroundRef} className="app-shell" style={{ minHeight: 'var(--app-height, 100vh)' }}>
+
+              {/* PC専用サイドバー（1024px未満は index.css の .pc-sidebar が display:none）。
+                  BottomTabBar と同じ activeTab を読み書きするだけの新規ナビ。 */}
+              <Sidebar active={activeTab} onChange={setActiveTab} hasUnread={hasUnread} />
+
+              <div className="app-content-col">
 
               {/* バスタブのヘッダー（マップ/メニュータブは各コンポーネントが自前のヘッダーを持つ）。
                   改修たたき台 1a はタイトル行・ルートトグル・日付ピル行の3つを同じ
@@ -657,8 +666,11 @@ export default function App() {
                 />
               )}
 
+              </div>{/* app-content-col */}
+
               {/* ボトムタブバー（index.css の .bottom-tab-bar で position:fixed。
-                  各タブ本文側が --tabbar-h ぶんの下パディングを確保する） */}
+                  各タブ本文側が --tabbar-h ぶんの下パディングを確保する。
+                  1024px以上は Sidebar に置き換わり非表示になる） */}
               <BottomTabBar active={activeTab} onChange={setActiveTab} hasUnread={hasUnread} />
 
             </div>{/* 背面レイヤー */}
