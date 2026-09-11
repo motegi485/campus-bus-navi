@@ -6,7 +6,7 @@
       "origin": "松永発",
       "destination": "大学行き",
       "bus_stop_name": "松永 バス乗り場",
-      "bus_stop_coords": { "lat": 34.45118558593484, "lng": 133.25675322125554 },
+      "bus_stop_coords": { "lat": 34.45115430055426, "lng": 133.25675090356862 },
       "schedule": []
     },
     "campus_to_station": {

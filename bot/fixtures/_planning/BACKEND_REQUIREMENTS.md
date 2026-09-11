@@ -108,7 +108,7 @@ Bot はフロントを変更しない。以下はリポジトリの現状から�
       "origin": "松永発",
       "destination": "大学行き",
       "bus_stop_name": "松永 バス乗り場",
-      "bus_stop_coords": { "lat": 34.45118558593484, "lng": 133.25675322125554 },
+      "bus_stop_coords": { "lat": 34.45115430055426, "lng": 133.25675090356862 },
       "schedule": [ { "departure": "HH:mm", "note": "" | "最終" } ]
     },
     "campus_to_station": {
@@ -414,7 +414,7 @@ export const CONFIG = {
 
   busStops: {
     station_to_campus: { origin:'松永発', destination:'大学行き', bus_stop_name:'松永 バス乗り場',
-      bus_stop_coords:{ lat:34.45118558593484, lng:133.25675322125554 } },
+      bus_stop_coords:{ lat:34.45115430055426, lng:133.25675090356862 } },
     campus_to_station: { origin:'大学発', destination:'松永行き', bus_stop_name:'大学 バス乗り場',
       bus_stop_coords:{ lat:34.459281686471684, lng:133.23183492499786 } },
   },
