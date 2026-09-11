@@ -24,7 +24,7 @@ interface Props {
 export function Sidebar({ active, onChange, hasUnread }: Props) {
   return (
     <nav className="pc-sidebar" aria-label="画面切り替え">
-      <div className="pc-sidebar-title">スクールバス時刻表</div>
+      <div className="pc-sidebar-title">バスNAVI</div>
       {(['bus', 'map', 'menu'] as const).map((key) => {
         const isActive = key === active
         const label = key === 'bus' ? 'バス' : key === 'map' ? 'マップ' : 'メニュー'
