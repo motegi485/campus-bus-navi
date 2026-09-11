@@ -1,6 +1,7 @@
+import { useEffect, useRef, type CSSProperties } from 'react'
 import type { NextBusInfo, FontSize } from '../types/timetable'
 import { BellIcon } from './BellIcon'
-import { formatWaitLabel } from '../utils/findNextBus'
+import { formatWaitLabel, formatGaugeCenter } from '../utils/findNextBus'
 
 interface Props {
   next: NextBusInfo
@@ -24,11 +25,14 @@ const FONT_SIZE_MAP: Record<FontSize, string> = {
 }
 
 /**
- * 円形ゲージの満タン相当分数。実際の運行間隔（10〜30分台）を大きく外れない
- * 目安値で、正確な運行間隔から算出しているわけではない（見た目の目安）。
- * 改修たたき台のサンプル値（残り5分 / .17turn ≒ 5/30）と同じ前提。
+ * 円形ゲージが減り始める上限（分）。
+ * ゲージは「前便の発車〜次発の発車」の実間隔（headwayMinutes）を満タンとして
+ * 残り時間の割合を塗るが、間隔がこれより長い便（休業日ダイヤの 80〜155 分など）は
+ * 残り 60 分以上のあいだ満タンのまま止まり、59 分から減り始める。
+ * 始発（前便なし）は間隔が定義できないので、同じくこの値を満タン基準にする。
+ * 中央の数字が 60 分以上で「N時間」表示に切り替わるのと境界を揃えている。
  */
-const GAUGE_MAX_MINUTES = 30
+const GAUGE_CAP_MINUTES = 60
 
 export function NextBusCard({ fontSize, remaining, next, reminded = false }: Props) {
   const fs = FONT_SIZE_MAP[fontSize]
@@ -36,10 +40,29 @@ export function NextBusCard({ fontSize, remaining, next, reminded = false }: Pro
   // remaining === 1 のとき、次発が本日の最終便
   const isLastBus = remaining === 1
 
-  const fraction = Math.max(0, Math.min(1, next.minutesUntil / GAUGE_MAX_MINUTES))
+  const gaugeMax = Math.min(next.headwayMinutes ?? GAUGE_CAP_MINUTES, GAUGE_CAP_MINUTES)
+  const fraction = Math.max(0, Math.min(1, next.minutesUntil / gaugeMax))
   const gaugeDeg = Math.round(fraction * 360)
 
+  // 毎分の 1 目盛ぶんの減少だけを CSS transition で滑らかに動かす。
+  // 便の切替（0→満タン）、バックグラウンド復帰で数分飛ぶ、ルート切替は即時に描く
+  // （巻き戻しや高速回転に見せないため）。前回の描画を ref に持ち、同じ便で
+  // 1.5 目盛以内の減少のときだけアニメ対象とする。
+  const prevGauge = useRef<{ departure: string; deg: number } | null>(null)
+  const prev = prevGauge.current
+  const stepDeg = 360 / gaugeMax
+  const drop = prev ? prev.deg - gaugeDeg : 0
+  const animate =
+    prev !== null &&
+    prev.departure === next.entry.departure &&
+    drop > 0 &&
+    drop <= stepDeg * 1.5
+  useEffect(() => {
+    prevGauge.current = { departure: next.entry.departure, deg: gaugeDeg }
+  })
+
   const waitLabel = formatWaitLabel(next.minutesUntil)
+  const center = formatGaugeCenter(next.minutesUntil)
 
   return (
     <div style={{ borderRadius: 22, background: 'var(--next-card-bg)', padding: '16px 18px' }}>
@@ -89,16 +112,18 @@ export function NextBusCard({ fontSize, remaining, next, reminded = false }: Pro
           </p>
         </div>
 
-        {/* 円形ゲージ。残り時間に応じて conic-gradient の角度を更新する
+        {/* 円形ゲージ。残り時間の割合を --gauge-deg に渡し、conic-gradient の塗りと
+            transition は index.css の .next-gauge 側で持つ
             （改修たたき台と同じく 12 時位置から時計回り）。 */}
         <div
           aria-hidden="true"
+          className={animate ? 'next-gauge' : 'next-gauge next-gauge-jump'}
           style={{
             flexShrink: 0,
             width: 104, height: 104, borderRadius: '50%',
-            background: `conic-gradient(var(--route-solid) 0deg ${gaugeDeg}deg, var(--gauge-track) ${gaugeDeg}deg 360deg)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
+            '--gauge-deg': `${gaugeDeg}deg`,
+          } as CSSProperties}
         >
           <div
             style={{
@@ -106,10 +131,22 @@ export function NextBusCard({ fontSize, remaining, next, reminded = false }: Pro
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <span style={{ fontSize: 34, fontWeight: 900, color: 'var(--next-time-fg)', lineHeight: 1, letterSpacing: '-1.5px' }}>
-              {next.minutesUntil}
+            {/* 中央の 2 行。60 分以上は「1時間 / 30分後」のように時間・分へ分け、
+                下の「あと1時間30分」と語を揃える（formatGaugeCenter）。
+                端数ありの時間表示だけ数字を一回り小さくして単位「時間」を添える。 */}
+            {center.primaryUnit ? (
+              <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--next-time-fg)', lineHeight: 1, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>
+                {center.primary}
+                <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0, marginLeft: 1 }}>{center.primaryUnit}</span>
+              </span>
+            ) : (
+              <span style={{ fontSize: 34, fontWeight: 900, color: 'var(--next-time-fg)', lineHeight: 1, letterSpacing: '-1.5px' }}>
+                {center.primary}
+              </span>
+            )}
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--next-gauge-sub-fg)', marginTop: 2, whiteSpace: 'nowrap' }}>
+              {center.unit}
             </span>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--next-gauge-sub-fg)', marginTop: 2 }}>分後</span>
           </div>
         </div>
       </div>
