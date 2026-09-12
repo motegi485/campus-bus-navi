@@ -47,6 +47,7 @@ public/
 scripts/validate-data.mjs 静的データの品質ゲート
 bot/                      時刻表自動取り込み Bot の独立パッケージ
 docs/                     開発・運用・設計文書
+assets/screenshots/       README 掲載用のアプリ画面（配信物には含まれない）
 ```
 
 ## Bot のローカル確認
