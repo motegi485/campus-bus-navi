@@ -7,7 +7,7 @@
 import { CONFIG } from './config.js'
 import { fetchImage, revalidateImage, type ImageResult } from './fetchImage.js'
 import { isAfter, isBefore, parseDate, todayJst } from './time.js'
-import type { ClassifiedLink, Season, State, StateFetchCheck, Warning } from './types.js'
+import type { ClassifiedLink, Season, State, StateFetchCheck, StateVacation, Warning } from './types.js'
 
 /** 画像に対して行う処理 */
 export type ChangeAction =
@@ -91,6 +91,23 @@ function metaChanged(state: State, link: ClassifiedLink): boolean {
     return JSON.stringify(e.dates) !== JSON.stringify(link.dates)
   }
   return false
+}
+
+/**
+ * 今日が長期休暇の期間内か。
+ *
+ * state に記録済みの休暇と、今回のページで vacation に分類されたリンク（休暇初日など、
+ * まだ state に入る前の掲示）の両方を見る。終了日が読めていない期間は「いつ終わるか
+ * 分からない」ので数えない（安全側: 通常どおり warn になる）。
+ */
+export function isInVacationPeriod(links: ClassifiedLink[], state: State, today: string): boolean {
+  const periods: { start: string; end?: string }[] = [
+    ...Object.values(state.vacations ?? {})
+      .filter((v): v is StateVacation => Boolean(v))
+      .map((v) => v.period),
+    ...links.filter((l) => l.kind === 'vacation' && l.start).map((l) => ({ start: l.start!, ...(l.end ? { end: l.end } : {}) })),
+  ]
+  return periods.some((p) => p.end !== undefined && !isBefore(today, p.start) && !isAfter(today, p.end))
 }
 
 /**
@@ -199,14 +216,30 @@ export async function detectChanges(
   // URL か state が変わるまで古い表を出し続ける。info のままだと、他に差分が無い日は
   // メールの送信条件に入らず、「書かなかった判断も通知する」という約束から漏れる。
   // 掲示の一時的な揺れでも鳴るが、古い表が数週間居座るより誤報の方が安い。
+  //
+  // 【例外: 長期休暇中は info】大学ページは長期休暇中、通常ダイヤの掲示そのものを外す
+  // のが通常（2026-09-12 ユーザー説明。今回に限らず毎回）。休暇期間中に warn のままだと、
+  // 差分ゼロの日も数週間にわたり毎日「⚠ 要確認」メールが届き、本当の警告が埋もれる。
+  // 期間が確定している休暇（state か今回の掲示）に今日が含まれる間だけ info に落とし、
+  // レポートの「参考情報」には残す。休暇期間外で消えた場合は従来どおり warn。
   if (state.regular && !links.some((l) => l.kind === 'regular')) {
-    warnings.push({
-      level: 'warn',
-      code: 'regular_link_missing',
-      message:
-        '前回まで存在した通常ダイヤのリンクが今回のページから見つかりませんでした。' +
-        '既存の timetable_weekday / timetable_holiday は変更しません（ページ文言の変更を確認してください）。',
-    })
+    if (isInVacationPeriod(links, state, today)) {
+      warnings.push({
+        level: 'info',
+        code: 'regular_link_missing',
+        message:
+          '通常ダイヤのリンクが今回のページにありませんが、長期休暇の期間中です' +
+          '（休暇中は通常ダイヤの掲示が外れるのが通常です）。既存の timetable_weekday / timetable_holiday は変更しません。',
+      })
+    } else {
+      warnings.push({
+        level: 'warn',
+        code: 'regular_link_missing',
+        message:
+          '前回まで存在した通常ダイヤのリンクが今回のページから見つかりませんでした。' +
+          '既存の timetable_weekday / timetable_holiday は変更しません（ページ文言の変更を確認してください）。',
+      })
+    }
   }
 
   const { chosen: chosenRegular } = selectRegular(links, today, warnings)
