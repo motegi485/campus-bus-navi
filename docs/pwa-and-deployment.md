@@ -72,7 +72,7 @@ Pages では **Functions が `_redirects` より先に評価される**ため、
 
 ### push ハンドラを `injectManifest` へ移行せずに足している理由
 
-`push` イベントを扱うには生成 SW に独自コードが要りますが、`injectManifest` へ全面移行すると上記のキャッシュ設定（`globIgnores`、NetworkFirst の 3 秒タイムアウト、`timetable-data` の名前、OSM タイル、skip-waiting のフロー）をすべて書き直すことになり、リグレッションのリスクが高くなります。
+`push` イベントを扱うには生成 SW に独自コードが要りますが、`injectManifest` へ全面移行すると上記のキャッシュ設定（`globIgnores`、NetworkFirst の 3 秒タイムアウト、`timetable-data` の名前、skip-waiting のフロー。導入当時は OSM タイルのキャッシュも含んでいた）をすべて書き直すことになり、リグレッションのリスクが高くなります。
 
 代わりに `workbox.importScripts` を使い、`public/push-sw.js` を生成 SW へ読み込ませています。**既存のキャッシュ設定には一切触れません。**
 

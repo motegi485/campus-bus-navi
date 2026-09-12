@@ -317,6 +317,8 @@ Set-Location server
 npx wrangler deploy
 ```
 
+**2026-09-12 追記: 運用者が `npx wrangler deploy` を実行し、Worker は同日の `server/src` と同じ版になりました**（Version ID `daec2b2b-7f16-408c-a0e0-bd85932ab43b`）。これで「デプロイ済みの Worker が旧クエリを投げている」状態は解消されたはずですが、下のデプロイ後の確認 1〜3 はまだ行っていません。
+
 デプロイ後の確認:
 
 1. `npx wrangler tail` を出したまま 10 分程度先の便へ通知を設定し、`送信対象 N 件 / M バッチ` のログと実機の受信を確認する
@@ -493,3 +495,29 @@ Markdown 専用の自動リンク検査は現在導入していません。文�
 - 実際のモバイル幅（320〜480px程度）でのビューポート実描画は未確認です。上記はいずれも計測ベースの検証で、実際の1カラムレイアウト（ボトムタブバー・全画面オーバーレイの実配置）を目視してはいません
 - ダーク×松永発の組み合わせでの文字サイズ「大」は未確認です（今回はライト×松永発中心に確認）
 - 実機（iOS Safari／Android Chrome）での確認はしていません
+
+## Codex レビュー（2026-09-12）の反映の確認
+
+`_codexReview/CODEX_REVIEW_2026-09-12.md` の 13 指摘を実装で裏取りし、妥当と確認できた 8 件（FN-01 / FN-02 / OPS-02 / SEC-02 / PUB-01 / UX-01 / OPS-03 / UX-02）を反映しました。判定の根拠と修正内容は要件定義書 v1.15、[design-decisions.md](design-decisions.md)、[backend-push.md](backend-push.md) の各該当箇所に記録しています。
+
+同日、実際に届いた通知メールから 2 点を追加で反映しました。(1) 本文の `timetable_weekday / timetable_holiday` が「timetableweekday / timetableholiday」と `_` を失って届いていた（HTML 変換が単語途中の `_` を斜体にする）ため、時刻表 ID・ファイル名の `_` も逃がすようにした。(2) 長期休暇中は通常ダイヤの掲示が外れるのが通常（ユーザー説明）なのに `regular_link_missing` が warn のため毎日「⚠ 要確認」メールが届いていたので、休暇期間中だけ info に落とした（要件定義 FR-2 6(b)）。
+
+自動ゲート（2026-09-12、ローカル。OCR・秘密情報は未使用）:
+
+| 対象 | コマンド | 結果 |
+|---|---|---|
+| Bot | `npx vitest run` / `npx tsc --noEmit` | 216 件合格（FN-01 の回帰 8 件、SEC-02 と `_` の回帰 4 件、休暇中の通常ダイヤ欠落の回帰 6 件を追加）/ 型検査成功 |
+| Bot（ライブ） | `DRY_RUN=1` / `SKIP_OCR=1` で `npx tsx src/index.ts`（ユーザー依頼で実行。大学ページと祝日 CSV への読み取りのみ） | リンク 3 件すべて `unchanged`、書き込み 0、override 差分 0。`specials` は無く、新しい `applySpecials` の経路で旧実装と同じ計画になることを確認 |
+| Worker（`functions/` を含む） | `npx vitest run` / `npm run typecheck` | 99 件合格（OPS-03 の回帰 3 件を追加）/ 型検査成功 |
+| フロント | `npm run build`（`validate:data` + `tsc` + Vite） | 成功 |
+| コントラスト | `src/index.css` の実値から WCAG 2.1 の相対輝度式で再計算 | お知らせタグ 4 種 × ライト/ダーク、タブ非選択 × ライト/ダークのすべてで 4.5:1 以上（最小 4.83） |
+
+OPS-03 の合流テストは、WebCrypto の ECDSA 署名が同じ入力でも毎回異なる（ランダムな k）ことを Node で確かめたうえで「同時 3 呼び出しの JWT が同一」を合格条件にしています。旧実装では必ず失敗する回帰テストです。
+
+**未確認:**
+
+- FN-02（`functions/api/reminders.ts` の UPSERT）は D1 に依存するため単体テストがありません。SQLite の UPSERT 構文であることをコード上で確認したのみで、実環境での「送信窓の中で再保存しても再送されない」は未確認です
+- OPS-03 の Worker は 2026-09-12 に運用者が `npx wrangler deploy` で反映済み（Version ID `daec2b2b-7f16-408c-a0e0-bd85932ab43b`）。ただし反映後の Cron の成否と実端末への到達は未確認（下の「Cron 経由の通知が届かない」の確認手順が残る）
+- ライブ実走は休暇中の状態（`regular_link_missing` の warn 化前）で行ったもので、info への切替後の実走と、実際のメールでの `\_` の表示は次回以降の日次実行で確認します
+- UX-01 / UX-02 の実機・支援技術（VoiceOver / TalkBack / NVDA）での確認はしていません
+- 見送った指摘（SEC-01 / OPS-01 / PUB-02 は外部状態・権利確認、SEC-03 は設計判断、SEC-04 は `npm audit` 未実行、PUB-03 は権利者判断）は報告書の第 6 節の手順に従って人間が確認します

@@ -121,13 +121,15 @@ push 送信 1 件が外部 fetch 1 件なので、**1 実行で送れるのは�
 
 送信判定は `[発車時刻 − リード分, 発車時刻)` の**窓**で行い、「ちょうど N 分前」の等号一致にはしていません。Cron は 1 分間隔ですが実行が遅れることがあり、等号一致だと遅延した回で取りこぼします。窓なら遅れても送れ、通知の文面は受信側が実時刻から組み立てるので「あと N 分」は正しいままです。二重送信は `reminders.sent_at` が防ぎます。
 
+`sent_at` が番人として成り立つよう、`POST /api/reminders`（`functions/api/reminders.ts`）は**選択から外れた便の行だけを消し、選択に残る便の行は UPSERT で保ちます**（`lead_minutes` / `notify_at` だけ更新し、`sent_at` は触りません）。2026-09-12 までは DELETE → INSERT で全行を作り直していたため、送信窓の中で再保存すると送信済みの便が `sent_at = NULL` に戻り、次の分の Cron が同じ便へもう一度送っていました（通知を受け取ってから別の便を足す、という典型的な操作で起きます。`push-sw.js` は同じタグでも `renotify: true` で再通知します）。契約として、**送信済みの便はリード時間を変えても同じ日には再送しません**（1 便 1 通）。
+
 **同じ窓を SQL 側でも掛けます**（`notify_at <= now AND now < notify_at + lead_minutes × 60000`）。下限だけだと、窓を過ぎても未送信のまま残った行（運休・ダイヤ差し替え・配信停止で生じる）が**その日の残り時間ずっと引かれ続け**、件数が 0 にならないので毎分ダイヤを取りに行くことになります。「対象 0 件ならダイヤの取得すらしない」という判断が効かなくなり、`LIMIT` の枠も過去の行に食われます。最終的な判断は `selectDue` が持ち、SQL 側は引く行を減らすためのものです。⚠️ 両者の窓は対なので、片方だけ変えてはいけません（境界の一致は `server/test/schedule.test.ts` が固定しています）。
 
 窓を過ぎた行は送信対象から外れるだけで、**削除はされません**。`/api/status` の `overdueReminders` がそれを数えて配信停止の兆候として見せ、行そのものは翌日の毎時 00 分の掃除で消えます。
 
 ### Service Worker を `injectManifest` へ移行していない
 
-`vite.config.ts` の `workbox.importScripts` で `public/push-sw.js` を生成 SW へ読み込ませています。既存のキャッシュ設定（`globIgnores` / NetworkFirst 3 秒 / `timetable-data` / OSM タイル）に一切触れずに push 対応を足すための構成です。詳細は [pwa-and-deployment.md](pwa-and-deployment.md) を参照してください。
+`vite.config.ts` の `workbox.importScripts` で `public/push-sw.js` を生成 SW へ読み込ませています。既存のキャッシュ設定（`globIgnores` / NetworkFirst 3 秒 / `timetable-data`。導入当時は OSM タイルのキャッシュも含んでいたが、地図の Google 埋め込み化で 2026-09 に無くなった）に一切触れずに push 対応を足すための構成です。詳細は [pwa-and-deployment.md](pwa-and-deployment.md) を参照してください。
 
 ## 送信しない条件
 
@@ -218,6 +220,8 @@ npx wrangler deploy
 - `server/` 配下を変更したとき
 - `src/utils/diagramType.ts` や `src/types/timetable.d.ts` を変更したとき（`server/src/schedule.ts` が直接 import しているため）
 - **D1 のスキーマを変更したとき。migration の適用と Worker のデプロイは必ず同じ作業でまとめること**
+
+**2026-09-12 に運用者が `npx wrangler deploy` を実行し、Worker は当日の `server/src`（`vapid.ts` の JWT 署名合流を含む）と同じ版になりました**（wrangler 3.114.17、Version ID `daec2b2b-7f16-408c-a0e0-bd85932ab43b`。バインディングは DO `SENDER`・D1 `campus-bus-navi`・vars 3 件）。デプロイ後の Cron の成否と実端末への到達は未確認で、[verification.md](verification.md) の「Cron 経由の通知が届かない」の確認手順（`wrangler tail`・`/api/status` の `sentToday`・翌日の `staleReminders`）がそのまま残っています。`functions/api/reminders.ts`（再保存で送信済みの記録を保つ）は Pages 側なので `git push` で反映されます。スキーマ変更はありません。なお wrangler は 3.x のままで、4.x への更新は依存更新として別途判断します（deploy 時に更新を促す警告が出ます）。
 
 最後の項目を分けると、Worker だけが古いスキーマを前提にしたクエリを毎分投げ続け、Cron が失敗し続けます。利用者からは「通知が来ない」だけに見えます（実例は [verification.md](verification.md) の「Cron 経由の通知が届かない」）。現在デプロイされている版は次で確認できます。
 
