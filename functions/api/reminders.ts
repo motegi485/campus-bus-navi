@@ -8,6 +8,15 @@
  * POST は「その日・そのルートの指定を、送られた内容で置き換える」。
  * 差分ではなく総入れ替えにしているのは、選択モードが「いま選ばれている便の集合」を
  * そのまま送る作りで、そのほうが画面と DB がずれないため。
+ *
+ * ただし**行の実装は「選択から外れた便だけ消し、残る便の行は保つ」**。
+ * 以前は DELETE → INSERT で全行を作り直していたが、それだと送信窓
+ * （`[発車 − リード分, 発車)`）の中で再保存したとき、送信済みの便の行も
+ * `sent_at = NULL` で作り直され、次の分の Cron が同じ便へもう一度送っていた
+ * （通知を受け取ってから別の便を足す、という典型的な操作で起きる）。
+ * 同じ便の行 ID は決定的（reminderId）なので、UPSERT で lead_minutes / notify_at だけ
+ * 更新し、`sent_at` は触らない。**送信済みの便は、リード時間を変えても同じ日には再送しない**
+ * （1 便 1 通）。
  */
 
 import {
@@ -52,13 +61,23 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       return json({ error: '通知が有効になっていません。設定画面で通知をオンにしてください' }, 409)
     }
 
+    // 同じ日・同じルートのうち、今回の選択から外れた便だけを消す。
+    // 選択に残る便の行は消さない（送信済みの記録 sent_at を失わないため。ファイル先頭のコメント参照）。
+    // 空配列は「その日の指定をすべて解除」なので従来どおり全部消す
+    const removeUnselected =
+      departures.length === 0
+        ? env.DB.prepare('DELETE FROM reminders WHERE subscription_id = ? AND date_key = ? AND route = ?').bind(
+            subId,
+            dateKey,
+            route
+          )
+        : env.DB.prepare(
+            `DELETE FROM reminders WHERE subscription_id = ? AND date_key = ? AND route = ?
+               AND departure NOT IN (${departures.map(() => '?').join(', ')})`
+          ).bind(subId, dateKey, route, ...departures)
+
     const statements: D1PreparedStatement[] = [
-      // 同じ日・同じルートの指定を一度消してから入れ直す（総入れ替え）
-      env.DB.prepare('DELETE FROM reminders WHERE subscription_id = ? AND date_key = ? AND route = ?').bind(
-        subId,
-        dateKey,
-        route
-      ),
+      removeUnselected,
       // 前日以前の指定を掃除する。当日限りなので残しておく意味がない
       env.DB.prepare('DELETE FROM reminders WHERE subscription_id = ? AND date_key < ?').bind(subId, dateKey),
     ]
@@ -69,10 +88,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       // SQL 側で絞り込んで並べられる。詳細は server/src/schedule.ts の notifyAtEpochMs
       const notifyAt = notifyAtEpochMs(dateKey, departure, leadMinutes)
       if (notifyAt === null) return json({ error: 'departures には "HH:mm" 形式の時刻のみ指定できます' }, 400)
+      // 既に同じ便の行があれば（id は決定的）リード時間と送信開始時刻だけを更新し、
+      // sent_at は保つ。D1 は SQLite なので UPSERT 構文が使える
       statements.push(
         env.DB.prepare(
           `INSERT INTO reminders (id, subscription_id, date_key, route, departure, lead_minutes, notify_at, sent_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`
+           VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+           ON CONFLICT(id) DO UPDATE SET lead_minutes = excluded.lead_minutes, notify_at = excluded.notify_at`
         ).bind(id, subId, dateKey, route, departure, leadMinutes, notifyAt)
       )
     }
