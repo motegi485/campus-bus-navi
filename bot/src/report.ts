@@ -31,12 +31,26 @@ export interface ReportInput {
 const OP_LABEL: Record<FilePlan['op'], string> = { create: '新規', update: '更新', delete: '削除' }
 
 // ---------------------------------------------------------------------------
-// Markdown のエスケープ
+// Markdown / HTML のエスケープ
 //
-// レポートには外部由来の文字列（掲載ページの行テキスト、画像 URL、警告文）が入る。
-// 素のまま埋めると、`|` がテーブルの列を割り、改行が行を割り、`](` がリンクの
-// 表示先を差し替えられる。危険なスクリプトが動くわけではないが、**確認する人が
+// レポートには外部由来の文字列（掲載ページの行テキスト、画像 URL、警告文、OCR の
+// ラベル）が入る。素のまま埋めると、`|` がテーブルの列を割り、改行が行を割り、`](` が
+// リンクの表示先を差し替えられる。危険なスクリプトが動くわけではないが、**確認する人が
 // 見る表とリンクを改変できる**ので、用途ごとに逃がす。
+//
+// 【Codex レビュー SEC-20260912-02】このレポートは timetable-sync.yml が
+// `convert_markdown: true` で HTML メールにする。使われる Showdown は raw HTML を
+// そのまま通すので、掲載ページのテキスト（cheerio の .text() でエンティティが復号される）や
+// decodeURIComponent 済みの URL に `<img ...>` のようなタグが含まれると、メール本文の
+// 構造・リンク先・リモート画像を外部から変えられる。外部由来の文字列は HTML の特殊文字も
+// エスケープしてから埋める。エンティティは Showdown を素通りして HTML 側で元の文字に戻る。
+// Markdown のリンク記法（`[text](url)`）も同じ経路で作れるので、角括弧は `\[` `\]` に逃がす。
+//
+// Showdown は既定で単語の途中の `_` も強調記法として扱う（GitHub の Markdown とは違う）。
+// `timetable_weekday / timetable_holiday` は `_weekday / timetable_` が斜体になり、実際の
+// 通知メールで「timetableweekday / timetableholiday」と `_` が消えて届いていた（2026-09-12 に
+// 受信メールで確認）。時刻表 ID・ファイル名は Bot 生成の文字列だが、本文へ埋めるときは
+// 同じ関数で `_` と `*` も逃がす。
 // ---------------------------------------------------------------------------
 
 /** 1 行に収める（改行はセル・箇条書きの構造を壊す） */
@@ -44,14 +58,34 @@ function oneLine(value: string): string {
   return String(value).replace(/\r?\n/g, ' ')
 }
 
+const BODY_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '[': '\\[',
+  ']': '\\]',
+  '_': '\\_',
+  '*': '\\*',
+}
+
+/**
+ * 本文へ埋める文字列の共通エスケープ（外部由来の文字列と、`_` を含む時刻表 ID・ファイル名）。
+ * 改行を畳み、HTML として解釈される `& < >`、Markdown のリンク記法になる `[ ]`、
+ * 強調記法になる `_ *` を逃がす。URL 中の `&` も `&amp;` になるが、HTML として描画されれば
+ * 元の `&` に戻る。バックスラッシュ escape も HTML 化の時点で消える。
+ */
+function escapeExternal(value: string): string {
+  return oneLine(value).replace(/[&<>[\]_*]/g, (c) => BODY_ESCAPES[c] ?? c)
+}
+
 /** テーブルのセルへ入れる文字列 */
 function cell(value: string): string {
-  return oneLine(value).replace(/\|/g, '\\|')
+  return escapeExternal(value).replace(/\|/g, '\\|')
 }
 
 /** リンクの表示テキストへ入れる文字列 */
 function linkText(value: string): string {
-  return oneLine(value).replace(/([[\]])/g, '\\$1')
+  return escapeExternal(value)
 }
 
 /**
@@ -78,14 +112,17 @@ function countCell(plan: FilePlan): string {
 }
 
 function overrideLine(change: OverrideChange): string {
-  const reason = change.reason ? `（${oneLine(change.reason)}）` : ''
+  // reason には手動 override の値（calendar_rules.json 由来）が入るので同じ規律で逃がす。
+  // id（timetable_vacation_summer_weekday など）は `_` を含むので強調記法にならないよう逃がす
+  const reason = change.reason ? `（${escapeExternal(change.reason)}）` : ''
+  const id = escapeExternal(change.id ?? '')
   if (change.op === 'add') {
-    return `- 追加: ${change.date} → ${change.id}${reason}`
+    return `- 追加: ${change.date} → ${id}${reason}`
   }
   if (change.op === 'remove') {
     return `- 削除: ${change.date}${reason}`
   }
-  return `- スキップ: ${change.date} → ${change.id}${reason}`
+  return `- スキップ: ${change.date} → ${id}${reason}`
 }
 
 function departures(route: Route): string[] {
@@ -197,7 +234,7 @@ export function buildReport(input: ReportInput): string {
   if (input.deletions.length === 0) {
     lines.push('なし')
   } else {
-    for (const fileName of input.deletions) lines.push(`- ${fileName}（適用日経過）`)
+    for (const fileName of input.deletions) lines.push(`- ${escapeExternal(fileName)}（適用日経過）`)
   }
   lines.push('')
 
@@ -214,19 +251,21 @@ export function buildReport(input: ReportInput): string {
   }
   lines.push('')
 
+  // 警告文・検証エラーは掲載ページの行テキスト・URL・OCR のラベルを含む（外部由来）。
+  // formatWarning はログ用に素のまま返すので、本文へ埋めるここでエスケープする
   lines.push('## ⚠ 要手動確認')
   const manual = [...input.validationFailures, ...input.warnings.filter((w) => w.level === 'warn').map(formatWarning)]
   if (manual.length === 0) {
     lines.push('なし')
   } else {
-    for (const item of manual) lines.push(`- ${item}`)
+    for (const item of manual) lines.push(`- ${escapeExternal(item)}`)
   }
   lines.push('')
 
   const infos = input.warnings.filter((w) => w.level === 'info')
   if (infos.length > 0) {
     lines.push('## 参考情報')
-    for (const info of infos) lines.push(`- ${formatWarning(info)}`)
+    for (const info of infos) lines.push(`- ${escapeExternal(formatWarning(info))}`)
     lines.push('')
   }
 
@@ -294,6 +333,9 @@ export function rollbackSection(): string[] {
  *
  * message は掲載ページ由来の文字列を含みうるので改行を畳む（改行は箇条書きを割る）。
  * URL はリンクにせず素の文字列で出す（リンク表示先の改変余地を作らない）。
+ * HTML / Markdown のエスケープはここでは行わない。index.ts が console と
+ * GITHUB_STEP_SUMMARY にも同じ文字列を出すため、本文へ埋める buildReport 側で
+ * escapeExternal を通す。
  */
 export function formatWarning(warning: Warning): string {
   const message = oneLine(warning.message)

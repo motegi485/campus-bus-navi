@@ -212,10 +212,11 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
     })
     expect(body).toContain('## 概要')
     expect(body).toContain('モデル: gemini-3.8-flash')
-    expect(body).toContain('| vacation | timetable_vacation_summer_weekday.json | 新規 |')
-    expect(body).toContain('| regular | timetable_weekday.json | 更新 |')
+    // ID・ファイル名の `_` は HTML 化で斜体にならないよう `\_` で逃がす（report.test.ts 参照）
+    expect(body).toContain('| vacation | timetable\\_vacation\\_summer\\_weekday.json | 新規 |')
+    expect(body).toContain('| regular | timetable\\_weekday.json | 更新 |')
     expect(body).toContain('### calendar_rules.overrides')
-    expect(body).toContain('- 追加: 2026-08-23 → timetable_event_20260823')
+    expect(body).toContain('- 追加: 2026-08-23 → timetable\\_event\\_20260823')
     expect(body).toContain('- 2回読み照合: 一致 3/3')
     expect(body).toContain('- スキーマ検証: すべて合格')
     expect(body).toContain('## 確認する点')
@@ -241,10 +242,10 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
     })
     expect(body).toContain('## 発車時刻')
     // 新規ファイルは全便を出す
-    expect(body).toContain('### timetable_vacation_summer_weekday.json（新規）')
+    expect(body).toContain('### timetable\\_vacation\\_summer\\_weekday.json（新規）')
     expect(body).toContain('**松永発** 25 便')
     // 既存と同内容の更新は「変更なし」と分かる形にする
-    expect(body).toContain('### timetable_weekday.json（更新）')
+    expect(body).toContain('### timetable\\_weekday.json（更新）')
     expect(body).toContain('**松永発** 32 → 32 便')
     expect(body).toContain('- 発車時刻の変更なし')
     // 削除計画は発車時刻の節に出さない
