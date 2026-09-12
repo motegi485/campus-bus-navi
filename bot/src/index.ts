@@ -213,6 +213,8 @@ async function main(): Promise<void> {
     intermediates,
     ocrFailures,
     needsReviewLinks: classified.filter((c) => c.kind === 'needs_review'),
+    // 前回 special にした掲示がまだ載っているかの判定材料（分類・採否を問わず全リンク）
+    presentUrls: new Set(classified.map((c) => c.url)),
     state,
     liveOverrides: rules.overrides,
     holidays: holidaysResult.holidays,

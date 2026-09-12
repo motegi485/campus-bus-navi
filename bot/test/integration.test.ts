@@ -79,6 +79,7 @@ function runPipeline(state: State = { version: 1 }) {
     decisions,
     intermediates,
     needsReviewLinks: classified.filter((c) => c.kind === 'needs_review'),
+    presentUrls: new Set(classified.map((c) => c.url)),
     state,
     liveOverrides: { ...liveRules.overrides },
     holidays,
@@ -322,6 +323,7 @@ describe('統合: 2回目の実行（冪等性・AC-3）', () => {
       intermediates: new Map(),
       // ページに掲示が残っている以上、needs_review も毎回同じものが渡される
       needsReviewLinks: classified.filter((c) => c.kind === 'needs_review'),
+      presentUrls: new Set(classified.map((c) => c.url)),
       state: merged,
       liveOverrides: { ...first.planned.calendar.nextOverrides },
       holidays,

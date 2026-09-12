@@ -32,6 +32,14 @@ export interface PlanInput {
   ocrFailures?: Map<string, string>
   /** 分類できなかったリンク。期間が読めているものは特別ダイヤで塗り潰す */
   needsReviewLinks?: ClassifiedLink[]
+  /**
+   * 今回ページから抽出した【全】時刻表リンクの正規化 URL（分類・採否を問わない）。
+   * applySpecials が「前回 special にした掲示がまだ載っているか」を判定するのに使う。
+   * decisions には needs_review や不採用の regular が含まれないため、別に受け取る。
+   * 省略すると「掲示の有無」を判定できず、前回の special は従来どおり今回の
+   * needs_review だけで置き換わる。
+   */
+  presentUrls?: Set<string>
   state: State
   liveOverrides: Record<string, string>
   holidays: Holiday[]
@@ -180,7 +188,12 @@ export function buildPlan(input: PlanInput): PlanOutput {
   retiredEventIds.push(...reconciled.retired)
 
   nextState = pruneEvents(nextState, input.today)
-  nextState = applySpecials(nextState, input.needsReviewLinks ?? [], input.today, input.runAt, warnings)
+  nextState = applySpecials(nextState, input.needsReviewLinks ?? [], input.today, input.runAt, warnings, {
+    ...(input.presentUrls ? { presentUrls: input.presentUrls } : {}),
+    // 今回「有効なデータとして扱えた」リンク（OCR 成功・画像同一・URL のみ変更を含む）
+    succeededUrls: new Set([...succeeded.values()].map((s) => s.decision.link.url)),
+    extractionHealthy: input.extractionHealthy ?? true,
+  })
 
   const calendar = calculateOverrides({
     liveOverrides: input.liveOverrides,
@@ -335,6 +348,15 @@ export function reconcileEvents(
   return { state: { ...state, events }, retired }
 }
 
+export interface ApplySpecialsOptions {
+  /** 今回ページから抽出した全リンクの正規化 URL。無ければ「掲示の有無」は判定しない */
+  presentUrls?: Set<string>
+  /** 今回、有効なデータとして扱えた（OCR 成功・画像同一など）リンクの正規化 URL */
+  succeededUrls?: Set<string>
+  /** ページから時刻表リンクを 1 件以上抽出できたか（buildPlan と同じ意味） */
+  extractionHealthy?: boolean
+}
+
 /**
  * 分類できなかった掲示（needs_review）のうち【期間の両端が読めているもの】を state に記録する。
  * calculateOverrides がこれを見て timetable_special の override を張り、アプリはその日
@@ -344,6 +366,21 @@ export function reconcileEvents(
  * 適用日を展開して持つと、日が進むたびに state.json が書き換わり
  * 「state だけが変わった PR」が期間中ずっと毎日立つ。過去日の切り捨ては
  * calculateOverrides の put() が行うので、ここは掲示の内容だけを写し取る。
+ *
+ * 【前回の special を引き継ぐ条件・Codex レビュー FN-20260912-01】
+ * 以前は「今回の needs_review 集合」で state.specials を丸ごと置き換えていた。すると、
+ * 前回 needs_review だった掲示が同じ URL のまま文言の更新で vacation / regular / event に
+ * 分類され、その画像の取得・OCR・検証に失敗した回に、成功したデータは何も無いのに
+ * 保護だけが消えて、その期間が通常ダイヤ表示へ戻っていた（NFR-3「検証失敗は消さない」に反する）。
+ * ページ構造の変更でリンクを 1 件も抽出できなかった回も同じ経路で全消去されていた
+ * （reconcileEvents は extractionHealthy で守っていたが、こちらは守っていなかった）。
+ * そこで前回の各エントリを、次の順で判定して引き継ぐ:
+ *   1. 今回も同じ URL が needs_review にある → 今回の結果で置き換え済み（下のループが担当）
+ *   2. 期間が終わっている → 捨てる
+ *   3. 抽出が失敗した回 → 判定できないので維持（info）
+ *   4. 掲示がページから消えた → 捨てる（従来どおり。掲示の消失＝解除）
+ *   5. 同じ URL が有効なデータとして取り込めた → 置き換わったので捨てる
+ *   6. それ以外（別分類になったが取り込みに失敗）→ 維持して warn で顕在化する
  */
 export function applySpecials(
   state: State,
@@ -351,9 +388,12 @@ export function applySpecials(
   today: string,
   runAt: string,
   warnings: Warning[],
+  options: ApplySpecialsOptions = {},
 ): State {
   const next: State = { ...state }
   const specials: Record<string, StateSpecial> = {}
+  /** 今回 needs_review として処理した URL。前回エントリの「置き換え済み」判定に使う */
+  const reviewedUrls = new Set(links.map((link) => link.url))
 
   for (const link of links) {
     // 期間の両端が読めないものは適用先を決められない（needs_review 自体の警告は detectChanges が出す）
@@ -406,6 +446,44 @@ export function applySpecials(
         '（アプリは発車時刻を出さず大学ホームページへ誘導します）。' +
         `掲示を確認し、通常どおり読める日があれば手動で override を設定してください: 「${link.normalizedLine}」`,
       url: link.url,
+    })
+  }
+
+  // 前回の special の引き継ぎ（関数コメントの判定順）。維持するときは processed_at ごと
+  // そのまま残す（同じ日に 2 回実行しても state が変わらないように）
+  for (const [start, prev] of Object.entries(state.specials ?? {})) {
+    if (reviewedUrls.has(prev.url)) continue // 1. 今回の needs_review で置き換え済み
+    if (isBefore(prev.period.end, today)) continue // 2. 期間終了
+    if (start in specials) continue // 別の掲示が同じ開始日を取った（今回の結果を優先）
+
+    const period = `${prev.period.start}〜${prev.period.end}`
+    if (options.extractionHealthy === false) {
+      // 3. 抽出失敗。掲示が消えたのか判定できないので消さない
+      specials[start] = prev
+      warnings.push({
+        level: 'info',
+        code: 'special_kept_unverified',
+        message:
+          `特別ダイヤ（${period}）の掲示が残っているか確認できませんでした` +
+          '（ページから時刻表リンクを 1 件も抽出できていないため）。前回の特別ダイヤをそのまま維持します。',
+        url: prev.url,
+      })
+      continue
+    }
+    if (options.presentUrls && !options.presentUrls.has(prev.url)) continue // 4. 掲示が消えた
+    if (options.succeededUrls?.has(prev.url)) continue // 5. 有効なデータに置き換わった
+    if (!options.presentUrls) continue // 掲示の有無を判定する材料が無い → 従来どおり置き換え
+
+    // 6. 別の種別に分類されたが取り込めなかった。保護を外すと通常/休暇ダイヤを出してしまう
+    specials[start] = prev
+    warnings.push({
+      level: 'warn',
+      code: 'special_kept_unreplaced',
+      message:
+        `特別ダイヤ（${period}）の掲示は残っていますが、今回は時刻表として取り込めませんでした。` +
+        '読み取りに成功するまで前回の特別ダイヤを維持します（アプリは発車時刻を出さず大学ホームページへ誘導します）。' +
+        `掲示を確認し、必要なら手動で override を設定してください: 「${prev.line}」`,
+      url: prev.url,
     })
   }
 

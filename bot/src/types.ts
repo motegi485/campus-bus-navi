@@ -172,6 +172,9 @@ export interface State {
    * 読み取れなかった掲示（needs_review）のうち、期間が判明しているもの。
    * キーは期間の開始日。calculateOverrides がここから timetable_special の override を張る。
    * 掲示がページから消えればこの記録も消え、override も自動で外れる。
+   * ただし、同じ掲示が別の種別に分類し直されたのに取り込みに失敗した実行と、
+   * ページからリンクを 1 件も抽出できなかった実行では前回の記録を維持する
+   * （plan.ts の applySpecials。検証失敗で保護だけを消さないため）。
    */
   specials?: Record<string, StateSpecial>
   managed_overrides?: ManagedOverrides
