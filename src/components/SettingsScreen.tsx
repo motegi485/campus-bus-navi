@@ -196,7 +196,7 @@ export function SettingsScreen({
   return (
     /* fixed: ビューポート基準の全画面パネル。touchAction: NavBar 等起点の
        背後 body への貫通スクロールを防ぐ（詳細は NewsScreen.tsx のコメント参照） */
-    <div ref={rootRef} aria-hidden={!open} style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', touchAction: 'pinch-zoom' }}>
+    <div ref={rootRef} role="dialog" aria-modal="true" aria-label="設定" aria-hidden={!open} style={{ position: 'fixed', inset: 0, background: 'var(--bg-page)', transform: open ? 'translateX(0)' : 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s', zIndex: 50, display: 'flex', flexDirection: 'column', touchAction: 'pinch-zoom' }}>
       <NavBar title="設定" onBack={onClose} covered={selKey !== null} />
 
       {/* スクローラ（contain + 常時スクロール可能化。露出色 = --bg-page） */}

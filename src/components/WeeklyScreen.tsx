@@ -430,7 +430,7 @@ export function WeeklyScreen({
     /* fixed: ビューポート基準の全画面パネル（absolute だとドキュメント全高になり
        内部スクローラが機能しない）。touchAction: NavBar 等の非スクロール部起点の
        タッチによる背後 body への貫通スクロールを防ぐ（ピンチズームは許可）。 */
-    <div ref={rootRef} aria-hidden={!open} style={{
+    <div ref={rootRef} role="dialog" aria-modal="true" aria-label="週間ダイヤ" aria-hidden={!open} style={{
       position: 'fixed', inset: 0, background: 'var(--bg-page)',
       transform: open ? 'translateX(0)' : 'translateX(100%)',
       transition: 'transform 0.32s cubic-bezier(.4,0,.2,1), background 0.35s',
