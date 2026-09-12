@@ -93,7 +93,7 @@ describe('レポートのエスケープ（S3-BOT-08）', () => {
       counts: { station: 1, campus: 1 },
     }
     const body = report({ files: [plan] })
-    const row = body.split('\n').find((l) => l.includes('timetable_'))!
+    const row = body.split('\n').find((l) => l.includes('weekday.json'))!
     expect(row).toContain('\\|')
     // 見出し（| 種別 | ファイル | 操作 | 便数 | 元画像 |）と同じ 5 列のままであること
     expect(row.split(/(?<!\\)\|/).length).toBe(7)
@@ -121,6 +121,92 @@ describe('レポートのエスケープ（S3-BOT-08）', () => {
     expect(formatWarning({ level: 'warn', code: 'x', message: 'a', url: 'https://e.example/\nb' })).toBe(
       'a（https://e.example/ b）'
     )
+  })
+})
+
+/**
+ * Codex レビュー SEC-20260912-02。レポートは convert_markdown: true で HTML メールになり、
+ * Showdown は raw HTML を素通しする。掲載ページ由来の文字列に HTML タグや Markdown の
+ * リンク記法が入っても、本文の構造・リンク先・画像を変えられないことを固定する。
+ */
+describe('外部文字列の HTML / Markdown エスケープ（SEC-20260912-02）', () => {
+  const HTML = '<img src="https://evil.example/x.png" onerror="alert(1)">'
+  const LINK = '[大学ページ](https://evil.example/phish)'
+
+  it('警告文に含まれる HTML タグとリンク記法を逃がす', () => {
+    const body = report({
+      warnings: [
+        { level: 'warn', code: 'x', message: `分類不能: 「${HTML} ${LINK}」`, url: 'https://www.fukuyama-u.ac.jp/<a>.jpg' },
+        { level: 'info', code: 'y', message: `参考 ${HTML}` },
+      ],
+    })
+    expect(body).toContain('&lt;img src="https://evil.example/x.png" onerror="alert(1)"&gt;')
+    expect(body).toContain('\\[大学ページ\\](https://evil.example/phish)')
+    expect(body).toContain('https://www.fukuyama-u.ac.jp/&lt;a&gt;.jpg')
+    expect(body).not.toContain('<img')
+    expect(body).not.toContain('[大学ページ](')
+  })
+
+  it('検証エラー（OCR のラベル・画像 URL を含む）も逃がす', () => {
+    const body = report({ validationFailures: [`ダイヤ種別ラベル「<script>x</script>」を振り分けられません（元画像: https://a.example/?a=1&b=2）`] })
+    expect(body).toContain('&lt;script&gt;x&lt;/script&gt;')
+    expect(body).toContain('?a=1&amp;b=2')
+    expect(body).not.toContain('<script>')
+  })
+
+  /**
+   * 2026-09-12 に受信した実際の通知メールで、警告文の `timetable_weekday / timetable_holiday` が
+   * 「timetableweekday / timetableholiday」と `_` を失って届いていた。Showdown は単語の途中の
+   * `_` も強調記法として扱うため、`_weekday / timetable_` が斜体になっていた。
+   */
+  it('時刻表 ID・ファイル名の `_` を逃がして、HTML 化で斜体にならないようにする', () => {
+    const plan: FilePlan = {
+      op: 'update',
+      fileName: 'timetable_vacation_summer_weekday.json',
+      kind: 'vacation',
+      timetable: timetable('timetable_vacation_summer_weekday'),
+      counts: { station: 1, campus: 1 },
+    }
+    const body = report({
+      files: [plan],
+      overrideChanges: [{ date: '2026-08-17', op: 'add', id: 'timetable_vacation_summer_weekday' }],
+      deletions: ['timetable_event_20260823.json'],
+      warnings: [
+        {
+          level: 'warn',
+          code: 'regular_link_missing',
+          message: '既存の timetable_weekday / timetable_holiday は変更しません',
+        },
+      ],
+    })
+    expect(body).toContain('timetable\\_weekday / timetable\\_holiday')
+    expect(body).toContain('| vacation | timetable\\_vacation\\_summer\\_weekday.json | 更新 |')
+    expect(body).toContain('### timetable\\_vacation\\_summer\\_weekday.json（更新）')
+    expect(body).toContain('- 追加: 2026-08-17 → timetable\\_vacation\\_summer\\_weekday')
+    expect(body).toContain('- timetable\\_event\\_20260823.json（適用日経過）')
+    // 逃がしていない ID・ファイル名が残っていないこと
+    expect(body).not.toContain('timetable_weekday')
+    expect(body).not.toContain('timetable_vacation')
+    expect(body).not.toContain('timetable_event')
+  })
+
+  it('年推定テーブルの掲載原文と override の理由も逃がす', () => {
+    const link: ClassifiedLink = {
+      url: 'https://www.fukuyama-u.ac.jp/a.jpg',
+      rawHref: 'https://www.fukuyama-u.ac.jp/a.jpg',
+      anchorText: '時刻表はコチラ',
+      lineText: `9月1日 ${HTML}`,
+      normalizedLine: `9月1日 ${HTML}`,
+      kind: 'event',
+      dates: ['2026-09-01'],
+      yearGuessed: true,
+    }
+    const body = report({
+      links: [link],
+      overrideChanges: [{ date: '2026-09-01', op: 'skip', id: 'timetable_event_20260901', reason: `手動キーと衝突（既存値: ${HTML}）` }],
+    })
+    expect(body).not.toContain('<img')
+    expect(body.match(/&lt;img/g)).toHaveLength(2)
   })
 })
 
