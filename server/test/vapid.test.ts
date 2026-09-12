@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, vi } from 'vitest'
 import {
   audienceOf,
   base64UrlToBytes,
@@ -175,6 +175,55 @@ describe('VapidSigner', () => {
     const later = await signer.tokenFor('https://fcm.googleapis.com', NOW + 11.5 * 60 * 60 + 1)
     expect(later).not.toBe(first)
     expect(await verifyJwt(later)).toBe(true)
+  })
+
+  /**
+   * Codex レビュー OPS-20260912-03。sender.ts はバッチを Promise.all で並列に送るので、
+   * 同じ aud の呼び出しが同時に来ても署名は 1 本に合流しなければならない。
+   * ECDSA の署名はランダムな k を使うため、別々に署名すると同じ入力でも必ず違う JWT になる。
+   * 「3 つとも同一」は合流の証明になる。
+   */
+  it('同じ aud への同時呼び出しは 1 本の署名に合流する', async () => {
+    const signer = new VapidSigner(keys)
+    const tokens = await Promise.all([
+      signer.tokenFor('https://fcm.googleapis.com', NOW),
+      signer.tokenFor('https://fcm.googleapis.com', NOW),
+      signer.tokenFor('https://fcm.googleapis.com', NOW),
+    ])
+    expect(tokens[1]).toBe(tokens[0])
+    expect(tokens[2]).toBe(tokens[0])
+    expect(await verifyJwt(tokens[0])).toBe(true)
+    // 合流後もキャッシュに載っていて、次の呼び出しも同じ JWT を返す
+    expect(await signer.tokenFor('https://fcm.googleapis.com', NOW + 60)).toBe(tokens[0])
+  })
+
+  it('同時でも aud が違えば別々に署名する', async () => {
+    const signer = new VapidSigner(keys)
+    const [fcm, apns] = await Promise.all([
+      signer.tokenFor('https://fcm.googleapis.com', NOW),
+      signer.tokenFor('https://web.push.apple.com', NOW),
+    ])
+    expect(apns).not.toBe(fcm)
+    expect(decodeSegment(fcm.split('.')[1]).aud).toBe('https://fcm.googleapis.com')
+    expect(decodeSegment(apns.split('.')[1]).aud).toBe('https://web.push.apple.com')
+  })
+
+  it('署名に失敗しても失敗が居座らず、次の呼び出しで再試行できる', async () => {
+    const signer = new VapidSigner(keys)
+    // 鍵の import を 1 回だけ一時的に失敗させる（並列の 2 呼び出しは同じ失敗に合流する）
+    const spy = vi.spyOn(crypto.subtle, 'importKey').mockRejectedValueOnce(new Error('一時的な失敗'))
+    try {
+      await expect(
+        Promise.all([signer.tokenFor('https://fcm.googleapis.com', NOW), signer.tokenFor('https://fcm.googleapis.com', NOW)])
+      ).rejects.toThrow('一時的な失敗')
+      expect(spy).toHaveBeenCalledTimes(1)
+      // 失敗した Promise が inflight / 鍵キャッシュに残っていれば、ここでも同じ拒否が返る。
+      // 残っていなければ本物の import からやり直して成功する
+      const token = await signer.tokenFor('https://fcm.googleapis.com', NOW)
+      expect(await verifyJwt(token)).toBe(true)
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('ペイロードなし push のヘッダを組み立てる', async () => {
