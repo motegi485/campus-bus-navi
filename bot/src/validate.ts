@@ -112,8 +112,13 @@ export function validateTimetable(timetable: Timetable, options: ValidateOptions
    * 実データの便数は 1 ルートあたり 10〜32 便なので、±50% は誤読を疑うに足る幅である
    * （最小の 10 便でも 5 便以下 / 16 便以上でしか発火しない）。
    *
-   * 正しい改正でここに落ちた場合は、bot/state.json の該当キーを消して再実行するか、
-   * 手動でデータを投入する。復旧手順は通知メールにも載せる。
+   * 正しい改正でここに落ちた場合の復旧は「元画像を確認して時刻表 JSON を手動で更新する」
+   * こと。手動更新後は既存ファイルの便数が新しい値になるので、次回の実行で同じ画像を
+   * 読み直しても比較の基準が更新後の便数となり、このガードには掛からない。
+   * 【Codex レビュー OPS-20260912-02】以前は「bot/state.json の該当キーを消して再実行」とも
+   * 案内していたが、比較対象（prevCounts）は state ではなく public/data の既存ファイルから
+   * 作る（plan.ts）ため、state を消しても同じガードで再び止まる。解除手段にはならない。
+   * 復旧手順は通知メールにも載せる。
    */
   if (options.prevCounts) {
     const counts = {
@@ -130,7 +135,8 @@ export function validateTimetable(timetable: Timetable, options: ValidateOptions
         errors.push(
           `${label}の便数が大きく変化しました（${prev} → ${now}）。` +
             '読み取り誤り（JR 列の混入など）の可能性があるため取り込みを見送りました。' +
-            '元画像を確認し、正しい改正であれば bot/state.json の該当キーを削除して再実行してください。',
+            '元画像を確認し、正しい改正であれば時刻表 JSON を手動で更新してください' +
+            '（bot/state.json のキー削除では解除されません。比較対象は既存の時刻表ファイルの便数です）。',
         )
       }
     }
