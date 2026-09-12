@@ -12,7 +12,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { detectChanges } from '../src/detectChanges.js'
 import { CONFIG } from '../src/config.js'
-import type { ClassifiedLink, State } from '../src/types.js'
+import type { ClassifiedLink, State, Warning } from '../src/types.js'
 
 const TODAY = '2026-08-01'
 const URL_A = 'https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/04/R8.jpg'
@@ -257,5 +257,88 @@ describe('同一 URL の再検証（S2-BOT-01）', () => {
     expect(calls).toHaveLength(0)
     expect(decisions[0]!.action).toBe('unchanged')
     expect(warnings.map((w) => w.code)).toContain('image_revalidate_failed')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 通常ダイヤのリンクが無いときの警告レベル（FR-2 の 6(b)）。
+// 大学ページは長期休暇中、通常ダイヤの掲示そのものを外すのが通常（2026-09-12 ユーザー説明）。
+// 休暇期間中まで warn にすると、差分ゼロの日も毎日「⚠ 要確認」メールが届いてしまう。
+// ---------------------------------------------------------------------------
+
+describe('通常ダイヤのリンクが無いときの警告レベル', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const VACATION_URL = 'https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/07/0817.jpg'
+
+  function vacationLink(start = '2026-07-20', end = '2026-09-23'): ClassifiedLink {
+    return {
+      url: VACATION_URL,
+      rawHref: VACATION_URL,
+      anchorText: '時刻表はコチラ',
+      lineText: `夏季休業 ${start}～${end} 時刻表はコチラ`,
+      normalizedLine: `夏季休業 ${start}～${end} 時刻表はコチラ`,
+      kind: 'vacation',
+      season: 'summer',
+      start,
+      end,
+    }
+  }
+
+  /** state に記録済みの夏季休暇。checked_at を今日にして、再検証の fetch を発生させない */
+  function stateWithVacation(period: { start: string; end?: string }): State {
+    return {
+      ...stateWithRegular({ sha256: 'sha-regular', checked_at: TODAY }),
+      vacations: {
+        summer: {
+          url: VACATION_URL,
+          sha256: 'sha-vacation',
+          period,
+          derived: ['timetable_vacation_summer_weekday', 'timetable_vacation_summer_holiday'],
+          processed_at: '2026-07-20T07:00:00+09:00',
+          checked_at: TODAY,
+        },
+      },
+    }
+  }
+
+  const regularMissing = (warnings: Warning[]) => warnings.filter((w) => w.code === 'regular_link_missing')
+
+  it('休暇期間外に消えたら warn（従来どおり）', async () => {
+    const { warnings } = await detectChanges([], stateWithRegular({ sha256: 'sha-regular' }), TODAY)
+    expect(regularMissing(warnings).map((w) => w.level)).toEqual(['warn'])
+  })
+
+  it('state に記録済みの休暇期間に今日が含まれていれば info に落とす', async () => {
+    const calls = stubFetch(() => imageResponse(jpeg(0xe0)))
+    const { warnings } = await detectChanges([vacationLink()], stateWithVacation({ start: '2026-07-20', end: '2026-09-23' }), TODAY)
+    expect(calls).toHaveLength(0)
+    expect(regularMissing(warnings).map((w) => w.level)).toEqual(['info'])
+    expect(regularMissing(warnings)[0]!.message).toContain('長期休暇の期間中')
+  })
+
+  it('休暇の初日など state に入る前でも、今回の掲示の期間に今日が含まれていれば info', async () => {
+    stubFetch(() => imageResponse(jpeg(0xe0)))
+    const { decisions, warnings } = await detectChanges([vacationLink()], stateWithRegular({ sha256: 'sha-regular' }), TODAY)
+    expect(decisions[0]!.action).toBe('ocr') // 新規の休暇画像として取り込みに進む
+    expect(regularMissing(warnings).map((w) => w.level)).toEqual(['info'])
+  })
+
+  it('休暇期間が終わった後に消えたままなら warn に戻る', async () => {
+    const { warnings } = await detectChanges([], stateWithVacation({ start: '2026-06-01', end: '2026-07-31' }), TODAY)
+    expect(regularMissing(warnings).map((w) => w.level)).toEqual(['warn'])
+  })
+
+  it('休暇の終了日が読めていない期間は数えない（warn のまま）', async () => {
+    const { warnings } = await detectChanges([], stateWithVacation({ start: '2026-07-20' }), TODAY)
+    expect(regularMissing(warnings).map((w) => w.level)).toEqual(['warn'])
+  })
+
+  it('通常ダイヤのリンクがあれば何も出さない', async () => {
+    const state = stateWithRegular({ sha256: 'sha-regular', checked_at: TODAY })
+    const { warnings } = await detectChanges([regularLink()], state, TODAY)
+    expect(regularMissing(warnings)).toEqual([])
   })
 })
