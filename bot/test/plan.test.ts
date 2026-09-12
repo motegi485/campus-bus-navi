@@ -4,10 +4,11 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { applySpecials, buildPlan, reconcileEvents } from '../src/plan.js'
-import { detectChanges } from '../src/detectChanges.js'
+import { applySpecials, buildPlan, reconcileEvents, type PlanInput } from '../src/plan.js'
+import { detectChanges, type ChangeDecision } from '../src/detectChanges.js'
 import { CONFIG } from '../src/config.js'
-import type { ClassifiedLink, State, Timetable, Warning } from '../src/types.js'
+import { eachDate } from '../src/time.js'
+import type { ClassifiedLink, Intermediate, State, Timetable, Warning } from '../src/types.js'
 
 const TODAY = '2026-08-01'
 const RUN_AT = '2026-08-01T07:00:00+09:00'
@@ -247,5 +248,212 @@ describe('逆転期間の特別ダイヤ（F-018）', () => {
     const next = applySpecials({ version: 1 }, [reviewLink('2026-08-08', '2026-08-16')], TODAY, RUN_AT, warnings)
     expect(next.specials!['2026-08-08']!.period).toEqual({ start: '2026-08-08', end: '2026-08-16' })
     expect(warnings.map((w) => w.code)).toEqual(['special_applied'])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Codex FN-20260912-01: 前回の特別ダイヤを、掲示が読めるようになるまで消さない
+// ---------------------------------------------------------------------------
+
+describe('前回の特別ダイヤの維持（Codex FN-20260912-01）', () => {
+  const SPECIAL_URL = 'https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/07/0808.jpg'
+  const START = '2026-08-08'
+  const END = '2026-08-16'
+  const PROCESSED_AT = '2026-07-20T07:00:00+09:00'
+
+  /** 前回の実行で 8/8〜8/16 を特別ダイヤにした state（override も張られている） */
+  function stateWithSpecial(): State {
+    return {
+      version: 1,
+      specials: {
+        [START]: {
+          url: SPECIAL_URL,
+          line: '特別運行 8月8日～8月16日',
+          period: { start: START, end: END },
+          reason: 'テスト',
+          processed_at: PROCESSED_AT,
+        },
+      },
+      managed_overrides: {
+        special: Object.fromEntries(eachDate(START, END).map((d) => [d, 'timetable_special'])),
+        event: {},
+        vacation: {},
+        holiday: {},
+      },
+    }
+  }
+
+  /** 同じ URL の掲示が、文言の更新で「夏季休業」として vacation に分類されたリンク */
+  function vacationLink(): ClassifiedLink {
+    return {
+      url: SPECIAL_URL,
+      rawHref: SPECIAL_URL,
+      anchorText: '時刻表はコチラ',
+      lineText: '夏季休業 8月8日～8月16日',
+      normalizedLine: '夏季休業 8月8日～8月16日',
+      kind: 'vacation',
+      season: 'summer',
+      start: START,
+      end: END,
+    }
+  }
+
+  /** 同じ URL が needs_review のまま、期間だけ読み替わったリンク */
+  function reviewLink(start: string, end: string): ClassifiedLink {
+    return {
+      url: SPECIAL_URL,
+      rawHref: SPECIAL_URL,
+      anchorText: '時刻表はコチラ',
+      lineText: '特別運行',
+      normalizedLine: '特別運行',
+      kind: 'needs_review',
+      start,
+      end,
+      reason: 'テスト',
+    }
+  }
+
+  /**
+   * 「新規画像を取得して OCR する」判断を直接組む。detectChanges を通すと
+   * state に無い URL の画像を実ネットワークへ取りに行ってしまうため。
+   */
+  function ocrDecision(link: ClassifiedLink): ChangeDecision {
+    return { key: 'vacation:summer', link, action: 'ocr', reason: '新規の時刻表画像です。', sha256: 'sha-vacation', imageUrl: link.url }
+  }
+
+  /** 授業日・休業日の 2 種別を持つ、検証に通る最小の OCR 結果 */
+  function vacationIntermediate(): Intermediate {
+    const rows = [
+      { hour: 8, minutes: [0] },
+      { hour: 9, minutes: [0] },
+    ]
+    return {
+      day_types: [
+        { label: '授業日', matsunaga: rows, university: rows },
+        { label: '休業日', matsunaga: rows, university: rows },
+      ],
+    }
+  }
+
+  function run(overrides: Partial<PlanInput>) {
+    const state = stateWithSpecial()
+    return buildPlan({
+      decisions: [],
+      intermediates: new Map(),
+      needsReviewLinks: [],
+      state,
+      // 前回 Bot が張った special override が calendar_rules.json に残っている状態
+      liveOverrides: { ...state.managed_overrides!.special },
+      holidays: [],
+      today: TODAY,
+      runAt: RUN_AT,
+      extractionHealthy: true,
+      readTimetable: () => null,
+      timetableExists: (fileName) => fileName === 'timetable_special.json',
+      ...overrides,
+    })
+  }
+
+  it('別分類になった掲示の OCR に失敗した回は、特別ダイヤを維持して warn で知らせる', () => {
+    const link = vacationLink()
+    const planned = run({
+      decisions: [ocrDecision(link)],
+      ocrFailures: new Map([['vacation:summer', 'OCR に失敗しました']]),
+      presentUrls: new Set([SPECIAL_URL]),
+    })
+
+    // 有効なデータは何も書かれていない
+    expect(planned.filePlans).toEqual([])
+    // 保護は残る（processed_at も変えない＝同じ日に 2 回実行しても state は変わらない）
+    expect(planned.nextState.specials![START]).toMatchObject({ period: { start: START, end: END }, processed_at: PROCESSED_AT })
+    for (const date of ['2026-08-08', '2026-08-10', '2026-08-16']) {
+      expect(planned.calendar.nextOverrides[date], date).toBe('timetable_special')
+    }
+    expect(planned.warnings).toContainEqual(
+      expect.objectContaining({ code: 'special_kept_unreplaced', level: 'warn', url: SPECIAL_URL }),
+    )
+  })
+
+  it('別分類になった掲示の取り込みに成功したら、特別ダイヤは有効なデータに置き換わる', () => {
+    const link = vacationLink()
+    const planned = run({
+      decisions: [ocrDecision(link)],
+      intermediates: new Map([['vacation:summer', vacationIntermediate()]]),
+      presentUrls: new Set([SPECIAL_URL]),
+    })
+
+    expect(planned.filePlans.map((p) => p.fileName).sort()).toEqual([
+      'timetable_vacation_summer_holiday.json',
+      'timetable_vacation_summer_weekday.json',
+    ])
+    expect(planned.nextState.specials).toBeUndefined()
+    expect(planned.calendar.nextOverrides['2026-08-10']).toBe('timetable_vacation_summer_weekday') // 月
+    expect(planned.calendar.nextOverrides['2026-08-15']).toBe('timetable_vacation_summer_holiday') // 土
+    expect(planned.warnings.map((w) => w.code)).not.toContain('special_kept_unreplaced')
+    expect(planned.warnings.map((w) => w.code)).not.toContain('special_kept_unverified')
+  })
+
+  it('画像取得に失敗して skip になった回も維持する', () => {
+    const link = vacationLink()
+    const planned = run({
+      decisions: [{ key: 'vacation:summer', link, action: 'skip', reason: '画像を取得できませんでした' }],
+      presentUrls: new Set([SPECIAL_URL]),
+    })
+    expect(planned.nextState.specials![START]).toBeDefined()
+    expect(planned.calendar.nextOverrides['2026-08-10']).toBe('timetable_special')
+    expect(planned.warnings.map((w) => w.code)).toContain('special_kept_unreplaced')
+  })
+
+  it('リンクを 1 件も抽出できなかった回は、掲示の有無を判定せず維持する（info）', () => {
+    const planned = run({ presentUrls: new Set(), extractionHealthy: false })
+    expect(planned.nextState.specials![START]).toBeDefined()
+    expect(planned.calendar.nextOverrides['2026-08-10']).toBe('timetable_special')
+    expect(planned.warnings).toContainEqual(expect.objectContaining({ code: 'special_kept_unverified', level: 'info' }))
+    expect(planned.warnings.map((w) => w.code)).not.toContain('special_kept_unreplaced')
+  })
+
+  it('掲示そのものがページから消えたら、従来どおり特別ダイヤも外れる', () => {
+    const planned = run({ presentUrls: new Set(), extractionHealthy: true })
+    expect(planned.nextState.specials).toBeUndefined()
+    expect(planned.calendar.nextOverrides['2026-08-10']).toBeUndefined()
+    expect(planned.warnings.map((w) => w.code)).not.toContain('special_kept_unreplaced')
+  })
+
+  it('同じ URL が needs_review のまま期間だけ変わったら、新しい期間だけを残す（二重登録しない）', () => {
+    const planned = run({
+      needsReviewLinks: [reviewLink('2026-08-09', END)],
+      presentUrls: new Set([SPECIAL_URL]),
+    })
+    expect(Object.keys(planned.nextState.specials!)).toEqual(['2026-08-09'])
+    expect(planned.calendar.nextOverrides['2026-08-08']).toBeUndefined()
+    expect(planned.calendar.nextOverrides['2026-08-09']).toBe('timetable_special')
+  })
+
+  it('期間が終わった前回の special は引き継がない', () => {
+    const planned = run({
+      state: {
+        ...stateWithSpecial(),
+        specials: {
+          '2026-07-01': {
+            url: SPECIAL_URL,
+            line: '過去の掲示',
+            period: { start: '2026-07-01', end: '2026-07-10' },
+            reason: 'テスト',
+            processed_at: PROCESSED_AT,
+          },
+        },
+      },
+      decisions: [ocrDecision(vacationLink())],
+      ocrFailures: new Map([['vacation:summer', 'OCR に失敗しました']]),
+      presentUrls: new Set([SPECIAL_URL]),
+    })
+    expect(planned.nextState.specials).toBeUndefined()
+  })
+
+  it('判定材料（presentUrls）を渡さない従来の呼び出しでは、今回の needs_review だけで置き換わる', () => {
+    const warnings: Warning[] = []
+    const next = applySpecials(stateWithSpecial(), [], TODAY, RUN_AT, warnings)
+    expect(next.specials).toBeUndefined()
+    expect(warnings).toEqual([])
   })
 })
