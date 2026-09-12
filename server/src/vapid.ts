@@ -138,10 +138,18 @@ interface CachedJwt {
  * 1 回の送信バッチに含まれる購読は、push サービスが数種類（FCM / APNs / Mozilla）に
  * 限られる。オーディエンス単位で使い回せば、署名は実質 1 バッチ 3 回以下になり、
  * CPU 10ms の制約に収まる。
+ *
+ * 【並列呼び出しの合流・Codex レビュー OPS-20260912-03】
+ * sender.ts はバッチ内の送信を Promise.all で並列に走らせる。解決済みの JWT だけを
+ * キャッシュしていると、同じ aud の呼び出しが全部「未キャッシュ」を見てから await に
+ * 入るため、署名がバッチの件数ぶん（最大 40 回）走っていた。署名中の Promise 自体を
+ * aud ごとに持ち、後続はそれを待つ。鍵の import も同じ理由で Promise を共有する。
  */
 export class VapidSigner {
-  private key: CryptoKey | null = null
+  private keyPromise: Promise<CryptoKey> | null = null
   private readonly cache = new Map<string, CachedJwt>()
+  /** 署名中の Promise（aud ごと）。完了・失敗のどちらでも必ず外す */
+  private readonly inflight = new Map<string, Promise<string>>()
 
   constructor(private readonly keys: VapidKeys) {
     if (!/^(mailto:|https:)/.test(keys.subject)) {
@@ -149,16 +157,35 @@ export class VapidSigner {
     }
   }
 
-  /** `Authorization` ヘッダ用の JWT を返す（同じ aud なら使い回す） */
+  /** `Authorization` ヘッダ用の JWT を返す（同じ aud なら使い回す。署名中なら合流する） */
   async tokenFor(audience: string, nowSeconds: number): Promise<string> {
     const cached = this.cache.get(audience)
     if (cached && nowSeconds < cached.refreshAfter) return cached.token
 
-    if (!this.key) this.key = await importVapidPrivateKey(this.keys)
+    const pending = this.inflight.get(audience)
+    if (pending) return pending
+
+    const signing = this.sign(audience, nowSeconds).finally(() => {
+      // 失敗した Promise を残すと、次の呼び出しが同じ失敗を返し続ける
+      this.inflight.delete(audience)
+    })
+    this.inflight.set(audience, signing)
+    return signing
+  }
+
+  private async sign(audience: string, nowSeconds: number): Promise<string> {
+    if (!this.keyPromise) {
+      this.keyPromise = importVapidPrivateKey(this.keys).catch(e => {
+        // 鍵が不正なら次回も同じ結果になるが、失敗を固定しない（設定を直した後の再試行のため）
+        this.keyPromise = null
+        throw e
+      })
+    }
+    const key = await this.keyPromise
     const token = await createVapidJwt({
       audience,
       subject: this.keys.subject,
-      key: this.key,
+      key,
       nowSeconds,
     })
     this.cache.set(audience, {
