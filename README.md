@@ -1,8 +1,7 @@
-<p align="center">
-  <img src="public/icons/icon_192x192.png" width="96" alt="バスNAVI のアイコン">
-</p>
-
-<h1 align="center">バスNAVI</h1>
+<h1 align="center">
+  <img src="assets/app-icon.png" width="30" height="30" alt="">
+  バスNAVI
+</h1>
 
 <p align="center">
   福山大学スクールバスの次の発車時刻、当日の時刻表、乗り場を案内する Web アプリ（PWA）です。<br>

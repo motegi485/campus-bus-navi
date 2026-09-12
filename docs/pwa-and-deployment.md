@@ -47,6 +47,8 @@ Pages では **Functions が `_redirects` より先に評価される**ため、
 .\scripts\make-icons.ps1 -Source design\icons\bus-icon.png -OutDir public\icons
 ```
 
+README の見出しに置いている `assets/app-icon.png`（1254×1254、背景透過）は、同じ原本を角丸の白いタイルに手作業で切り抜いたものです。GitHub のダークテーマでも白い四角が出ないようにするためのもので、配信・プリキャッシュの対象外です。原本を差し替えたときは、こちらも作り直してください。
+
 2026-09-12 以前に使っていた旧アイコン（緑の地図背景にバス）は `design/icons/legacy/` に保管しており、配信・プリキャッシュの対象外です。戻す場合は `public/icons/` へコピーし、`maskable_512x512.png` を用意するか `manifest.json` の `maskable` エントリを外してください。
 
 インストール済みの端末では、ホーム画面のアイコンは OS が manifest を再取得するまで切り替わりません。iOS は基本的に再インストールが必要です。
