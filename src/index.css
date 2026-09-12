@@ -180,16 +180,31 @@
   --news-unread-accent:    #0369a1;
   --news-unread-on-accent: #f8fafc;
 
+  /* お知らせの種別タグ（NewsScreen の NewsTag。10px bold の文字を載せる）。
+     以前は --icon-*-bg/-fg を流用していたが、あれは線アイコン用（非文字 3:1）で、
+     淡い面に載せた 10px の文字としては important 3.44 / info 4.24 / change 2.86 と
+     AA を割っていた（2026-09-12、Codex レビュー UX-20260912-01）。面は同じまま、
+     文字だけ同系の濃色にした専用トークンを持つ。
+     実測（自 bg 上）: important 5.24（--status-danger-fg と同値）/ info 5.49 /
+     change 5.48 / event 5.98（旧 #7c3aed は 4.80 で合格していたが濃さを揃えた）。 */
+  --news-tag-important-bg: #fef2f2;  --news-tag-important-fg: #c81e1e;
+  --news-tag-info-bg:      #dbeafe;  --news-tag-info-fg:      #1d4ed8;
+  --news-tag-change-bg:    #fef3c7;  --news-tag-change-fg:    #9a4d0b;
+  --news-tag-event-bg:     #ede9fe;  --news-tag-event-fg:     #6d28d9;
+
   /* ── 3タブ構成（バス/マップ/メニュー）のボトムナビ ──
      タブバーはメニュータブや設定を開いている間も見えるので、ルート色も緑も持たせない。
      選択中は「墨の文字＋背後の pill」で示す（改修たたき台の #1d9550 から変更）。
      主たる手掛かりは墨と灰の明度差、pill はそれを補う位置の手掛かりで、
      ライトでは意図的に淡い（--bg-input は地の白に対し 1.14:1）。
-     実測: 選択 vs 非選択の文字 ライト 5.36:1 / ダーク 2.90:1。
-     ダークで差が縮むのは、非選択も 11px の文字として --bg-card 上で AA（4.83:1）を
-     保つ必要があり、これ以上暗くできないため。pill の役割はダークでより大きい。 */
+     非選択の灰は 11px（PC サイドバーでは 14px）の文字なので、それ自体が
+     --bg-card 上で AA を要る。旧値 #8b90a0 は白地 3.18:1 で割っていたため
+     --text-secondary と同値の #6b7280 へ（4.83:1。2026-09-12、Codex レビュー UX-20260912-01）。
+     実測: 選択 vs 非選択の文字 ライト 3.53:1 / ダーク 2.90:1。
+     ダークで差が縮むのは、非選択も 11px の文字として --bg-card 上で AA（4.85:1）を
+     保つ必要があり、これ以上暗くできないため。pill の役割は両テーマとも大きい。 */
   --tab-active-fg:      var(--text-primary);
-  --tab-inactive-fg:    #8b90a0;
+  --tab-inactive-fg:    #6b7280;
   --tab-active-pill-bg: var(--bg-input);
 
   /* ルート切替トグルの塗りつぶしノブ色（改修デザイン方針、C11）。
@@ -382,12 +397,22 @@
   --news-unread-accent:    #0c4a6e;
   --news-unread-on-accent: #f8fafc;
 
+  /* お知らせの種別タグ（ダーク）。--icon-*-bg のような 16% 透過方式だと、10px の文字が
+     載る面の合成結果は --bg-card 上で important 4.21 / info 4.36 / event 4.14 と AA を割り、
+     未読カード（--news-unread-bg）上ではさらに下がる。--route-tint と同じく、文字を載せる
+     面は背後に依存しない不透明の濃色にし、文字は 300 系の明るい同系色にする。
+     実測（自 bg 上）: important 7.72 / info 6.38 / change 8.95 / event 7.72。 */
+  --news-tag-important-bg: #3f1f24;  --news-tag-important-fg: #fca5a5;
+  --news-tag-info-bg:      #1e3a5f;  --news-tag-info-fg:      #93c5fd;
+  --news-tag-change-bg:    #3f2f14;  --news-tag-change-fg:    #fcd34d;
+  --news-tag-event-bg:     #2e1f5e;  --news-tag-event-fg:     #c4b5fd;
+
   /* ボトムナビ（ダーク）。ライトと同じく色を持たせず、墨（ここでは明るい側）と
      灰の明度差＋ pill で示す。--tab-active-fg / --tab-active-pill-bg は :root で
      var(--text-primary) / var(--bg-input) を参照しているので、ここでは
      非選択の灰だけをダーク用に持つ。
-     実測: 非選択 #8b95a5 は --bg-card 上 4.83:1（11px の文字なので AA が要る）。
-     選択との差は 2.90:1 で、ライト（5.36:1）より縮む。pill の役割はダークで大きい。 */
+     実測: 非選択 #8b95a5 は --bg-card 上 4.85:1（11px の文字なので AA が要る）。
+     選択との差は 2.90:1（ライトは 3.53:1）。pill の役割は両テーマとも大きい。 */
   --tab-inactive-fg: #8b95a5;
 
   /* ルート切替トグルの塗りつぶしノブ色（ダーク）。白文字を載せる塗りなのでライトと同値でよい。 */

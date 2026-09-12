@@ -9,12 +9,13 @@ import { fs } from '../utils/fontScale'
 // news.json は Git 管理の信頼できる静的ソース前提。CMS 等の動的ソースに切り替える場合は body のサニタイズ（DOMPurify 等）を必須にすること。
 
 // bg は正しくは background（旧実装は誤ったキー名のため背景が一度も描画されていなかった）。
-// 値は index.css の --icon-*-bg/-fg（ライト/ダーク両対応済み）に揃える。
+// 値は index.css の --news-tag-*-bg/-fg（ライト/ダーク両対応）。以前流用していた
+// --icon-*-fg は線アイコン用（非文字 3:1）で、10px の文字としては AA を割っていた。
 const TAG_STYLES: Record<string, { background: string; color: string }> = {
-  important: { background: 'var(--icon-red-bg)', color: 'var(--icon-red-fg)' },
-  info:      { background: 'var(--icon-blue-bg)', color: 'var(--icon-blue-fg)' },
-  change:    { background: 'var(--icon-amber-bg)', color: 'var(--icon-amber-fg)' },
-  event:     { background: 'var(--icon-violet-bg)', color: 'var(--icon-violet-fg)' },
+  important: { background: 'var(--news-tag-important-bg)', color: 'var(--news-tag-important-fg)' },
+  info:      { background: 'var(--news-tag-info-bg)', color: 'var(--news-tag-info-fg)' },
+  change:    { background: 'var(--news-tag-change-bg)', color: 'var(--news-tag-change-fg)' },
+  event:     { background: 'var(--news-tag-event-bg)', color: 'var(--news-tag-event-fg)' },
 }
 
 interface Props {
