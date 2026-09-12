@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="assets/app-icon.png" width="40" height="40" alt="">
+  <img src="assets/app-icon.png" width="55" height="55" alt="">
   バスNAVI
 </h1>
 
