@@ -25,13 +25,13 @@
       "processed_at": "2026-08-01T06:49:28+09:00",
       "etag": "\"68f85-657bb10cfefe6\"",
       "last_modified": "Wed, 29 Jul 2026 07:40:12 GMT",
-      "checked_at": "2026-09-18"
+      "checked_at": "2026-09-19"
     }
   },
   "events": {
     "2026-09-19": {
-      "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/09/2026公開講座時刻表（案）-1-724x1024.jpg",
-      "sha256": "71d4d91ef794c5c6ea4ede8b67bcf7916194d94cf404169b1fc9e9190952e8a6",
+      "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/09/2026公開講座時刻表（案）-2-724x1024.jpg",
+      "sha256": "2e614325a13a188c26b1a4a10cf42a781ea77ab551352f3792a6d76c85f4da1a",
       "label": "2026 公開講座",
       "dates": [
         "2026-09-19",
@@ -41,10 +41,10 @@
         "timetable_event_20260919",
         "timetable_event_20260926"
       ],
-      "processed_at": "2026-09-02T08:57:53+09:00",
-      "etag": "\"5b143-65a622ea61b51\"",
-      "last_modified": "Tue, 01 Sep 2026 01:53:16 GMT",
-      "checked_at": "2026-09-18"
+      "processed_at": "2026-09-19T09:07:05+09:00",
+      "etag": "\"5a0cb-65bbd2f229eb4\"",
+      "last_modified": "Fri, 18 Sep 2026 07:52:38 GMT",
+      "checked_at": "2026-09-19"
     }
   },
   "managed_overrides": {
@@ -54,7 +54,6 @@
       "2026-09-26": "timetable_event_20260926"
     },
     "vacation": {
-      "2026-09-18": "timetable_vacation_summer_weekday",
       "2026-09-20": "timetable_vacation_summer_holiday",
       "2026-09-21": "timetable_vacation_summer_holiday",
       "2026-09-22": "timetable_vacation_summer_holiday",
@@ -87,7 +86,7 @@
     "sha256": "cec37a743c96995cdb9cb52b685c9003634682a9b0e1a640a6b9b96881fe964a"
   },
   "ocr_usage": {
-    "date": "2026-09-02",
+    "date": "2026-09-19",
     "calls": 2
   }
 }
