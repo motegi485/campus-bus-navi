@@ -25,7 +25,7 @@
       "processed_at": "2026-08-01T06:49:28+09:00",
       "etag": "\"68f85-657bb10cfefe6\"",
       "last_modified": "Wed, 29 Jul 2026 07:40:12 GMT",
-      "checked_at": "2026-09-23"
+      "checked_at": "2026-09-24"
     }
   },
   "events": {
@@ -42,7 +42,7 @@
       "processed_at": "2026-09-19T09:07:05+09:00",
       "etag": "\"5a0cb-65bbd2f229eb4\"",
       "last_modified": "Fri, 18 Sep 2026 07:52:38 GMT",
-      "checked_at": "2026-09-23"
+      "checked_at": "2026-09-24"
     }
   },
   "managed_overrides": {
@@ -50,9 +50,7 @@
     "event": {
       "2026-09-26": "timetable_event_20260926"
     },
-    "vacation": {
-      "2026-09-23": "timetable_vacation_summer_holiday"
-    },
+    "vacation": {},
     "holiday": {
       "2026-10-12": "timetable_holiday",
       "2026-11-03": "timetable_holiday",
@@ -80,7 +78,7 @@
     "sha256": "cec37a743c96995cdb9cb52b685c9003634682a9b0e1a640a6b9b96881fe964a"
   },
   "ocr_usage": {
-    "date": "2026-09-19",
-    "calls": 2
+    "date": "2026-09-24",
+    "calls": 8
   }
 }
