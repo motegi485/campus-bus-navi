@@ -9,16 +9,19 @@
       "bus_stop_coords": { "lat": 34.45115430055426, "lng": 133.25675090356862 },
       "schedule": [
         { "departure": "08:00", "note": "" },
+        { "departure": "08:35", "note": "" },
         { "departure": "08:55", "note": "" },
         { "departure": "09:40", "note": "" },
         { "departure": "10:20", "note": "" },
+        { "departure": "11:20", "note": "" },
         { "departure": "12:55", "note": "" },
         { "departure": "13:20", "note": "" },
-        { "departure": "14:35", "note": "" },
-        { "departure": "15:55", "note": "" },
-        { "departure": "17:20", "note": "" },
-        { "departure": "18:25", "note": "" },
-        { "departure": "19:30", "note": "最終" }
+        { "departure": "14:20", "note": "" },
+        { "departure": "16:00", "note": "" },
+        { "departure": "16:50", "note": "" },
+        { "departure": "17:30", "note": "" },
+        { "departure": "18:30", "note": "" },
+        { "departure": "19:35", "note": "最終" }
       ]
     },
     "campus_to_station": {
@@ -31,11 +34,14 @@
         { "departure": "08:20", "note": "" },
         { "departure": "09:15", "note": "" },
         { "departure": "10:00", "note": "" },
+        { "departure": "11:00", "note": "" },
         { "departure": "12:30", "note": "" },
-        { "departure": "14:20", "note": "" },
-        { "departure": "15:40", "note": "" },
-        { "departure": "17:00", "note": "" },
-        { "departure": "18:00", "note": "" },
+        { "departure": "12:55", "note": "" },
+        { "departure": "14:00", "note": "" },
+        { "departure": "15:45", "note": "" },
+        { "departure": "16:35", "note": "" },
+        { "departure": "17:15", "note": "" },
+        { "departure": "18:10", "note": "" },
         { "departure": "19:00", "note": "最終" }
       ]
     }
