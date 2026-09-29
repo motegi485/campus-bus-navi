@@ -29,6 +29,7 @@
     "2026-08-15": "timetable_closed",
     "2026-08-16": "timetable_special",
     "2026-10-12": "timetable_holiday",
+    "2026-10-31": "timetable_event_20261031",
     "2026-11-03": "timetable_holiday",
     "2026-11-23": "timetable_holiday",
     "2027-01-01": "timetable_holiday",
