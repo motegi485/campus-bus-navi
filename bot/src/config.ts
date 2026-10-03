@@ -57,20 +57,21 @@ export const CONFIG = {
   /**
    * OCR モデル。
    *
-   * 【2026-09-03 ユーザー承認】
-   * primary は最新の GA モデル gemini-3.8-flash、fallback は同じ OCR リクエスト
-   * （画像入力・構造化 JSON・low thinking）に対応する gemini-3.7-flash とする。
+   * 【2026-10-03 ユーザー決定】gemini-3.8-flash の使用をやめ、gemini-3.7-flash だけを使う。
+   * 2026-10-03 の実行（run 37084510904）で 3.8 が 503（高負荷）を返し続け、再試行が
+   * 1 実行 18 回の上限のうち 11 回を消費して、最後の画像（10/19）が読めなかった。
+   * 同じ実行で 3.7 に切り替えた後に読んだ 10/17・18 の画像は、元画像と全便一致している。
    *
-   * fallback の目的は、primary 固有のモデル利用不可・RPD 枯渇・一時障害時に
-   * ジョブを安全に完走させること。1 リクエストが時間切れ（AbortError / TimeoutError）なら
-   * primary を再試行せず直ちに fallback へ切り替える。通常の RPM 429 と 503 等の
-   * 一時障害は既存どおりバックオフ再試行を優先する。Google API 全体の障害に対する
-   * 保証ではない。
+   * フォールバックは置かない（modelFallback は未設定）。3.7 が使えない日は読み取りに失敗し、
+   * イベントの適用日は特別ダイヤになる（FR-9【v1.16】）。安全側に倒れるので、
+   * 別のモデルへ黙って切り替えるより観測しやすい。
+   * 以前の構成（2026-09-03 承認: primary 3.8 / fallback 3.7）に戻すときは、modelFallback を
+   * 設定すれば ocr.ts の切替分岐がそのまま働く。
    * 無料枠の実値はプロジェクト・モデルごとに AI Studio で確認し、呼び出し上限は
    * 確認できるまで既存の保守的な値を維持する。
    */
-  modelPrimary: 'gemini-3.8-flash',
-  modelFallback: 'gemini-3.7-flash',
+  modelPrimary: 'gemini-3.7-flash',
+  modelFallback: undefined as string | undefined,
   geminiMinIntervalMs: 6000, // 無料枠 RPM 対策: 呼び出し間隔の下限
   geminiMaxRetries429: 3, // 429: 30s/60s/120s 指数バックオフ
   geminiBackoffMs: [30_000, 60_000, 120_000],

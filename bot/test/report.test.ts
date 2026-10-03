@@ -34,7 +34,7 @@ function timetable(id: string): Timetable {
 function report(overrides: Partial<Parameters<typeof buildReport>[0]> = {}): string {
   return buildReport({
     runAt: RUN_AT,
-    modelUsed: 'gemini-3.8-flash',
+    modelUsed: 'gemini-3.7-flash',
     fallbackUsed: false,
     files: [],
     overrideChanges: [],
@@ -183,7 +183,8 @@ describe('外部文字列の HTML / Markdown エスケープ（SEC-20260912-02�
     expect(body).toContain('| vacation | timetable\\_vacation\\_summer\\_weekday.json | 更新 |')
     expect(body).toContain('### timetable\\_vacation\\_summer\\_weekday.json（更新）')
     expect(body).toContain('- 追加: 2026-08-17 → timetable\\_vacation\\_summer\\_weekday')
-    expect(body).toContain('- timetable\\_event\\_20260823.json（適用日経過）')
+    // runAt（2026-08-18）より後の日付のファイルの削除なので、理由は「掲示から外れた」（v1.16）
+    expect(body).toContain('- timetable\\_event\\_20260823.json（掲示から外れた）')
     // 逃がしていない ID・ファイル名が残っていないこと
     expect(body).not.toContain('timetable_weekday')
     expect(body).not.toContain('timetable_vacation')
@@ -207,6 +208,126 @@ describe('外部文字列の HTML / Markdown エスケープ（SEC-20260912-02�
     })
     expect(body).not.toContain('<img')
     expect(body.match(/&lt;img/g)).toHaveLength(2)
+  })
+})
+
+/**
+ * 削除ファイルの理由（v1.16）。未来日のファイルの削除は利用者に影響するので、
+ * 「適用日経過」と「掲示から外れた（中止・延期・日付の撤去）」を取り違えて書かないことを守る。
+ */
+describe('削除ファイルの理由（v1.16）', () => {
+  function deletionLines(body: string): string[] {
+    return body.split('\n').filter((l) => l.startsWith('- timetable\\_event'))
+  }
+
+  it('runAt より前の日付のファイルは「適用日経過」', () => {
+    const body = report({ deletions: ['timetable_event_20260817.json'] })
+    expect(deletionLines(body)).toEqual(['- timetable\\_event\\_20260817.json（適用日経過）'])
+  })
+
+  it('runAt 以降（当日を含む）の日付のファイルは「掲示から外れた」', () => {
+    const body = report({ deletions: ['timetable_event_20260818.json', 'timetable_event_20260901.json'] })
+    expect(deletionLines(body)).toEqual([
+      '- timetable\\_event\\_20260818.json（掲示から外れた）',
+      '- timetable\\_event\\_20260901.json（掲示から外れた）',
+    ])
+  })
+
+  it('過去と未来が混在しても行ごとに理由を分ける', () => {
+    const body = report({ deletions: ['timetable_event_20260801.json', 'timetable_event_20261003.json'] })
+    expect(deletionLines(body)).toEqual([
+      '- timetable\\_event\\_20260801.json（適用日経過）',
+      '- timetable\\_event\\_20261003.json（掲示から外れた）',
+    ])
+  })
+})
+
+/**
+ * FR-9【v1.16】取り込めなかったイベントの日を特別ダイヤにしたことを通知に出す。
+ * 節は calendar で実際に special を put した日（specialDates）があるときだけ出し、
+ * 掲載ページ由来の行テキスト・理由はセルとして逃がす。
+ */
+describe('特別ダイヤにした日（取り込み失敗）の節（FR-9 v1.16）', () => {
+  const HEADING = '### 特別ダイヤにした日（取り込み失敗）'
+  const CHECK = '- [ ] 特別ダイヤにした日（取り込み失敗）の元画像'
+
+  it('failedEvents が無い・specialDates が空なら節も確認項目も出さない', () => {
+    for (const failedEvents of [
+      undefined,
+      [],
+      // 手動キー・suppressed で special を put しなかった日は誤報しない
+      [{ url: 'https://www.fukuyama-u.ac.jp/a.jpg', line: '10月16日', reason: 'x', retry: true, specialDates: [] }],
+    ]) {
+      const body = report({ failedEvents })
+      expect(body).not.toContain(HEADING)
+      expect(body).not.toContain(CHECK)
+    }
+  })
+
+  it('specialDates がある失敗だけを表に出し、確認する点に行を足す', () => {
+    const body = report({
+      failedEvents: [
+        {
+          url: 'https://www.fukuyama-u.ac.jp/1016.jpg',
+          line: '● 学外行事 10月16日（金）',
+          reason: 'Gemini の呼び出しに失敗しました: 503 UNAVAILABLE',
+          retry: true,
+          specialDates: ['2026-10-16'],
+        },
+        {
+          url: 'https://www.fukuyama-u.ac.jp/x.jpg',
+          line: '出さない行',
+          reason: 'x',
+          retry: true,
+          specialDates: [],
+        },
+      ],
+    })
+    expect(body).toContain(HEADING)
+    expect(body).toContain('| 日付 | 掲示 | 理由 | 次回 |')
+    expect(body).toContain('| 2026-10-16 | ● 学外行事 10月16日（金） | Gemini の呼び出しに失敗しました: 503 UNAVAILABLE | 翌日以降に再読取り |')
+    expect(body).not.toContain('出さない行')
+    expect(body).toContain(CHECK)
+    // 確認する点の節の中にあること
+    expect(body.indexOf(CHECK)).toBeGreaterThan(body.indexOf('## 確認する点'))
+  })
+
+  it('retry が false（画像の内容による拒否）は「画像が変わるまで読み直さない」と書き、複数日をまとめる', () => {
+    const body = report({
+      failedEvents: [
+        {
+          url: 'https://www.fukuyama-u.ac.jp/2026-1011.1012.jpg',
+          line: '薬学ワークショップ 10月11日（日）・12日（月・祝）',
+          reason: '日付ごとに別の表がある',
+          retry: false,
+          specialDates: ['2026-10-11', '2026-10-12'],
+        },
+      ],
+    })
+    const row = body.split('\n').find((l) => l.startsWith('| 2026-10-11'))!
+    expect(row).toContain('| 2026-10-11, 2026-10-12 |')
+    expect(row).toContain('| 画像が変わるまで読み直さない |')
+    expect(row).not.toContain('翌日以降に再読取り')
+  })
+
+  it('掲示の行テキスト・理由の `|`・改行・HTML・`_` を逃がして表を割らない', () => {
+    const body = report({
+      failedEvents: [
+        {
+          url: 'https://www.fukuyama-u.ac.jp/a.jpg',
+          line: '● 行事 | 10月16日\n<img src=x onerror=alert(1)>',
+          reason: 'timetable_event_20261016 [x](https://evil.example/)',
+          retry: true,
+          specialDates: ['2026-10-16'],
+        },
+      ],
+    })
+    const row = body.split('\n').find((l) => l.startsWith('| 2026-10-16'))!
+    expect(row).toContain('● 行事 \\| 10月16日 &lt;img src=x onerror=alert(1)&gt;')
+    expect(row).toContain('timetable\\_event\\_20261016 \\[x\\](https://evil.example/)')
+    // 見出し（| 日付 | 掲示 | 理由 | 次回 |）と同じ 4 列のままであること
+    expect(row.split(/(?<!\\)\|/).length).toBe(6)
+    expect(body).not.toContain('<img')
   })
 })
 

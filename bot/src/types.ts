@@ -42,8 +42,13 @@ export interface LinkInfo {
   rawHref: string
   /** アンカーのテキスト */
   anchorText: string
-  /** アンカーを含む行（ブロック要素 or <br> セグメント）のテキスト */
+  /**
+   * 掲示のテキスト。通常はアンカーを含む行（ブロック要素 or <br> セグメント）。
+   * 見出し・日付が前の行に分かれた掲示では、見出しからリンク行までを連結したもの（FR-2 の 3【v1.16】）
+   */
   lineText: string
+  /** 前の行とまとめたときだけ入る、リンク行だけのテキスト（分類の比較用） */
+  ownLineText?: string
 }
 
 export type LinkKind = 'regular' | 'vacation' | 'event' | 'needs_review'
@@ -67,6 +72,8 @@ export interface ClassifiedLink extends LinkInfo {
   yearGuessed?: boolean
   /** needs_review の理由 */
   reason?: string
+  /** 前の行とまとめた掲示で、リンク行だけを分類した場合の種別（まとめで種別が変わったかの確認用） */
+  ungroupedKind?: LinkKind
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +91,11 @@ export interface IntermediateDayType {
   matsunaga: IntermediateRow[]
   /** 大学発 */
   university: IntermediateRow[]
+  /**
+   * 通常と違う乗り場・行先を示す注記付きの便があるか（FR-6【v1.16】）。
+   * 任意項目。2 回読み照合の比較には含めず、各回の OR を採る（ocr.ts の read）。
+   */
+  irregular_notes?: boolean
 }
 
 export interface Intermediate {
@@ -142,6 +154,40 @@ export interface StateEvent extends StateFetchCheck {
    * 見つかった回に 0 へ戻す（＝キー自体を消す）。
    */
   missing_count?: number
+  /**
+   * 掲示から消えた今日以降の適用日と、消えていた連続回数（FR-4【v1.16】）。
+   * 日付の取りこぼしで有効な日を即時に消さないよう、CONFIG.eventMissingRunsBeforeRemoval 回
+   * 連続で消えていた日だけを撤去する。それまではファイルと override を残す。
+   */
+  removed_dates?: Record<string, number>
+  /**
+   * 同じ URL のまま画像が差し替わったのを検出したが、取り込めなかった画像の SHA-256（FR-4【v1.16】）。
+   *
+   * sha256 は前回取り込めた（＝今表示している）画像のまま残すので、これが無いと、翌日の再確認が
+   * 取得失敗・予算切れになった回に「変化なし」と扱われ、特別ダイヤが外れて差し替え前の古い時刻に
+   * 戻ってしまう。これがある間は、内容を確かめられなかった回も取り込み失敗として扱う。
+   * 取り込めた回（または元の内容に戻ったと確認できた回）に消える。
+   */
+  pending_sha256?: string
+}
+
+/**
+ * 画像の内容を理由に取り込みを拒否した記録（FR-7【v1.16】）。
+ *
+ * 日付ごとの別表・特殊便の注記がある画像は、何度読んでも同じ理由で拒否される。
+ * 記録が無いと毎日 OCR し直して Gemini の枠を使い続けるため、同じ内容（SHA-256）の間は
+ * 読まずに拒否を引き継ぐ。内容が変わったら読み直す。
+ */
+export interface RejectedImage {
+  sha256: string
+  /** 拒否の理由コード（multi_table / irregular_notes） */
+  reason_code: string
+  /** 人が読む理由 */
+  reason: string
+  /** 条件付き GET の検証子（内容が変わっていないかを画像本体の転送なしで確かめる） */
+  etag?: string
+  last_modified?: string
+  checked_at: string
 }
 
 export interface StateSpecial {
@@ -195,6 +241,8 @@ export interface State {
    * 日付が変われば 0 から数え直す（`date` が今日でなければ無視する）。
    */
   ocr_usage?: { date: string; calls: number }
+  /** 画像の内容を理由に拒否した event 画像（キーは正規化 URL）。掲示から消えたら捨てる */
+  rejected_images?: Record<string, RejectedImage>
 }
 
 // ---------------------------------------------------------------------------

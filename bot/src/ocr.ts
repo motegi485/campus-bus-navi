@@ -50,7 +50,10 @@ export const OCR_PROMPT = `あなたは福山大学スクールバス時刻表�
    （例:「オープンキャンパス」「簿記検定」「夏季休業」）を使ってください。
    日付や期間（例:「2026年8月23日(日)」「8月17日～9月23日」）は label ではありません。
    日付しか見当たらない場合は空文字にしてください。
-8. 出力はJSONのみ。説明文・マークダウン・コードフェンスを含めないでください。`
+8. 出力はJSONのみ。説明文・マークダウン・コードフェンスを含めないでください。
+9. 発車時刻そのものに、通常と違う乗り場・行先・到着場所を示す注記（色付きの時刻、時刻から伸びる矢印、
+   「◯◯号館前 到着」「◯◯出発→◯◯」等）が付いた便がそのダイヤ種別にあれば、irregular_notes を true に
+   してください。無ければ false にしてください。注記付きの便の時刻も、書かれているとおり minutes に含めます。`
 
 // 注: SDK の Schema では minItems / maxItems は int64 を表す【文字列】。数値を渡すと API エラーになる。
 const ROWS_SCHEMA: Schema = {
@@ -75,11 +78,13 @@ export const INTERMEDIATE_SCHEMA: Schema = {
       maxItems: '2',
       items: {
         type: Type.OBJECT,
+        // irregular_notes は任意（v1.16 で追加）。既存の正解 fixture はこの項目を持たない
         required: ['label', 'matsunaga', 'university'],
         properties: {
           label: { type: Type.STRING },
           matsunaga: ROWS_SCHEMA,
           university: ROWS_SCHEMA,
+          irregular_notes: { type: Type.BOOLEAN },
         },
       },
     },
@@ -96,6 +101,14 @@ function normalizeRows(rows: IntermediateRow[]): IntermediateRow[] {
     .sort((a, b) => a.hour - b.hour)
 }
 
+/**
+ * 2 回読み照合のための正規化。
+ *
+ * irregular_notes は落とす（照合の対象にしない）。注記の有無はモデルの判断が揺れやすく、
+ * 比較に含めると時刻が一致していても不一致になり、3 回目の読み取りや失敗が増えるため。
+ * 注記の有無は read() で各回の OR を採って付け直す。
+ * ラベルが同じ種別（日付ごとの別表でラベルが両方空など）は、時刻の内容で並べて順序を安定させる。
+ */
 export function normalizeIntermediate(value: Intermediate): Intermediate {
   const day_types: IntermediateDayType[] = [...value.day_types]
     .map((d) => ({
@@ -103,12 +116,23 @@ export function normalizeIntermediate(value: Intermediate): Intermediate {
       matsunaga: normalizeRows(d.matsunaga ?? []),
       university: normalizeRows(d.university ?? []),
     }))
-    .sort((a, b) => a.label.localeCompare(b.label))
+    .sort((a, b) => a.label.localeCompare(b.label) || JSON.stringify(a).localeCompare(JSON.stringify(b)))
   return { day_types }
 }
 
 function sameIntermediate(a: Intermediate, b: Intermediate): boolean {
   return JSON.stringify(normalizeIntermediate(a)) === JSON.stringify(normalizeIntermediate(b))
+}
+
+/**
+ * 採用した結果に irregular_notes を付け直す。採用した読み取り（一致した 2 回）のどちらかが
+ * true と読んだら true（安全側）。多数決で捨てた読み取りは渡さない（read() 側）。
+ * 種別ごとの対応づけはせず、全種別に同じ値を付ける（event は 1 種別しか取り込まない）。
+ */
+export function withIrregularNotes(chosen: Intermediate, reads: Intermediate[]): Intermediate {
+  const irregular = reads.some((r) => (r.day_types ?? []).some((d) => d.irregular_notes === true))
+  if (!irregular) return chosen
+  return { day_types: chosen.day_types.map((d) => ({ ...d, irregular_notes: true })) }
 }
 
 // ---------------------------------------------------------------------------
@@ -321,15 +345,29 @@ export class OcrClient {
 
         // primary が 1 リクエストの上限時間まで応答しないときは、15 分の実行予算を
         // 同じモデルの再試行で使い切らないよう直ちに fallback へ切り替える。
-        const canFallback = !this.fallbackUsed && this.model === CONFIG.modelPrimary
-        if (canFallback && isRequestTimeout(e)) {
-          console.warn(
-            `[ocr] モデル ${this.model} が ${CONFIG.geminiRequestTimeoutMs / 1000}秒以内に応答しませんでした。${CONFIG.modelFallback} で再試行します。`,
-          )
-          this.model = CONFIG.modelFallback
-          this.fallbackUsed = true
-          transientRetries = 0
-          continue
+        // fallback が無い（2026-10-03 以降の既定）・使用済みなら、再試行せずこの画像を失敗にする。
+        // 一時障害として 180 秒 × 再試行を重ねると、1 枚で実行の締切を使い切ってしまうため。
+        const fallback = CONFIG.modelFallback
+        const canFallback = fallback !== undefined && !this.fallbackUsed && this.model === CONFIG.modelPrimary
+        if (isRequestTimeout(e)) {
+          if (canFallback && fallback !== undefined) {
+            console.warn(
+              `[ocr] モデル ${this.model} が ${CONFIG.geminiRequestTimeoutMs / 1000}秒以内に応答しませんでした。${fallback} で再試行します。`,
+            )
+            this.model = fallback
+            this.fallbackUsed = true
+            transientRetries = 0
+            continue
+          }
+          if (fallback === undefined) {
+            // 締切に合わせて短くした要求が切れたのなら、締切到達として記録する（run_deadline_exceeded）
+            if (this.remainingMs <= CONFIG.geminiMinIntervalMs) {
+              this.deadlineHit = true
+              throw new RunDeadlineExceededError()
+            }
+            throw e
+          }
+          // fallback を設定した構成で、切替後にタイムアウトした場合は従来どおり一時障害として扱う（v1.13）
         }
 
         if (isRateLimit(e) && !dailyExhausted && rateLimitRetries < CONFIG.geminiMaxRetries429) {
@@ -363,11 +401,11 @@ export class OcrClient {
 
         // モデルが使えない / 一時障害が解消しない / 当日枠を使い切った
         // → フォールバックモデルへ1度だけ切り替える
-        if (canFallback && (isModelUnavailable(e) || isTransient(e) || dailyExhausted)) {
+        if (canFallback && fallback !== undefined && (isModelUnavailable(e) || isTransient(e) || dailyExhausted)) {
           console.warn(
-            `[ocr] モデル ${this.model} を使用できません（${errorText(e).slice(0, 120)}）。${CONFIG.modelFallback} で再試行します。`,
+            `[ocr] モデル ${this.model} を使用できません（${errorText(e).slice(0, 120)}）。${fallback} で再試行します。`,
           )
-          this.model = CONFIG.modelFallback
+          this.model = fallback
           this.fallbackUsed = true
           transientRetries = 0
           continue
@@ -402,7 +440,7 @@ export class OcrClient {
     if (sameIntermediate(results[0]!, results[1]!)) {
       return {
         ok: true,
-        intermediate: normalizeIntermediate(results[0]!),
+        intermediate: withIrregularNotes(normalizeIntermediate(results[0]!), [results[0]!, results[1]!]),
         attempts: 2,
         majority: false,
         fallbackUsed: this.fallbackUsed,
@@ -430,7 +468,8 @@ export class OcrClient {
       if (sameIntermediate(results[i]!, results[j]!)) {
         return {
           ok: true,
-          intermediate: normalizeIntermediate(results[i]!),
+          // 注記の有無は、採用した一致ペアの 2 回だけで OR を取る（多数決で捨てた読み取りの判断は使わない）
+          intermediate: withIrregularNotes(normalizeIntermediate(results[i]!), [results[i]!, results[j]!]),
           attempts: 3,
           majority: true,
           fallbackUsed: this.fallbackUsed,

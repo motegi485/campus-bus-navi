@@ -158,3 +158,112 @@ describe('テスト4: assemble（FR-7）', () => {
     expect(result.errors[0]).toContain('1種別')
   })
 })
+
+/**
+ * FR-7【v1.16・2026-10-03 ユーザー決定】特殊便・複数表のイベント画像は取り込まず、
+ * 適用日を特別ダイヤにする。rejectCode は plan.ts が state.rejected_images に記録し、
+ * 同じ画像の再 OCR を止めるための印なので、「画像の内容による拒否」にだけ付くことを固定する。
+ */
+describe('イベント画像の内容による拒否（FR-7 v1.16）', () => {
+  it('day_types が2件（日付ごとの別表）なら multi_table で拒否し、ファイルを出さない', () => {
+    // 実例: 2026-1011.1012.jpg は 10/11 と 10/12 の表が別々に載っている
+    const result = assembleEvent(intermediate('regular'), ['2026-10-11', '2026-10-12'], '薬学ワークショップ')
+    expect(result.outputs).toEqual([])
+    expect(result.rejectCode).toBe('multi_table')
+    // 既存の文言（「1種別を期待」「件数」）を保ったうえで、特別ダイヤにする旨が付いている
+    expect(result.errors[0]).toContain('1種別')
+    expect(result.errors[0]).toContain('2 件')
+    expect(result.errors[0]).toContain('特別ダイヤ')
+  })
+
+  it('day_types が0件は読み取りの失敗であって画像の内容による拒否ではないので rejectCode を付けない', () => {
+    // rejectCode を付けると同じ画像を以後読み直さなくなる。0 件は再読取りで直り得る
+    const result = assembleEvent({ day_types: [] }, ['2026-10-11'], 'x')
+    expect(result.outputs).toEqual([])
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toContain('0 件')
+    expect(result.rejectCode).toBeUndefined()
+    expect('rejectCode' in result).toBe(false)
+  })
+
+  it('irregular_notes が true なら irregular_notes で拒否し、ファイルを出さない', () => {
+    // 実例: 「34号館出発→みどりのこかげ」のように便ごとに乗り場・行先が違う注記がある
+    const im = intermediate('event_20260614')
+    im.day_types[0]!.irregular_notes = true
+    const result = assembleEvent(im, ['2026-10-11'], '薬学ワークショップ')
+    expect(result.outputs).toEqual([])
+    expect(result.rejectCode).toBe('irregular_notes')
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toContain('特別ダイヤ')
+  })
+
+  it('irregular_notes が false・未定義なら従来どおり組み立て、rejectCode は付かない', () => {
+    for (const value of [false, undefined]) {
+      const im = intermediate('event_20260614')
+      if (value === undefined) delete im.day_types[0]!.irregular_notes
+      else im.day_types[0]!.irregular_notes = value
+      const result = assembleEvent(im, ['2026-06-14'], '掲載行ラベル')
+      expect(result.errors, String(value)).toEqual([])
+      expect(result.rejectCode, String(value)).toBeUndefined()
+      expect(result.outputs[0]!.timetable, String(value)).toEqual(expected('timetable_event_20260614'))
+    }
+  })
+
+  it('assemble 経由（event リンク）でも irregular_notes で拒否される', () => {
+    const im = intermediate('event_20260620')
+    im.day_types[0]!.irregular_notes = true
+    const result = assemble(link({ kind: 'event', dates: ['2026-10-11'], label: 'x' }), im)
+    expect(result.outputs).toEqual([])
+    expect(result.rejectCode).toBe('irregular_notes')
+  })
+
+  it('通常ダイヤは irregular_notes があっても組み立てる（拒否は event だけ。warn は plan.ts が出す）', () => {
+    const im = intermediate('regular')
+    for (const d of im.day_types) d.irregular_notes = true
+    const result = assemble(link({ kind: 'regular' }), im)
+    expect(result.errors).toEqual([])
+    expect(result.rejectCode).toBeUndefined()
+    expect(result.outputs.map((o) => o.fileName).sort()).toEqual(['timetable_holiday.json', 'timetable_weekday.json'])
+    // 注記の印は時刻表ファイルへ漏れない（expected と完全一致の範囲で比較）
+    for (const name of ['timetable_weekday', 'timetable_holiday']) {
+      const output = result.outputs.find((o) => o.fileName === `${name}.json`)!
+      expect(output.timetable.routes, name).toEqual(expected(name).routes)
+    }
+  })
+
+  it('長期休暇ダイヤは irregular_notes があっても組み立てる', () => {
+    const im = intermediate('vacation_summer')
+    for (const d of im.day_types) d.irregular_notes = true
+    const result = assemble(link({ kind: 'vacation', season: 'summer' }), im)
+    expect(result.errors).toEqual([])
+    expect(result.rejectCode).toBeUndefined()
+    for (const name of ['timetable_vacation_summer_weekday', 'timetable_vacation_summer_holiday']) {
+      const output = result.outputs.find((o) => o.fileName === `${name}.json`)!
+      expect(output.timetable, name).toEqual(expected(name))
+    }
+  })
+})
+
+describe('曜日括弧の除去の拡張（v1.16）', () => {
+  // 実ページ（2026-10-03）で「（月・祝）」の表記があり、1 文字の曜日括弧しか除けず種別名と誤認していた
+  it('「（月・祝）」など複数文字の曜日括弧を含む日付だけのラベルを無意味と判定する', () => {
+    expect(isMeaninglessLabel('2026年10月12日（月・祝）')).toBe(true)
+    expect(isMeaninglessLabel('10月12日(月・祝)')).toBe(true)
+    expect(isMeaninglessLabel('10月12日（月 祝）')).toBe(true)
+    expect(isMeaninglessLabel('10月12日（祝）')).toBe(true)
+    expect(isMeaninglessLabel('10月11日（日）・10月12日（月・祝）')).toBe(true)
+  })
+
+  it('曜日以外の括弧書きは除かない（行事名を無意味と誤判定しない）', () => {
+    expect(isMeaninglessLabel('10月12日（月・祝）薬学ワークショップ')).toBe(false)
+    expect(isMeaninglessLabel('（公開講座）')).toBe(false)
+  })
+
+  it('OCR ラベルが「（月・祝）」付きの日付だけなら掲載行ラベルにフォールバックする', () => {
+    const im = intermediate('event_20260620')
+    im.day_types[0]!.label = '2026年10月12日（月・祝）'
+    const result = assembleEvent(im, ['2026-10-12'], '薬学ワークショップ')
+    expect(result.errors).toEqual([])
+    expect(result.outputs[0]!.timetable.name).toBe('薬学ワークショップダイヤ')
+  })
+})

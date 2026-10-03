@@ -4,7 +4,7 @@
  */
 
 import * as cheerio from 'cheerio'
-import type { AnyNode, Element } from 'domhandler'
+import type { AnyNode, Element, Text } from 'domhandler'
 import { CONFIG } from './config.js'
 import type { ClassifiedLink, LinkInfo, LinkKind, Season, Warning } from './types.js'
 import { formatDate, isAfter, isBefore, isRealDate, parseDate, todayJst } from './time.js'
@@ -19,6 +19,24 @@ const BLOCK_TAGS = new Set(['p', 'li', 'td', 'th', 'div', 'section', 'h1', 'h2',
 const dateRe = (): RegExp => /(?:(\d{4})\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*日/g
 /** 波ダッシュ: U+FF5E（実測）/ U+301C / ASCII チルダ */
 const TILDE_RE = /[～〜~]/
+/**
+ * 曜日の括弧。`（土）` だけでなく `（月・祝）` のような複数文字も対象にする。
+ * 1 文字だけを対象にしていた頃は、10/12 の行ラベルが「（月 祝）」という残骸になっていた（2026-10-03）。
+ */
+export const WEEKDAY_PAREN_RE = /[（(][日月火水木金土祝・\s]+[）)]/g
+
+/**
+ * 掲示の見出し記号。2026-10 からの掲載形式では「● 行事名」が独立した行になり、
+ * その後に日付だけの行が続いて、最後の行にリンクが付く。
+ */
+const BULLET_RE = /^[●○◆◇■□]/
+/**
+ * 補足行の記号。8/1 形式ではリンク行の【後ろ】に「→ 8月12日 … 最終時刻」が続く。
+ * 「※」の注記行も同じ扱い（日付を含んでも適用日ではない。まとめを止め、未使用の警告にもしない）
+ */
+const NOTE_LINE_RE = /^[→⇒※]/
+/** 見出しまで遡る行数の上限（日付行の数）。これを超える掲示はまとめない */
+const MAX_GROUP_LINES = 5
 
 // ---------------------------------------------------------------------------
 // 正規化
@@ -105,16 +123,137 @@ function lineTextForAnchor($: cheerio.CheerioAPI, block: Element, rawHref: strin
   return fullText
 }
 
+/** 兄弟ノード 1 つを「1 行」として読む。行として扱えないノードは null */
+function nodeLine($: cheerio.CheerioAPI, node: AnyNode): { text: string; hasAnchor: boolean } | null {
+  if (node.type === 'text') return { text: (node as Text).data, hasAnchor: false }
+  if (node.type === 'tag') {
+    const el = node as Element
+    return { text: $(el).text(), hasAnchor: el.name === 'a' || $(el).find('a').length > 0 }
+  }
+  return null
+}
+
+/** 空白だけのテキストノードとコメントは、行の区切りとして数えない（実ページの <p> 間には "\n" がある） */
+function isIgnorableNode(node: AnyNode): boolean {
+  if (node.type === 'comment') return true
+  return node.type === 'text' && normalizeLineText((node as Text).data) === ''
+}
+
+/**
+ * 複数行に分かれた掲示を 1 件にまとめる（FR-2 の 3【v1.16】）。
+ *
+ * 2026-10 から掲載形式が次のように変わった:
+ *   <p>● 公開講座</p><p>2026年 10月 3日（土）</p><p>10月10日（土）</p><p>10月31日（土） <a>時刻表はコチラ</a></p>
+ * リンクを含む <p> だけを読むと 10/31 しか取れず、10/03・10/10 の override が作られなかった。
+ *
+ * リンク行が見出し記号で始まらない場合だけ、直前の行を遡る。日付行は取り込んで遡り続け、
+ * 見出し記号の行に着いたらそこまでを 1 件として確定する。次のどれかに当たったら【まとめない】
+ * （＝リンク行だけを使う従来どおりの動作）。別の掲示の日付を取り違えるより、取りこぼして
+ * possible_missed_dates で知らせる方が安全なため。
+ *   - 空行 / <a> を含む行（画像リンクに限らない）/ 補足行（→・※）
+ *   - 日付も見出し記号も無い行 / 日付入りの見出し記号の行 / 行数の上限超え / 兄弟の先頭
+ * 8/1 形式は見出し記号がリンク行の中にあり、リンク行の前は別のリンク行か補足行なので、
+ * この規則では遡りが起きない（結果は従来と同じ）。
+ */
+function groupWithPrecedingLines(
+  $: cheerio.CheerioAPI,
+  block: Element,
+  ownText: string,
+): { text: string; nodes: AnyNode[] } | null {
+  if ($(block).hasClass('md-box')) return null // md-box 直下のアンカー。遡ると告知ボックスの外に出る
+  if (BULLET_RE.test(normalizeLineText(ownText))) return null // 見出しがリンク行の中にある（従来形式）
+
+  const lines: string[] = []
+  const nodes: AnyNode[] = []
+  for (let node = block.prev; node; node = node.prev) {
+    if (isIgnorableNode(node)) continue
+    const line = nodeLine($, node)
+    if (!line || line.hasAnchor) return null
+    const normalized = normalizeLineText(line.text)
+    if (normalized === '' || NOTE_LINE_RE.test(normalized)) return null
+    if (BULLET_RE.test(normalized)) {
+      // 見出しは行事名の行。日付入りの ● 行（「● 10月20日（火）は運休します」等）は
+      // 別の告知とみなし、その日付を取り込まない（運休日にイベントダイヤを張る事故の防止）
+      if (dateRe().test(normalized)) return null
+      lines.unshift(line.text)
+      nodes.unshift(node)
+      return { text: [...lines, ownText].join(' '), nodes }
+    }
+    if (!dateRe().test(normalized)) return null
+    if (lines.length >= MAX_GROUP_LINES) return null
+    lines.unshift(line.text)
+    nodes.unshift(node)
+  }
+  return null
+}
+
+/**
+ * md-box 内で日付を含むのに、どのリンクにも使われなかった行を探す（FR-2 の 6(c)【v1.16】）。
+ *
+ * 2026-10-03 の不具合は「掲載に日付は書いてあるのに Bot が読んでいない」状態で、警告が何も
+ * 出ていなかった。まとめの規則に合わない掲示（見出しと日付の間に注記がある等）が来ても、
+ * 黙って適用日を落とさないように、使われなかった日付行を警告にする。
+ * 補足行（→・※）は注記なので対象外。
+ *
+ * 今日以降の日付を含む行だけを対象にする。過ぎた日付の告知（「● 8月13日～8月15日 運休」等）が
+ * 掲示に残り続けると、毎日 warn になって「⚠ 要確認」メールが届き続けるため。
+ * 同じブロックに対象アンカーが複数あるブロックは <br> ごとに見る（各リンクは自分の区間しか
+ * 使わないので、リンクの無い区間の日付は取りこぼしの疑いがある）。
+ */
+function findUnusedDateLines(
+  $: cheerio.CheerioAPI,
+  usedNodes: Set<AnyNode>,
+  multiAnchorBlocks: Set<AnyNode>,
+  today: string,
+): string[] {
+  const unused: string[] = []
+  const check = (text: string): void => {
+    const normalized = normalizeLineText(text)
+    if (normalized === '' || NOTE_LINE_RE.test(normalized)) return
+    const raws = findRawDates(normalized)
+    if (raws.length === 0) return
+    const { dates } = resolveDates(raws, today)
+    if (dates.some((d) => isRealDate(d) && !isBefore(d, today))) unused.push(normalized)
+  }
+
+  for (const box of $(CONFIG.announceBoxSelector).toArray() as Element[]) {
+    if (usedNodes.has(box)) continue // md-box 直下のアンカーで、ボックス全体を lineText に使った
+    for (const node of box.children as AnyNode[]) {
+      if (isIgnorableNode(node) || usedNodes.has(node)) continue
+      if (multiAnchorBlocks.has(node)) {
+        for (const segment of ($(node as Element).html() ?? '').split(/<br\s*\/?>/i)) {
+          const $seg = cheerio.load(`<div>${segment}</div>`)
+          if ($seg('a').length > 0) continue
+          check($seg('div').first().text())
+        }
+        continue
+      }
+      const line = nodeLine($, node)
+      if (!line || line.hasAnchor) continue
+      check(line.text)
+    }
+  }
+  return unused
+}
+
 export interface ExtractResult {
   links: LinkInfo[]
   warnings: Warning[]
 }
 
-export function extractLinks(html: string, baseUrl: string = CONFIG.pageUrl): ExtractResult {
+export function extractLinks(
+  html: string,
+  baseUrl: string = CONFIG.pageUrl,
+  today: string = todayJst(),
+): ExtractResult {
   const $ = cheerio.load(html)
   const warnings: Warning[] = []
   const links: LinkInfo[] = []
   const seen = new Set<string>()
+  /** リンクの lineText に使った行（possible_missed_dates の判定用） */
+  const usedNodes = new Set<AnyNode>()
+  /** 対象アンカーが複数あり、<br> 区間ごとに lineText を取ったブロック */
+  const multiAnchorBlocks = new Set<AnyNode>()
 
   const anchors = $(`${CONFIG.announceBoxSelector} a[href]`).toArray() as Element[]
 
@@ -142,7 +281,14 @@ export function extractLinks(html: string, baseUrl: string = CONFIG.pageUrl): Ex
 
     if (hasImageExt && hasKeyword) {
       const block = nearestBlock($, a)
-      const lineText = lineTextForAnchor($, block, rawHref, matchCountByBlock.get(block) ?? 1)
+      const matchesInBlock = matchCountByBlock.get(block) ?? 1
+      const ownLineText = lineTextForAnchor($, block, rawHref, matchesInBlock)
+      // 同じブロックに対象アンカーが複数あるときは <br> 分割だけで扱い、前の行へは遡らない
+      const grouped = matchesInBlock <= 1 ? groupWithPrecedingLines($, block, ownLineText) : null
+      const lineText = grouped ? grouped.text : ownLineText
+      if (matchesInBlock > 1) multiAnchorBlocks.add(block)
+      else usedNodes.add(block)
+      for (const node of grouped?.nodes ?? []) usedNodes.add(node)
       // 正規化 URL は「絶対化 → デコード」。state との突合・重複排除・ログ表示に使う。
       // 実際のフェッチは % エンコードのままの rawHref を使う（全角空白を含むファイル名があるため）。
       const absolute = absolutize(rawHref, baseUrl)
@@ -165,6 +311,7 @@ export function extractLinks(html: string, baseUrl: string = CONFIG.pageUrl): Ex
         rawHref: absolute,
         anchorText: normalizeLineText(anchorText),
         lineText,
+        ...(grouped ? { ownLineText } : {}),
       })
       continue
     }
@@ -182,6 +329,17 @@ export function extractLinks(html: string, baseUrl: string = CONFIG.pageUrl): Ex
         })
       }
     }
+  }
+
+  // FR-2 の 6(c): 日付が書いてあるのに、どのリンクにも使われなかった行
+  for (const line of findUnusedDateLines($, usedNodes, multiAnchorBlocks, today)) {
+    warnings.push({
+      level: 'warn',
+      code: 'possible_missed_dates',
+      message:
+        `掲載ページに日付の行がありますが、どの時刻表リンクの適用日にも使われませんでした: 「${line}」。` +
+        '掲載形式の変化で適用日を取りこぼしている可能性があります（その日は時刻表が切り替わりません）。',
+    })
   }
 
   // FR-2 の 5: トリップワイヤー
@@ -283,7 +441,7 @@ function detectSeason(matched: string, normalized: string): Season | undefined {
 /** イベント行の見出しラベルを取り出す（PR 表示・OCR ラベル欠損時のフォールバック） */
 export function extractEventLabel(normalized: string, anchorText: string): string {
   let s = normalized.replace(dateRe(), ' ')
-  s = s.replace(/[（(][日月火水木金土][）)]/g, ' ')
+  s = s.replace(WEEKDAY_PAREN_RE, ' ')
   if (anchorText) s = s.split(anchorText).join(' ')
   s = s.replace(/時刻表はコチラ/g, ' ')
   s = s.replace(/[●○◆■□▲△▼▽・→⇒※【】[\]「」『』｜|／/＝=～〜~,、。:：]/g, ' ')
@@ -388,5 +546,12 @@ export function classifyLink(link: LinkInfo, today: string = todayJst()): Classi
 }
 
 export function classifyLinks(links: LinkInfo[], today: string = todayJst()): ClassifiedLink[] {
-  return links.map((l) => classifyLink(l, today))
+  return links.map((l) => {
+    const classified = classifyLink(l, today)
+    if (l.ownLineText === undefined) return classified
+    // 前の行とまとめた掲示は、リンク行だけで分類した場合の種別も残す。見出しの語（例「冬季休業を除く」）を
+    // 巻き込んで種別が変わっていないかを detectChanges が確かめる（grouping_changed_kind）
+    const ungrouped = classifyLink({ ...l, lineText: l.ownLineText }, today)
+    return { ...classified, ungroupedKind: ungrouped.kind }
+  })
 }

@@ -17,6 +17,7 @@ import type {
   FilePlan,
   Holiday,
   Intermediate,
+  RejectedImage,
   State,
   StateEvent,
   StateSpecial,
@@ -56,12 +57,32 @@ export interface PlanInput {
   timetableExists?: (fileName: string) => boolean
 }
 
+/**
+ * 掲示はあるのに取り込めなかったイベント（FR-9【v1.16】）。
+ * 今日以降の適用日を特別ダイヤにする。state には保存せず、毎回の決定から求め直す
+ * （成功・掲示の消失・全日過去で自然に外れる。state が毎日書き換わることもない）。
+ */
+export interface FailedEvent {
+  key: string
+  url: string
+  line: string
+  /** 今日以降の適用日 */
+  dates: string[]
+  reason: string
+  /** false は画像の内容による拒否（同じ内容の間は読み直さない） */
+  retry: boolean
+  /** 実際に特別ダイヤの override を張れた日（手動 override・人の削除がある日は含まない） */
+  specialDates: string[]
+}
+
 export interface PlanOutput {
   filePlans: FilePlan[]
   calendar: CalendarResult
   nextState: State
   validationFailures: string[]
   warnings: Warning[]
+  /** 取り込めなかったイベント（通知メールに特別ダイヤにした日として載せる） */
+  failedEvents: FailedEvent[]
 }
 
 function counts(timetable: Timetable): { station: number; campus: number } {
@@ -71,12 +92,79 @@ function counts(timetable: Timetable): { station: number; campus: number } {
   }
 }
 
+/** event の決定に対応する state の項目（旧キーを含む。同じ画像 URL のものを先頭に） */
+function prevEventEntries(state: State, decision: ChangeDecision): StateEvent[] {
+  return (decision.stateKeys ?? [])
+    .map((key) => state.events?.[key])
+    .filter((entry): entry is StateEvent => Boolean(entry))
+}
+
 function existingDerived(state: State, decision: ChangeDecision): string[] {
   const { link } = decision
   if (link.kind === 'regular') return state.regular?.derived ?? []
   if (link.kind === 'vacation' && link.season) return state.vacations?.[link.season]?.derived ?? []
-  if (link.kind === 'event' && link.dates?.[0]) return state.events?.[link.dates[0]]?.derived ?? []
+  if (link.kind === 'event') return [...new Set(prevEventEntries(state, decision).flatMap((entry) => entry.derived))]
   return []
+}
+
+/** 成功として state へ書く内容（event は適用日と猶予中の日を上書きで渡す） */
+interface Succeeded {
+  decision: ChangeDecision
+  derived: string[]
+  /** event: state に記録する適用日（今日以降の掲示の日付 ＋ 撤去を猶予中の日付） */
+  dates?: string[]
+  /** event: 掲示から消えて撤去を猶予中の日付と連続回数 */
+  removedDates?: Record<string, number>
+}
+
+/**
+ * 掲示から消えた今日以降の適用日を、すぐには撤去しない（FR-4【v1.16】）。
+ *
+ * 先頭日付が変わった掲示を同じ画像 URL で引き継ぐようになったため、抽出の取りこぼしで
+ * 適用日が減って見えると、それがそのまま「適用日から外れた」としてファイルと override の
+ * 即時削除につながる（改修前は別キー扱いで、3 回連続の確認という猶予があった）。
+ * 消えた日は CONFIG.eventMissingRunsBeforeRemoval 回連続で確認できるまで残す。
+ */
+function applyRemovalGrace(
+  prevEntries: StateEvent[],
+  wantedDates: string[],
+  today: string,
+  decision: ChangeDecision,
+  warnings: Warning[],
+): { keptDates: string[]; removedDates: Record<string, number> } {
+  const prevRemoved: Record<string, number> = {}
+  for (const entry of prevEntries) Object.assign(prevRemoved, entry.removed_dates ?? {})
+  const prevFuture = [...new Set(prevEntries.flatMap((entry) => entry.dates))].filter((d) => !isBefore(d, today))
+
+  const keptDates: string[] = []
+  const removedDates: Record<string, number> = {}
+  for (const date of prevFuture.sort()) {
+    if (wantedDates.includes(date)) continue
+    const count = (prevRemoved[date] ?? 0) + 1
+    const label = decision.link.label || decision.link.normalizedLine
+    if (count >= CONFIG.eventMissingRunsBeforeRemoval) {
+      warnings.push({
+        level: 'warn',
+        code: 'event_date_retired',
+        message:
+          `イベント（${label}）の適用日 ${date} が ${count} 回連続で掲示から見つからなかったため、` +
+          'その日の時刻表と override を撤去します。実際には運行される場合は掲載ページを確認してください。',
+        url: decision.link.url,
+      })
+      continue
+    }
+    keptDates.push(date)
+    removedDates[date] = count
+    warnings.push({
+      level: 'warn',
+      code: 'event_date_removed',
+      message:
+        `イベント（${label}）の適用日 ${date} が掲示から見つかりません（${count} 回連続 / ` +
+        `${CONFIG.eventMissingRunsBeforeRemoval} 回で撤去）。読み取りの取りこぼしの可能性もあるため、それまでは残します。`,
+      url: decision.link.url,
+    })
+  }
+  return { keptDates, removedDates }
 }
 
 export function buildPlan(input: PlanInput): PlanOutput {
@@ -86,10 +174,15 @@ export function buildPlan(input: PlanInput): PlanOutput {
   const validationFailures: string[] = []
   const filePlans: FilePlan[] = []
   const plannedWrites = new Set<string>()
-  const succeeded = new Map<string, { decision: ChangeDecision; derived: string[] }>()
+  const succeeded = new Map<string, Succeeded>()
+  /** 取り込めなかった決定の理由（論理キー → 理由）。特別ダイヤにした日の説明に使う */
+  const failureReasons = new Map<string, string>()
+  /** 画像の内容を理由に今回拒否した event（正規化 URL → 記録） */
+  const newlyRejected = new Map<string, RejectedImage>()
 
   for (const [key, reason] of input.ocrFailures ?? new Map<string, string>()) {
     validationFailures.push(`${key}: ${reason}`)
+    failureReasons.set(key, reason)
   }
 
   /** 撤去されたイベントの時刻表 ID（override から外れていれば calculateOverrides が削除計画に載せる） */
@@ -105,9 +198,10 @@ export function buildPlan(input: PlanInput): PlanOutput {
       if (decision.link.kind === 'event') {
         const synced = syncEventFiles(
           decision,
-          existingDerived(input.state, decision),
+          prevEventEntries(input.state, decision),
           readTimetable,
           (fileName) => plannedWrites.has(fileName) || timetableExists(fileName),
+          input.today,
           warnings,
         )
         for (const plan of synced.plans) {
@@ -115,7 +209,12 @@ export function buildPlan(input: PlanInput): PlanOutput {
           plannedWrites.add(plan.fileName)
         }
         retiredEventIds.push(...synced.retired)
-        succeeded.set(decision.key, { decision, derived: synced.derived })
+        succeeded.set(decision.key, {
+          decision,
+          derived: synced.derived,
+          dates: synced.dates,
+          removedDates: synced.removedDates,
+        })
         continue
       }
       succeeded.set(decision.key, { decision, derived: existingDerived(input.state, decision) })
@@ -125,10 +224,33 @@ export function buildPlan(input: PlanInput): PlanOutput {
     const intermediate = input.intermediates.get(decision.key)
     if (!intermediate) continue // OCR 失敗 or 未実施
 
+    // regular / vacation の特殊便の注記は、取り込みは止めずに知らせるだけ（既存の挙動を後退させない）
+    if (decision.link.kind !== 'event' && intermediate.day_types.some((d) => d.irregular_notes === true)) {
+      warnings.push({
+        level: 'warn',
+        code: 'irregular_notes_detected',
+        message:
+          '時刻表画像に、通常と違う乗り場・行先の注記が付いた便があると読み取りました。' +
+          '取り込みは行いましたが、注記は時刻表に反映されません。元画像を確認してください。',
+        ...(decision.imageUrl ? { url: decision.imageUrl } : {}),
+      })
+    }
+
     const result = assemble(decision.link, intermediate, decision.effectiveDates)
     if (result.errors.length > 0) {
       for (const error of result.errors) {
         validationFailures.push(`${decision.key}: ${error}（元画像: ${decision.imageUrl}）`)
+      }
+      failureReasons.set(decision.key, result.errors.join(' '))
+      if (result.rejectCode && decision.link.kind === 'event' && decision.sha256) {
+        newlyRejected.set(decision.link.url, {
+          sha256: decision.sha256,
+          reason_code: result.rejectCode,
+          reason: result.errors.join(' '),
+          ...(decision.check?.etag ? { etag: decision.check.etag } : {}),
+          ...(decision.check?.last_modified ? { last_modified: decision.check.last_modified } : {}),
+          checked_at: input.today,
+        })
       }
       continue
     }
@@ -146,6 +268,7 @@ export function buildPlan(input: PlanInput): PlanOutput {
         for (const error of validation.errors) {
           validationFailures.push(`${output.fileName}: ${error}（元画像: ${decision.imageUrl}）`)
         }
+        failureReasons.set(decision.key, `${output.fileName}: ${validation.errors.join(' ')}`)
         continue
       }
       plans.push({
@@ -167,19 +290,66 @@ export function buildPlan(input: PlanInput): PlanOutput {
       filePlans.push(plan)
       plannedWrites.add(plan.fileName)
     }
-    succeeded.set(decision.key, { decision, derived: plans.map((p) => p.fileName.replace(/\.json$/, '')) })
+    const newIds = plans.map((p) => p.fileName.replace(/\.json$/, ''))
+    if (decision.link.kind !== 'event') {
+      succeeded.set(decision.key, { decision, derived: newIds })
+      continue
+    }
+
+    // event: 旧キーから引き継いだ日のうち、掲示から消えた今日以降の日は猶予の間だけ旧ファイルを残す。
+    // 残さない旧ファイル（過去日・猶予切れ）は撤去候補にする（載せないと管理外の孤児として残り続ける）
+    const prevEntries = prevEventEntries(input.state, decision)
+    const wantedDates = decision.effectiveDates ?? decision.link.dates ?? []
+    const grace = applyRemovalGrace(prevEntries, wantedDates, input.today, decision, warnings)
+    const keptIds = grace.keptDates.map((date) => eventIdForDate(date))
+    // 猶予で残す日のファイルも、今回読んだ画像の内容で書き直す。旧画像の内容のまま残すと、
+    // 後で日付が増えたときにそれが複製元に選ばれ、新しい日に古い時刻を書いてしまう
+    const template = plans[0]?.timetable
+    for (const id of keptIds) {
+      if (newIds.includes(id) || !template) continue
+      const fileName = `${id}.json`
+      const existing = readTimetable(fileName)
+      const timetable: Timetable = { ...(JSON.parse(JSON.stringify(template)) as Timetable), id }
+      if (existing) timetable.name = existing.name
+      filePlans.push({
+        op: existing ? 'update' : 'create',
+        fileName,
+        kind: 'event',
+        ...(decision.imageUrl ? { sourceUrl: decision.imageUrl } : {}),
+        timetable,
+        ...(existing ? { prevTimetable: existing, prevCounts: counts(existing) } : {}),
+        counts: counts(timetable),
+      })
+      plannedWrites.add(fileName)
+    }
+    const derived = [...new Set([...newIds, ...keptIds])].sort()
+    retiredEventIds.push(
+      ...existingDerived(input.state, decision).filter(
+        (id) => !derived.includes(id) && /^timetable_event_\d{8}$/.test(id),
+      ),
+    )
+    succeeded.set(decision.key, {
+      decision,
+      derived,
+      dates: [...new Set([...wantedDates, ...grace.keptDates])].sort(),
+      removedDates: grace.removedDates,
+    })
   }
 
   let nextState = applyToState(input.state, succeeded, input.runAt)
 
-  // 掲載から消えた／延期された未来イベントの撤去（連続確認方式）
+  // 掲載から消えた／延期された未来イベントの撤去（連続確認方式）。
+  // 今回の掲示に対応づけた旧キー（先頭日付が変わる前のキー）も「掲示にある」と数える。
+  // 数えないと、取り込みに失敗した回に旧キーの項目が「消えた」と数えられ、3 回目に撤去される
+  const presentEventKeys = new Set<string>()
+  for (const d of input.decisions) {
+    if (d.link.kind !== 'event') continue
+    if (d.link.dates?.[0]) presentEventKeys.add(d.link.dates[0])
+    for (const key of d.stateKeys ?? []) presentEventKeys.add(key)
+  }
   const reconciled = reconcileEvents(
     nextState,
-    new Set(
-      input.decisions
-        .filter((d) => d.link.kind === 'event' && d.link.dates?.[0])
-        .map((d) => d.link.dates![0]!),
-    ),
+    presentEventKeys,
     input.today,
     input.extractionHealthy ?? true,
     warnings,
@@ -187,6 +357,13 @@ export function buildPlan(input: PlanInput): PlanOutput {
   nextState = reconciled.state
   retiredEventIds.push(...reconciled.retired)
 
+  // 全適用日が過ぎて state から落とす event のファイルも撤去候補にする。通常は過去日の管理キー
+  // （managed.event）から削除されるが、取り込めなかった日を特別ダイヤで隠していた場合は
+  // managed.event に載っていないため、ここで拾わないと孤児ファイルとして残り続ける（v1.16）
+  for (const entry of Object.values(nextState.events ?? {})) {
+    if (entry.dates.some((d) => !isBefore(d, input.today))) continue
+    retiredEventIds.push(...entry.derived.filter((id) => /^timetable_event_\d{8}$/.test(id)))
+  }
   nextState = pruneEvents(nextState, input.today)
   nextState = applySpecials(nextState, input.needsReviewLinks ?? [], input.today, input.runAt, warnings, {
     ...(input.presentUrls ? { presentUrls: input.presentUrls } : {}),
@@ -194,6 +371,37 @@ export function buildPlan(input: PlanInput): PlanOutput {
     succeededUrls: new Set([...succeeded.values()].map((s) => s.decision.link.url)),
     extractionHealthy: input.extractionHealthy ?? true,
   })
+
+  // 掲示はあるのに取り込めなかったイベント（FR-9【v1.16】）。
+  //   - OCR に回したのに成功しなかった（OCR 失敗・上限・締切・未実施・組み立て/検証失敗）
+  //   - 画像を取得できなかった・取得の予算切れ・内容を理由に拒否済み（failure 付きの skip）
+  // 全日過去の skip は failure を持たないので含まれない
+  const failedEvents: FailedEvent[] = []
+  for (const d of input.decisions) {
+    if (d.link.kind !== 'event') continue
+    const failed = (d.action === 'ocr' && !succeeded.has(d.key)) || (d.action === 'skip' && d.failure !== undefined)
+    if (!failed) continue
+    const dates = (d.link.dates ?? []).filter((date) => !isBefore(date, input.today))
+    if (dates.length === 0) continue
+    failedEvents.push({
+      key: d.key,
+      url: d.link.url,
+      line: d.link.normalizedLine,
+      dates,
+      reason:
+        failureReasons.get(d.key) ??
+        (d.action === 'ocr' ? 'OCR を実施していません（SKIP_OCR・鍵なし等）。' : d.reason),
+      // 拒否記録がある掲示は、今回が取得失敗でも、回復後は内容が変わるまで読み直さない
+      retry:
+        !newlyRejected.has(d.link.url) &&
+        input.state.rejected_images?.[d.link.url] === undefined &&
+        (d.failure?.retry ?? true),
+      specialDates: [],
+    })
+  }
+
+  nextState = applyRejectedImages(nextState, input.decisions, newlyRejected, succeeded, input.presentUrls)
+  nextState = markPendingReplacements(nextState, input.decisions, succeeded)
 
   const calendar = calculateOverrides({
     liveOverrides: input.liveOverrides,
@@ -203,9 +411,41 @@ export function buildPlan(input: PlanInput): PlanOutput {
     holidays: input.holidays,
     today: input.today,
     retiredEventIds,
+    failedEventDates: failedEvents.flatMap((f) => f.dates),
     timetableExists: (id) => plannedWrites.has(`${id}.json`) || timetableExists(`${id}.json`),
   })
   warnings.push(...calendar.warnings)
+
+  // 実際に特別ダイヤを張れた日だけを報告する（手動 override や人が消した日は put で落ちる）
+  for (const failed of failedEvents) {
+    failed.specialDates = failed.dates.filter((date) => calendar.nextOverrides[date] === CONFIG.specialTimetableId)
+    const label = failed.line
+    if (failed.specialDates.length > 0) {
+      warnings.push({
+        level: 'warn',
+        code: 'event_failed_special',
+        message:
+          `イベントの時刻表を取り込めなかったため、${failed.specialDates.join(', ')} を特別ダイヤにしました` +
+          '（アプリは発車時刻を出さず大学ホームページへ誘導します）。' +
+          (failed.retry
+            ? '翌日以降の実行で読み取りを再試行し、成功すればイベントダイヤに置き換わります。'
+            : '画像の内容が変わるまで読み直しません。必要なら手動で override と時刻表を設定してください。') +
+          `理由: ${failed.reason}「${label}」`,
+        url: failed.url,
+      })
+    }
+    const notSpecial = failed.dates.filter((date) => !failed.specialDates.includes(date))
+    if (notSpecial.length > 0) {
+      warnings.push({
+        level: 'info',
+        code: 'event_failed_manual_kept',
+        message:
+          `イベントの時刻表を取り込めませんでしたが、${notSpecial.join(', ')} は手動 override または人が削除した日付のため、` +
+          `特別ダイヤにしていません「${label}」。`,
+        url: failed.url,
+      })
+    }
+  }
 
   nextState.managed_overrides = calendar.managed
   if (Object.keys(calendar.suppressed).length > 0) nextState.suppressed_overrides = calendar.suppressed
@@ -215,7 +455,77 @@ export function buildPlan(input: PlanInput): PlanOutput {
     filePlans.push({ op: 'delete', fileName, kind: 'event' })
   }
 
-  return { filePlans, calendar, nextState, validationFailures, warnings }
+  return { filePlans, calendar, nextState, validationFailures, warnings, failedEvents }
+}
+
+/**
+ * 同じ URL のまま差し替わった画像を取り込めなかった event に、差し替え後の SHA-256 を記録する（FR-4【v1.16】）。
+ *
+ * state の sha256 は前回取り込めた画像のまま残る（取り込めていないので更新しない）。記録が無いと、
+ * 翌日の再確認が取得失敗・予算切れになった回に「変化なし」と扱われ、特別ダイヤが外れて差し替え前の
+ * 古い時刻に戻る。記録がある間、detectChanges は内容を確かめられなかった回も失敗として扱う。
+ * 取り込めた回は applyToState が項目を書き直すので、記録は自然に消える。
+ */
+function markPendingReplacements(
+  state: State,
+  decisions: ChangeDecision[],
+  succeeded: Map<string, Succeeded>,
+): State {
+  let next = state
+  for (const d of decisions) {
+    if (d.link.kind !== 'event' || d.action !== 'ocr' || succeeded.has(d.key) || !d.sha256) continue
+    const key = (d.stateKeys ?? []).find((k) => next.events?.[k]?.url === d.link.url)
+    const entry = key ? next.events?.[key] : undefined
+    if (!key || !entry || entry.sha256 === d.sha256 || entry.pending_sha256 === d.sha256) continue
+    next = { ...next, events: { ...next.events, [key]: { ...entry, pending_sha256: d.sha256 } } }
+  }
+  return next
+}
+
+/**
+ * 内容を理由に拒否した event 画像の記録を更新する（FR-7【v1.16】）。
+ *
+ *   - 今回拒否した画像 → 記録する（同じ内容の間は detectChanges が読み直さない）
+ *   - 拒否済みと同じ内容だった画像 → 検証子と確認日を更新して残す
+ *   - 掲示から消えた URL・有効なデータとして取り込めた URL → 捨てる
+ *   - それ以外（今回は取得できなかった等）→ 前回の記録を残す
+ */
+function applyRejectedImages(
+  state: State,
+  decisions: ChangeDecision[],
+  newlyRejected: Map<string, RejectedImage>,
+  succeeded: Map<string, Succeeded>,
+  presentUrls: Set<string> | undefined,
+): State {
+  const succeededUrls = new Set([...succeeded.values()].map((s) => s.decision.link.url))
+  const next: Record<string, RejectedImage> = {}
+  for (const [url, record] of Object.entries(state.rejected_images ?? {})) {
+    if (presentUrls && !presentUrls.has(url)) continue
+    if (succeededUrls.has(url)) continue
+    next[url] = record
+  }
+  for (const d of decisions) {
+    if (d.failure?.code !== 'rejected') continue
+    const record = next[d.link.url]
+    if (!record) continue
+    next[d.link.url] = {
+      ...record,
+      ...(d.check?.etag ? { etag: d.check.etag } : {}),
+      ...(d.check?.last_modified ? { last_modified: d.check.last_modified } : {}),
+      checked_at: d.check?.checked_at ?? record.checked_at,
+    }
+  }
+  for (const [url, record] of newlyRejected) next[url] = record
+
+  const result: State = { ...state }
+  const urls = Object.keys(next).sort()
+  if (urls.length === 0) {
+    delete result.rejected_images
+    return result
+  }
+  result.rejected_images = {}
+  for (const url of urls) result.rejected_images[url] = next[url]!
+  return result
 }
 
 /**
@@ -228,17 +538,25 @@ export function buildPlan(input: PlanInput): PlanOutput {
  */
 function syncEventFiles(
   decision: ChangeDecision,
-  existing: string[],
+  prevEntries: StateEvent[],
   readTimetable: (fileName: string) => Timetable | null,
   exists: (fileName: string) => boolean,
+  today: string,
   warnings: Warning[],
-): { plans: FilePlan[]; derived: string[]; retired: string[] } {
-  const dates = decision.effectiveDates ?? decision.link.dates ?? []
+): { plans: FilePlan[]; derived: string[]; retired: string[]; dates: string[]; removedDates: Record<string, number> } {
+  const existing = [...new Set(prevEntries.flatMap((entry) => entry.derived))]
+  const wantedDates = decision.effectiveDates ?? decision.link.dates ?? []
+  // 掲示から消えた今日以降の日は、猶予の間だけ残す（即時に撤去しない）
+  const grace = applyRemovalGrace(prevEntries, wantedDates, today, decision, warnings)
+  const dates = [...new Set([...wantedDates, ...grace.keptDates])].sort()
   const wanted = dates.map((date) => eventIdForDate(date))
   const plans: FilePlan[] = []
 
-  // 複製元は既存 derived のうち実在するもの。無ければ複製できない
-  const sourceId = existing.find((id) => exists(`${id}.json`))
+  // 複製元は既存 derived のうち実在するもの。今回も掲示にある日のファイルを優先する
+  // （猶予中の日より、現在の掲示が指す日の方が今の画像から作られている見込みが高い）。無ければ複製できない
+  const currentIds = new Set(wantedDates.map((date) => eventIdForDate(date)))
+  const sourceId =
+    existing.find((id) => currentIds.has(id) && exists(`${id}.json`)) ?? existing.find((id) => exists(`${id}.json`))
 
   for (const id of wanted) {
     const fileName = `${id}.json`
@@ -268,10 +586,16 @@ function syncEventFiles(
     })
   }
 
-  // 適用日から外れた日のファイルは撤去候補にする（override から外れていれば削除される）
+  // 適用日から外れた日（過去日・猶予切れ）のファイルは撤去候補にする（override から外れていれば削除される）
   const retired = existing.filter((id) => !wanted.includes(id) && /^timetable_event_\d{8}$/.test(id))
 
-  return { plans, derived: wanted.length > 0 ? wanted : existing, retired }
+  return {
+    plans,
+    derived: wanted.length > 0 ? wanted : existing,
+    retired,
+    dates,
+    removedDates: grace.removedDates,
+  }
 }
 
 /**
@@ -500,12 +824,29 @@ export function applySpecials(
 
 export function applyToState(
   state: State,
-  succeeded: Map<string, { decision: ChangeDecision; derived: string[] }>,
+  succeeded: Map<string, Succeeded>,
   runAt: string,
 ): State {
   const next: State = JSON.parse(JSON.stringify(state)) as State
 
-  for (const { decision, derived } of succeeded.values()) {
+  /**
+   * event の旧キー（先頭日付が変わる前のキー）を先にまとめて外す（FR-4【v1.16】）。
+   * 書き込みと同じループで消すと、別の決定が先に同じキーへ書いた項目を消してしまう順序依存が残る。
+   * 同じ画像 URL の項目であることを確かめてから外し、processed_at などは書き込み側で引き継ぐ。
+   */
+  const carried = new Map<string, StateEvent>()
+  for (const { decision } of succeeded.values()) {
+    const { link } = decision
+    if (link.kind !== 'event' || !link.dates?.[0]) continue
+    for (const oldKey of decision.stateKeys ?? []) {
+      const entry = next.events?.[oldKey]
+      if (!entry || entry.url !== link.url) continue
+      if (!carried.has(link.url)) carried.set(link.url, entry)
+      if (oldKey !== link.dates[0]) delete next.events![oldKey]
+    }
+  }
+
+  for (const { decision, derived, dates, removedDates } of succeeded.values()) {
     const { link } = decision
     /**
      * state に記録する URL は【リンクの正規化 URL】(link.url) であって、実際に取得した URL
@@ -560,14 +901,16 @@ export function applyToState(
     if (link.kind === 'event' && link.dates?.[0]) {
       const key = link.dates[0]
       next.events = next.events ?? {}
+      const prev = carried.get(link.url) ?? next.events[key]
       next.events[key] = {
         url,
         sha256,
         label: link.label ?? '',
-        dates: decision.effectiveDates ?? link.dates,
-        derived: derived.length > 0 ? derived : (next.events[key]?.derived ?? []),
-        processed_at: processedAt ?? next.events[key]?.processed_at ?? runAt,
+        dates: dates ?? decision.effectiveDates ?? link.dates,
+        derived: derived.length > 0 ? derived : (prev?.derived ?? []),
+        processed_at: processedAt ?? prev?.processed_at ?? runAt,
         ...check,
+        ...(removedDates && Object.keys(removedDates).length > 0 ? { removed_dates: removedDates } : {}),
       }
     }
   }

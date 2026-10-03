@@ -411,3 +411,162 @@ describe('テスト6b: 特別ダイヤ（読めない掲示の期間を塗り潰
     expect(result.warnings.some((w) => w.code === 'override_target_missing')).toBe(true)
   })
 })
+
+/**
+ * FR-9【v1.16】: 掲示はあるのに取り込めなかったイベントの適用日（failedEventDates）。
+ * 特別ダイヤと同じ段（イベントより上）で timetable_special にする。手動キーと人の削除は尊重する。
+ */
+describe('テスト6c: 取り込めなかったイベント日の特別ダイヤ（failedEventDates）', () => {
+  /** 9/21（敬老の日・月）に前回取り込んだ event 項目があり、9/1〜9/23 が夏季休業 */
+  const stateWithEventAndVacation: State = {
+    version: 1,
+    events: {
+      '2026-09-21': {
+        url: 'u',
+        sha256: 's',
+        label: 'OC',
+        dates: ['2026-09-21'],
+        derived: ['timetable_event_20260921'],
+        processed_at: 'x',
+      },
+    },
+    vacations: {
+      summer: {
+        url: 'u',
+        sha256: 's',
+        period: { start: '2026-09-01', end: '2026-09-23' },
+        derived: [],
+        processed_at: 'x',
+      },
+    },
+  }
+
+  it('event・長期休暇・祝日より優先して timetable_special を張り、managed.special に記録する', () => {
+    const result = run({
+      state: stateWithEventAndVacation,
+      failedEventDates: ['2026-09-21', '2026-09-22', '2026-10-12'],
+    })
+    // 9/21: event かつ祝日かつ休暇期間 / 9/22: 祝日かつ休暇期間 / 10/12: 祝日 baseline のみ
+    for (const date of ['2026-09-21', '2026-09-22', '2026-10-12']) {
+      expect(result.nextOverrides[date], date).toBe('timetable_special')
+      expect(result.managed.special[date], date).toBe('timetable_special')
+    }
+    expect(result.managed.event['2026-09-21']).toBeUndefined()
+    expect(result.managed.vacation['2026-09-22']).toBeUndefined()
+    expect(result.managed.holiday['2026-10-12']).toBeUndefined()
+    // 対象外の日は従来どおり
+    expect(result.nextOverrides['2026-09-23']).toBe('timetable_vacation_summer_holiday')
+    expect(result.nextOverrides['2026-09-10']).toBe('timetable_vacation_summer_weekday')
+  })
+
+  it('取り込めなかった日でも、event のファイルは削除計画に載せない（override で隠すだけ）', () => {
+    const prevManaged = managed({ event: { '2026-09-21': 'timetable_event_20260921' } })
+    const liveOverrides = { ...liveRules.overrides, '2026-09-21': 'timetable_event_20260921' }
+    const result = run({
+      liveOverrides,
+      prevManaged,
+      state: stateWithEventAndVacation,
+      failedEventDates: ['2026-09-21'],
+    })
+    expect(result.nextOverrides['2026-09-21']).toBe('timetable_special')
+    expect(result.deletions).toEqual([])
+  })
+
+  it('手動キーのある日は手動が勝つ（special を張らず衝突を info で記録）', () => {
+    const liveOverrides = { ...liveRules.overrides, '2026-10-12': 'timetable_weekday' }
+    const result = run({ liveOverrides, failedEventDates: ['2026-10-12'] })
+    expect(result.nextOverrides['2026-10-12']).toBe('timetable_weekday')
+    expect(result.managed.special['2026-10-12']).toBeUndefined()
+    expect(result.changes).toContainEqual(
+      expect.objectContaining({ date: '2026-10-12', op: 'skip', id: 'timetable_special' }),
+    )
+    expect(result.warnings.some((w) => w.code === 'override_conflict_manual_wins')).toBe(true)
+  })
+
+  it('人が削除した日（suppressed）には張らない', () => {
+    const result = run({
+      prevSuppressed: { '2026-10-12': 'timetable_holiday' },
+      failedEventDates: ['2026-10-12'],
+    })
+    expect(result.nextOverrides['2026-10-12']).toBeUndefined()
+    expect(result.managed.special['2026-10-12']).toBeUndefined()
+    expect(result.suppressed['2026-10-12']).toBe('timetable_holiday')
+  })
+
+  it('過去日には張らない', () => {
+    // TODAY = 2026-08-01
+    const result = run({ failedEventDates: ['2026-07-30', '2026-08-02'] })
+    expect(result.nextOverrides['2026-07-30']).toBeUndefined()
+    expect(result.nextOverrides['2026-08-02']).toBe('timetable_special')
+  })
+
+  // 人が消したのが特別ダイヤ（取り込めなかった日の一時的な表示）なら、抑止するのは特別ダイヤだけ。
+  // 後で取り込めたイベントダイヤまで抑止すると、警告なしで既定ダイヤを出し続けてしまう
+  it('人が消したのが timetable_special の日は、event は張る', () => {
+    const result = run({
+      state: stateWithEventAndVacation,
+      prevSuppressed: { '2026-09-21': 'timetable_special' },
+    })
+    expect(result.nextOverrides['2026-09-21']).toBe('timetable_event_20260921')
+    expect(result.managed.event['2026-09-21']).toBe('timetable_event_20260921')
+    // 削除の記録は残す（特別ダイヤは引き続き抑止する）
+    expect(result.suppressed['2026-09-21']).toBe('timetable_special')
+  })
+
+  it('人が special を消した日がまだ取り込めていなければ、前に取り込んだ event（差し替え前の時刻）も張らない', () => {
+    // 再検証で見つかった退行の回帰（2026-10-03）。event の段まで落ちると、差し替え前の古い時刻が出る
+    const result = run({
+      state: stateWithEventAndVacation,
+      prevSuppressed: { '2026-09-21': 'timetable_special' },
+      failedEventDates: ['2026-09-21'],
+    })
+    expect(result.nextOverrides['2026-09-21']).not.toBe('timetable_event_20260921')
+    expect(result.nextOverrides['2026-09-21']).not.toBe('timetable_special')
+    expect(result.managed.event['2026-09-21']).toBeUndefined()
+  })
+
+  it('人が消したのが timetable_special の日は、取り込めなかった日でも special は張らない', () => {
+    const result = run({
+      prevSuppressed: { '2026-10-12': 'timetable_special' },
+      failedEventDates: ['2026-10-12'],
+    })
+    // special は抑止され、下の段（祝日 baseline）が張られる
+    expect(result.nextOverrides['2026-10-12']).toBe('timetable_holiday')
+    expect(result.managed.special['2026-10-12']).toBeUndefined()
+    expect(result.managed.holiday['2026-10-12']).toBe('timetable_holiday')
+    expect(result.suppressed['2026-10-12']).toBe('timetable_special')
+  })
+
+  it('人が消したのが timetable_special の日に state.specials の期間が掛かっていても special は張らない', () => {
+    const result = run({
+      state: {
+        version: 1,
+        specials: {
+          '2026-08-20': {
+            url: 'u',
+            line: '読めない掲示',
+            period: { start: '2026-08-20', end: '2026-08-21' },
+            reason: 'テスト',
+            processed_at: 'x',
+          },
+        },
+      },
+      prevSuppressed: { '2026-08-20': 'timetable_special' },
+    })
+    expect(result.nextOverrides['2026-08-20']).toBeUndefined()
+    expect(result.nextOverrides['2026-08-21']).toBe('timetable_special')
+  })
+
+  it('人が消したのが event の日は、従来どおり event も special も張らない', () => {
+    const result = run({
+      state: stateWithEventAndVacation,
+      prevSuppressed: { '2026-09-21': 'timetable_event_20260921' },
+      failedEventDates: ['2026-09-21'],
+    })
+    expect(result.nextOverrides['2026-09-21']).toBeUndefined()
+    expect(result.managed.event['2026-09-21']).toBeUndefined()
+    expect(result.managed.special['2026-09-21']).toBeUndefined()
+    expect(result.managed.vacation['2026-09-21']).toBeUndefined()
+    expect(result.suppressed['2026-09-21']).toBe('timetable_event_20260921')
+  })
+})

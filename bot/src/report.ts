@@ -26,6 +26,17 @@ export interface ReportInput {
   validationFailures: string[]
   /** 分類済みリンク（FR-3 の「年推定」表示に使う） */
   links?: ClassifiedLink[]
+  /** 取り込めなかったイベントと、実際に特別ダイヤにした日（FR-9【v1.16】） */
+  failedEvents?: FailedEventSummary[]
+}
+
+/** plan.ts の FailedEvent のうち、レポートに使う部分 */
+export interface FailedEventSummary {
+  url: string
+  line: string
+  reason: string
+  retry: boolean
+  specialDates: string[]
 }
 
 const OP_LABEL: Record<FilePlan['op'], string> = { create: '新規', update: '更新', delete: '削除' }
@@ -234,9 +245,34 @@ export function buildReport(input: ReportInput): string {
   if (input.deletions.length === 0) {
     lines.push('なし')
   } else {
-    for (const fileName of input.deletions) lines.push(`- ${escapeExternal(fileName)}（適用日経過）`)
+    // 削除は「適用日が過ぎた」と「掲示から外れた（中止・延期・日付の撤去）」の 2 通りある。
+    // 未来日のファイルの削除は利用者に影響するので、理由を取り違えて書かない
+    const today = input.runAt.slice(0, 10)
+    for (const fileName of input.deletions) {
+      const date = /^timetable_event_(\d{4})(\d{2})(\d{2})\.json$/.exec(fileName)
+      const day = date ? `${date[1]}-${date[2]}-${date[3]}` : ''
+      const reason = day && day >= today ? '掲示から外れた' : '適用日経過'
+      lines.push(`- ${escapeExternal(fileName)}（${reason}）`)
+    }
   }
   lines.push('')
+
+  // 取り込めなかったイベントの日は、時刻を出さず大学ホームページへ誘導している（FR-9【v1.16】）
+  const specialFailed = (input.failedEvents ?? []).filter((f) => f.specialDates.length > 0)
+  if (specialFailed.length > 0) {
+    lines.push('### 特別ダイヤにした日（取り込み失敗）')
+    lines.push('掲示はありますが時刻表を取り込めなかったため、アプリは発車時刻を出さず大学ホームページへ誘導します。')
+    lines.push('')
+    lines.push('| 日付 | 掲示 | 理由 | 次回 |')
+    lines.push('|---|---|---|---|')
+    for (const failed of specialFailed) {
+      const next = failed.retry ? '翌日以降に再読取り' : '画像が変わるまで読み直さない'
+      lines.push(
+        `| ${cell(failed.specialDates.join(', '))} | ${cell(failed.line)} | ${cell(failed.reason)} | ${next} |`,
+      )
+    }
+    lines.push('')
+  }
 
   // 自動適用では PR の diff が存在しないため、時刻そのものをここに出す
   lines.push(...departureSection(input.files))
@@ -288,6 +324,9 @@ export function buildReport(input: ReportInput): string {
   lines.push('- [ ] override の日付・参照先')
   if (guessed.length > 0) {
     lines.push('- [ ] 年を推定した日付が掲載の意図どおりか')
+  }
+  if (specialFailed.length > 0) {
+    lines.push('- [ ] 特別ダイヤにした日（取り込み失敗）の元画像。手で時刻表を作る場合は手動 override で置き換えられる')
   }
   if (input.warnings.some((w) => w.code === 'special_applied')) {
     lines.push('- [ ] 特別ダイヤにした期間の妥当性（通常どおり読める日は手動で個別 override に置き換えられる）')

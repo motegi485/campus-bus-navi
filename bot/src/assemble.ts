@@ -4,6 +4,7 @@
  */
 
 import { CONFIG, LABEL_KEYWORDS } from './config.js'
+import { WEEKDAY_PAREN_RE } from './extractLinks.js'
 import type {
   ClassifiedLink,
   DayKind,
@@ -39,7 +40,7 @@ export function isMeaninglessLabel(label: string): boolean {
   const stripped = label
     .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
     .replace(/(?:\d{4}\s*年\s*)?\d{1,2}\s*月\s*\d{1,2}\s*日/g, ' ')
-    .replace(/[（(][日月火水木金土][）)]/g, ' ')
+    .replace(WEEKDAY_PAREN_RE, ' ')
     .replace(/[～〜~・,、.\-—–_/／|｜\s]/g, '')
   return stripped === ''
 }
@@ -80,9 +81,17 @@ export interface AssembleOutput {
   label: string
 }
 
+/**
+ * 画像の内容を理由にした拒否（FR-7【v1.16】）。読み直しても同じ結果になるので、
+ * plan.ts が state.rejected_images に記録し、同じ内容の間は OCR しない。
+ */
+export type RejectCode = 'multi_table' | 'irregular_notes'
+
 export interface AssembleResult {
   outputs: AssembleOutput[]
   errors: string[]
+  /** 画像の内容による拒否のときだけ入る（読み取りの揺れ・一時的な失敗には付かない） */
+  rejectCode?: RejectCode
 }
 
 /** regular / vacation: 2種別（授業日・休業日）を weekday / holiday のファイルへ振り分ける */
@@ -145,15 +154,35 @@ export function assembleVacation(intermediate: Intermediate, season: Season): As
   )
 }
 
-/** event: day_types は1要素。dates[] の各日付につき同内容のファイルを生成する */
+/**
+ * event: day_types は1要素。dates[] の各日付につき同内容のファイルを生成する。
+ *
+ * 【v1.16・2026-10-03 ユーザー決定】次の画像は取り込まず、適用日を特別ダイヤにする:
+ *   - 表が 2 つ以上（例: 2026-1011.1012.jpg は日付ごとに別の表）。どの表がどの日かを決める手段が無い
+ *   - 通常と違う乗り場・行先の注記が付いた便がある（例: 「34号館出発→みどりのこかげ」）。
+ *     便ごとの乗り場をデータで表せないため、時刻を出すと乗り場を誤らせる
+ */
 export function assembleEvent(intermediate: Intermediate, dates: string[], fallbackLabel: string): AssembleResult {
   if (intermediate.day_types.length !== 1) {
     return {
       outputs: [],
-      errors: [`イベントダイヤ画像からは1種別を期待しますが ${intermediate.day_types.length} 件でした。`],
+      errors: [
+        `イベントダイヤ画像からは1種別を期待しますが ${intermediate.day_types.length} 件でした` +
+          '（日付ごとに別の表がある画像は取り込まず、適用日を特別ダイヤにします）。',
+      ],
+      ...(intermediate.day_types.length > 1 ? { rejectCode: 'multi_table' as const } : {}),
     }
   }
   const dayType = intermediate.day_types[0]!
+  if (dayType.irregular_notes === true) {
+    return {
+      outputs: [],
+      errors: [
+        '通常と違う乗り場・行先の注記が付いた便があるため取り込みません（適用日を特別ダイヤにします）。',
+      ],
+      rejectCode: 'irregular_notes',
+    }
+  }
   // FR-7 の 5: name は OCR の day_type ラベル基準。
   // 空 or 日付だけのラベルなら lineText 由来のラベルにフォールバックする
   const ocrLabel = dayType.label.trim()

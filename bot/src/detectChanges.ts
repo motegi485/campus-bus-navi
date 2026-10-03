@@ -9,6 +9,18 @@ import { fetchImage, revalidateImage, type ImageResult } from './fetchImage.js'
 import { isAfter, isBefore, parseDate, todayJst } from './time.js'
 import type { ClassifiedLink, Season, State, StateFetchCheck, StateVacation, Warning } from './types.js'
 
+/**
+ * 取り込めなかった理由（FR-9【v1.16】）。
+ *
+ * event がこれを持つ（または OCR に回ったのに成功しなかった）と、buildPlan はその適用日を
+ * 特別ダイヤにする。理由文を解析せずに済むよう、決定の段階で構造化しておく。
+ * retry=false は画像の内容による拒否で、同じ内容の間は読み直さない。
+ */
+export interface DecisionFailure {
+  code: 'fetch_failed' | 'fetch_deferred' | 'rejected'
+  retry: boolean
+}
+
 /** 画像に対して行う処理 */
 export type ChangeAction =
   | 'ocr' // 新規 or 画像が変わった → OCR する
@@ -33,6 +45,13 @@ export interface ChangeDecision {
   effectiveDates?: string[]
   /** 次回の条件付き GET に使う検証子と、内容一致を確認できた日（state へ引き継ぐ） */
   check?: StateFetchCheck
+  /**
+   * event: このリンクに対応すると判断した state.events のキー（同じ画像 URL を最優先）。
+   * 掲示の先頭日付が変わると論理キー（event:{dates[0]}）も変わるため、旧キーを引き継ぐのに使う。
+   */
+  stateKeys?: string[]
+  /** 取り込めなかった理由（skip のときだけ。全日過去の skip には付かない） */
+  failure?: DecisionFailure
 }
 
 export interface DetectResult {
@@ -47,13 +66,40 @@ export function logicalKey(link: ClassifiedLink): string | null {
   return null
 }
 
+/**
+ * event リンクに対応する state.events のキーを探す（FR-4【v1.16】）。
+ *
+ * 【同じ画像 URL を最優先にする理由】論理キーは掲示の先頭日付だが、先頭日付は次の理由で変わる:
+ *   - 2026-10-03 のように、取りこぼしていた前の日付が読めるようになった（10-31 → 10-03）
+ *   - 大学が過ぎた日付を掲示から消した
+ * キーだけで探すと、同じ画像を「新規」として読み直し（Gemini の枠を使う）、旧キーの項目は
+ * 「掲示から消えた」と数えられて 3 回目に撤去される。撤去対象には新しい項目も使っている
+ * ファイルが含まれうる。同じ画像 URL の項目は同じ掲示とみなして引き継ぐ。
+ * 同じ URL の項目が無いときだけ、従来どおり先頭日付のキーで探す。
+ */
+export function findEventStateKeys(state: State, link: ClassifiedLink): string[] {
+  if (link.kind !== 'event') return []
+  const events = state.events ?? {}
+  const byUrl = Object.keys(events).filter((key) => events[key]!.url === link.url)
+  if (byUrl.length > 0) {
+    // 先頭は今回の論理キーと一致するものを優先（無ければ日付順で最初）
+    const own = link.dates?.[0]
+    return byUrl.sort((a, b) => (a === own ? -1 : b === own ? 1 : a.localeCompare(b)))
+  }
+  const own = link.dates?.[0]
+  return own && events[own] ? [own] : []
+}
+
 function stateEntry(
   state: State,
   link: ClassifiedLink,
 ): ({ url: string; sha256: string } & StateFetchCheck) | undefined {
   if (link.kind === 'regular') return state.regular
   if (link.kind === 'vacation' && link.season) return state.vacations?.[link.season]
-  if (link.kind === 'event' && link.dates?.[0]) return state.events?.[link.dates[0]]
+  if (link.kind === 'event') {
+    const [key] = findEventStateKeys(state, link)
+    return key ? state.events?.[key] : undefined
+  }
   return undefined
 }
 
@@ -77,8 +123,14 @@ function shouldRevalidate(prev: StateFetchCheck, today: string): boolean {
   return age >= CONFIG.imageRevalidateIntervalDays
 }
 
-/** 期間・日付などテキスト側のメタが state と変わったか */
-function metaChanged(state: State, link: ClassifiedLink): boolean {
+/**
+ * 期間・日付などテキスト側のメタが state と変わったか。
+ *
+ * event は今日以降の適用日どうしで比べる。state の dates は今日以降に絞って保存しているので、
+ * 掲示に残っている過去日と比べると、複数日イベントの途中で毎日「変わった」と判定してしまう。
+ * 旧キーから引き継ぐ（先頭日付が変わった）場合は、キーの付け替えが要るので必ず変更扱い。
+ */
+function metaChanged(state: State, link: ClassifiedLink, today: string): boolean {
   if (link.kind === 'regular') return state.regular?.start !== link.start
   if (link.kind === 'vacation' && link.season) {
     const v = state.vacations?.[link.season]
@@ -86,11 +138,39 @@ function metaChanged(state: State, link: ClassifiedLink): boolean {
     return v.period.start !== link.start || v.period.end !== link.end
   }
   if (link.kind === 'event' && link.dates?.[0]) {
-    const e = state.events?.[link.dates[0]]
-    if (!e) return false
-    return JSON.stringify(e.dates) !== JSON.stringify(link.dates)
+    const keys = findEventStateKeys(state, link)
+    if (keys.length === 0) return false
+    if (keys.length > 1 || keys[0] !== link.dates[0]) return true
+    const future = (dates: string[]) => dates.filter((d) => !isBefore(d, today))
+    const e = state.events![keys[0]!]!
+    return JSON.stringify(future(e.dates)) !== JSON.stringify(future(link.dates))
   }
   return false
+}
+
+/**
+ * OCR を読む順番の基準日（今日以降で最も近い適用日）。
+ *
+ * 呼び出し上限に当たったとき、直近の日の画像から読まれているようにする（2026-10-03 は
+ * ページ順に読んで、上限に当たった 10/19 が読めなかった）。
+ */
+export function ocrPriorityDate(decision: ChangeDecision, today: string): string {
+  const { link } = decision
+  if (link.kind === 'event') {
+    const dates = decision.effectiveDates ?? link.dates ?? []
+    // 掲示の並び順に依存しないよう最小値を取る
+    return dates.filter((d) => !isBefore(d, today)).sort()[0] ?? today
+  }
+  if (link.kind === 'vacation' && link.start && isAfter(link.start, today)) return link.start
+  return today
+}
+
+/** OCR 対象を直近の適用日の順に並べる（同じ日なら元の順を保つ） */
+export function sortOcrTargets(decisions: ChangeDecision[], today: string): ChangeDecision[] {
+  return decisions
+    .map((decision, index) => ({ decision, index, date: ocrPriorityDate(decision, today) }))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.index - b.index)
+    .map((entry) => entry.decision)
 }
 
 /**
@@ -210,6 +290,20 @@ export async function detectChanges(
     })
   }
 
+  // 前の行とまとめた掲示で、まとめたことで種別が変わったもの（見出しの語を巻き込んだ可能性）。
+  // リンク行だけでは分類できなかった（needs_review）ものは、まとめて初めて読める正常な形なので除く
+  for (const l of links) {
+    if (l.ungroupedKind === undefined || l.ungroupedKind === 'needs_review' || l.ungroupedKind === l.kind) continue
+    warnings.push({
+      level: 'warn',
+      code: 'grouping_changed_kind',
+      message:
+        `見出し・日付の行とまとめたことで、時刻表の種別が ${l.ungroupedKind} から ${l.kind} に変わりました。` +
+        `見出しの語を誤って巻き込んでいないか掲載ページを確認してください: 「${l.normalizedLine}」`,
+      url: l.url,
+    })
+  }
+
   // FR-2 の 6(b): state に regular があるのに今回1件も抽出できなかった。
   //
   // 【level は warn】通常ダイヤは平日・休日の 2 系列を支える土台で、リンクを見失うと
@@ -249,6 +343,28 @@ export async function detectChanges(
   targets.push(...links.filter((l) => l.kind === 'vacation' || l.kind === 'event'))
 
   const seenSeasons = new Set<Season>()
+
+  /** 内容を理由に拒否した記録（event のみ。regular / vacation は拒否しない） */
+  const rejectedFor = (url: string) => state.rejected_images?.[url]
+  /** 拒否した画像と同じ内容だった event の決定（読み直さず、取り込めなかった扱いを引き継ぐ） */
+  const rejectedDecision = (
+    key: string,
+    link: ClassifiedLink,
+    sha256: string,
+    imageUrl: string,
+    check: StateFetchCheck,
+    effectiveDates?: string[],
+  ): ChangeDecision => ({
+    key,
+    link,
+    action: 'skip',
+    reason: `以前に取り込みを見送った画像と同じ内容です（${state.rejected_images?.[link.url]?.reason ?? '理由不明'}）。読み直しません。`,
+    sha256,
+    imageUrl,
+    check,
+    failure: { code: 'rejected', retry: false },
+    ...(effectiveDates ? { effectiveDates } : {}),
+  })
 
   for (const link of targets) {
     const key = logicalKey(link)
@@ -307,7 +423,7 @@ export async function detectChanges(
     // 検証子つきの条件付き GET（または間隔を空けた再取得）で確かめる。
     // 変わっていなければ Gemini 呼び出しは 0 回のまま。
     if (prev && prev.url === link.url) {
-      const meta = metaChanged(state, link)
+      const meta = metaChanged(state, link, today)
       const baseReason = meta
         ? '画像は同一で掲載テキストの日付・期間のみ変わったため、override を再計算します。'
         : '前回から変化なし。'
@@ -324,10 +440,28 @@ export async function detectChanges(
         })
       }
 
+      // 前回、差し替わった画像を取り込めなかった（event のみ）。内容を確かめられない回に
+      // 「変化なし」とすると、特別ダイヤが外れて差し替え前の古い時刻に戻ってしまう
+      const pending = link.kind === 'event' ? (prev as { pending_sha256?: string }).pending_sha256 : undefined
+      const pendingFailure = (code: DecisionFailure['code'], note: string) => {
+        decisions.push({
+          key,
+          link,
+          action: 'skip',
+          reason: `差し替わった画像をまだ取り込めていません（${note}）。前回の時刻は使いません。`,
+          failure: { code, retry: true },
+          ...(effectiveDates ? { effectiveDates } : {}),
+        })
+      }
+
       const blocked = budgetBlock()
       if (blocked) {
         // 予算切れ。既存データはそのまま維持し、確認できていないことだけ記録する
         deferred.push({ link, reason: blocked })
+        if (pending) {
+          pendingFailure('fetch_deferred', blocked)
+          continue
+        }
         unchangedDecision(
           {
             ...(prev.etag ? { etag: prev.etag } : {}),
@@ -339,7 +473,7 @@ export async function detectChanges(
         continue
       }
 
-      if (!shouldRevalidate(prev, today)) {
+      if (!pending && !shouldRevalidate(prev, today)) {
         // 前回の確認から間もない。検証子を持たない配信元への配慮で毎日は取りに行かない
         unchangedDecision(
           {
@@ -349,6 +483,58 @@ export async function detectChanges(
           },
           '',
         )
+        continue
+      }
+
+      // 差し替え後の画像を内容で拒否済み（pending と拒否記録の SHA が同じ）。state の検証子は差し替え前の
+      // ものなので、そのままだと毎回 200 で本体を取り直す。拒否記録の検証子で条件付き GET する
+      const rejectedPending = pending ? rejectedFor(link.url) : undefined
+      if (rejectedPending && rejectedPending.sha256 === pending) {
+        fetchCount += 1
+        const recheck = await revalidateImage(link.rawHref, {
+          sha256: rejectedPending.sha256,
+          ...(rejectedPending.etag ? { etag: rejectedPending.etag } : {}),
+          ...(rejectedPending.last_modified ? { lastModified: rejectedPending.last_modified } : {}),
+        })
+        if (recheck.status === 'unchanged') {
+          decisions.push(rejectedDecision(key, link, rejectedPending.sha256, link.url, {
+            ...(recheck.etag ? { etag: recheck.etag } : {}),
+            ...(recheck.lastModified ? { last_modified: recheck.lastModified } : {}),
+            checked_at: today,
+          }, effectiveDates))
+          continue
+        }
+        if (recheck.status === 'unknown') {
+          warnings.push({
+            level: 'info',
+            code: 'image_revalidate_failed',
+            message: `取り込みを見送った画像が差し替わっていないかを確認できませんでした（${recheck.reason}）。`,
+            url: link.url,
+          })
+          pendingFailure('fetch_failed', recheck.reason)
+          continue
+        }
+        const recheckCheck: StateFetchCheck = {
+          ...(recheck.image.etag ? { etag: recheck.image.etag } : {}),
+          ...(recheck.image.lastModified ? { last_modified: recheck.image.lastModified } : {}),
+          checked_at: today,
+        }
+        if (recheck.image.sha256 === prev.sha256) {
+          // 差し替え前（取り込み済み）の内容に戻った
+          unchangedDecision(recheckCheck, '（差し替え前の内容に戻ったことを確認）')
+          continue
+        }
+        decisions.push({
+          key,
+          link,
+          action: 'ocr',
+          reason: '取り込みを見送った画像がさらに差し替わったため、読み直します。',
+          image: recheck.image,
+          sha256: recheck.image.sha256,
+          imageUrl: recheck.image.url,
+          check: recheckCheck,
+          ...(effectiveDates ? { effectiveDates } : {}),
+        })
         continue
       }
 
@@ -387,6 +573,10 @@ export async function detectChanges(
               : '既存のデータはそのまま維持します。'),
           url: link.url,
         })
+        if (pending) {
+          pendingFailure('fetch_failed', revalidated.reason)
+          continue
+        }
         unchangedDecision(
           {
             ...(prev.etag ? { etag: prev.etag } : {}),
@@ -395,6 +585,17 @@ export async function detectChanges(
           },
           '（再確認は失敗）',
         )
+        continue
+      }
+
+      // 中身が差し替わっていたが、以前に内容を理由に拒否した画像と同じ（読み直しても同じ結果になる）
+      const rejectedSame = rejectedFor(link.url)
+      if (rejectedSame && rejectedSame.sha256 === revalidated.image.sha256) {
+        decisions.push(rejectedDecision(key, link, revalidated.image.sha256, revalidated.image.url, {
+          ...(revalidated.image.etag ? { etag: revalidated.image.etag } : {}),
+          ...(revalidated.image.lastModified ? { last_modified: revalidated.image.lastModified } : {}),
+          checked_at: today,
+        }, effectiveDates))
         continue
       }
 
@@ -428,7 +629,68 @@ export async function detectChanges(
     if (blockedNew) {
       // 新規は既存データが無いので取り込めない。翌日の実行で再試行される
       deferred.push({ link, reason: blockedNew })
-      decisions.push({ key, link, action: 'skip', reason: `${blockedNew}。翌日の実行で再試行します。` })
+      decisions.push({
+        key,
+        link,
+        action: 'skip',
+        reason: `${blockedNew}。翌日の実行で再試行します。`,
+        failure: { code: 'fetch_deferred', retry: true },
+        ...(effectiveDates ? { effectiveDates } : {}),
+      })
+      continue
+    }
+
+    // 以前に内容を理由に拒否した画像なら、条件付き GET で内容が変わっていないかだけを確かめる。
+    // 変わっていなければ読み直さない（同じ理由で拒否されるだけで、Gemini の枠を毎日使う）
+    const rejected = rejectedFor(link.url)
+    if (rejected) {
+      fetchCount += 1
+      const recheck = await revalidateImage(link.rawHref, {
+        sha256: rejected.sha256,
+        ...(rejected.etag ? { etag: rejected.etag } : {}),
+        ...(rejected.last_modified ? { lastModified: rejected.last_modified } : {}),
+      })
+      if (recheck.status === 'unchanged') {
+        decisions.push(rejectedDecision(key, link, rejected.sha256, link.url, {
+          ...(recheck.etag ? { etag: recheck.etag } : {}),
+          ...(recheck.lastModified ? { last_modified: recheck.lastModified } : {}),
+          checked_at: today,
+        }, effectiveDates))
+        continue
+      }
+      if (recheck.status === 'unknown') {
+        warnings.push({
+          level: 'warn',
+          code: 'image_fetch_failed',
+          message: `${recheck.reason}（${link.kind}: 「${link.normalizedLine}」）`,
+          url: link.url,
+        })
+        decisions.push({
+          key,
+          link,
+          action: 'skip',
+          reason: recheck.reason,
+          failure: { code: 'fetch_failed', retry: true },
+          ...(effectiveDates ? { effectiveDates } : {}),
+        })
+        continue
+      }
+      // 内容が変わった。拒否は前の画像に対する判断なので、新しい画像として読む
+      decisions.push({
+        key,
+        link,
+        action: 'ocr',
+        reason: '以前に取り込みを見送った画像が差し替わったため、読み直します。',
+        image: recheck.image,
+        sha256: recheck.image.sha256,
+        imageUrl: recheck.image.url,
+        check: {
+          ...(recheck.image.etag ? { etag: recheck.image.etag } : {}),
+          ...(recheck.image.lastModified ? { last_modified: recheck.image.lastModified } : {}),
+          checked_at: today,
+        },
+        ...(effectiveDates ? { effectiveDates } : {}),
+      })
       continue
     }
 
@@ -441,7 +703,14 @@ export async function detectChanges(
         message: `${image.reason}（${link.kind}: 「${link.normalizedLine}」）`,
         url: image.url,
       })
-      decisions.push({ key, link, action: 'skip', reason: image.reason })
+      decisions.push({
+        key,
+        link,
+        action: 'skip',
+        reason: image.reason,
+        failure: { code: 'fetch_failed', retry: true },
+        ...(effectiveDates ? { effectiveDates } : {}),
+      })
       continue
     }
 
@@ -477,6 +746,12 @@ export async function detectChanges(
       check,
       ...(effectiveDates ? { effectiveDates } : {}),
     })
+  }
+
+  // event は対応する state のキー（旧キーを含む）を載せる。plan.ts が引き継ぎと撤去判定に使う
+  for (const decision of decisions) {
+    const keys = findEventStateKeys(state, decision.link)
+    if (keys.length > 0) decision.stateKeys = keys
   }
 
   // 予算切れで見送った分は必ず顕在化させる（黙って切らない）
