@@ -1,6 +1,7 @@
 /**
  * FR-9: calendar_rules.overrides の再構築（中核アルゴリズム）。
- * 優先順位: 手動 > 特別ダイヤ > イベント > 長期休暇 > 祝日(baseline) > default_rules
+ * 優先順位: 手動 > 特別ダイヤ（読めない掲示・取り込めなかったイベント日）> イベント > 長期休暇
+ *          > 祝日(baseline) > default_rules
  *
  * 大原則「手動データ不可侵」: Bot は state.managed_overrides に記録した自分の管理分だけを
  * 変更・削除する。それ以外のキー（手動 override）は読み取り専用として素通しする。
@@ -31,6 +32,11 @@ export interface CalendarInput {
    * 手動 override が参照している場合は残す（nextOverrides に入るので stillNeeded で守られる）。
    */
   retiredEventIds?: string[]
+  /**
+   * 掲示はあるのに取り込めなかったイベントの、今日以降の適用日（FR-9【v1.16】）。
+   * 特別ダイヤと同じ段（イベントより上）で timetable_special にする。
+   */
+  failedEventDates?: string[]
   /** 書き込み後に {id}.json が存在するか */
   timetableExists: (id: string) => boolean
 }
@@ -132,7 +138,10 @@ export function calculateOverrides(input: CalendarInput): CalendarResult {
   const put = (date: string, id: string, cat: keyof ManagedOverrides): void => {
     if (isBefore(date, today)) return
     if (date in D) return
-    if (date in suppressed) return // 人が削除した日付は再生成しない
+    // 人が削除した日付は再生成しない。ただし人が消したのが特別ダイヤ（取り込めなかった日の
+    // 一時的な「時刻を出さない」表示）なら、抑止するのは特別ダイヤだけにする。後で取り込めた
+    // イベントダイヤまで抑止すると、警告なしで既定ダイヤを出し続けてしまう（v1.16）
+    if (date in suppressed && !(suppressed[date] === CONFIG.specialTimetableId && id !== CONFIG.specialTimetableId)) return
     D[date] = id
     category[date] = cat
   }
@@ -143,10 +152,21 @@ export function calculateOverrides(input: CalendarInput): CalendarResult {
       put(date, CONFIG.specialTimetableId, 'special')
     }
   }
+  // 3a'. 取り込めなかったイベントの適用日（2026-10-03 ユーザー決定「成功するまで特別ダイヤ」）。
+  // イベントより上に置く。前に取り込んだ同じ掲示の時刻があっても、画像が差し替わって読めなかった
+  // 以上、その時刻はもう正しいと言えないため。ファイルと state は消さない（override で隠すだけ）
+  for (const date of input.failedEventDates ?? []) {
+    put(date, CONFIG.specialTimetableId, 'special')
+  }
 
-  // 3b. event
+  // 3b. event。取り込めなかった日は、前に取り込んだ時刻（差し替え前の画像）があっても張らない。
+  // 人が特別ダイヤを消して 3a' が抑止された日に、古い時刻が代わりに出るのを防ぐ（v1.16）
+  const failedDates = new Set(input.failedEventDates ?? [])
   for (const entry of Object.values(input.state.events ?? {})) {
-    for (const date of entry.dates) put(date, eventIdForDate(date), 'event')
+    for (const date of entry.dates) {
+      if (failedDates.has(date)) continue
+      put(date, eventIdForDate(date), 'event')
+    }
   }
 
   // 3b. vacation（期間内。月〜金かつ祝日でなければ平日ダイヤ、土日または祝日なら休日ダイヤ）

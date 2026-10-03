@@ -19,7 +19,7 @@ import { CONFIG } from './config.js'
 import { fetchPage } from './fetchPage.js'
 import { extractLinks, classifyLinks } from './extractLinks.js'
 import { fetchHolidays } from './holidays.js'
-import { detectChanges } from './detectChanges.js'
+import { detectChanges, sortOcrTargets } from './detectChanges.js'
 import { OcrClient } from './ocr.js'
 import { buildPlan } from './plan.js'
 import { isPastOverrideCleanupOnly } from './calendar.js'
@@ -83,7 +83,7 @@ async function main(): Promise<void> {
   log('fetchPage', `ページを取得しました（${html.length} bytes）`)
 
   // ---- 2〜3. 抽出と分類 ------------------------------------------------
-  const extracted = extractLinks(html)
+  const extracted = extractLinks(html, CONFIG.pageUrl, today)
   warnings.push(...extracted.warnings)
   const classified = classifyLinks(extracted.links, today)
   log(
@@ -126,7 +126,11 @@ async function main(): Promise<void> {
   // 抽出・分類・カレンダーだけ確認したいときに枠を消費しないようにする。
   const skipOcr = process.env.SKIP_OCR === '1'
   const apiKey = skipOcr ? undefined : process.env.GEMINI_API_KEY
-  const ocrTargets = detected.decisions.filter((d) => d.action === 'ocr')
+  // 直近の適用日の画像から読む。上限・締切に当たっても、近い日ほど先に読めているようにする
+  const ocrTargets = sortOcrTargets(
+    detected.decisions.filter((d) => d.action === 'ocr'),
+    today,
+  )
   const intermediates = new Map<string, Intermediate>()
   const ocrFailures = new Map<string, string>()
   const ocrStats = { matched: 0, total: 0, majority: 0 }
@@ -249,6 +253,13 @@ async function main(): Promise<void> {
     files: planned.filePlans.map((f) => ({ op: f.op, fileName: f.fileName, kind: f.kind, counts: f.counts })),
     overrideChanges: planned.calendar.changes,
     deletions: planned.calendar.deletions,
+    failedEvents: planned.failedEvents.map((f) => ({
+      line: f.line,
+      dates: f.dates,
+      specialDates: f.specialDates,
+      retry: f.retry,
+      reason: f.reason,
+    })),
     warnings,
     validationFailures: planned.validationFailures,
   }
@@ -315,6 +326,7 @@ async function main(): Promise<void> {
     ocrStats,
     validationFailures: planned.validationFailures,
     links: classified,
+    failedEvents: planned.failedEvents,
   })
   writeTextFile(CONFIG.reportPath, body)
   log('report', `${CONFIG.reportPath} を生成しました`)
