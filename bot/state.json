@@ -11,7 +11,7 @@
     "processed_at": "2026-09-25T09:25:38+09:00",
     "etag": "\"a2ed3-65ba846b8b64f\"",
     "last_modified": "Thu, 17 Sep 2026 06:55:59 GMT",
-    "checked_at": "2026-10-02"
+    "checked_at": "2026-10-03"
   },
   "vacations": {
     "summer": {
@@ -45,12 +45,28 @@
       "processed_at": "2026-09-29T10:44:44+09:00",
       "etag": "\"57be2-65c889f18aca5\"",
       "last_modified": "Mon, 28 Sep 2026 10:35:14 GMT",
-      "checked_at": "2026-10-02"
+      "checked_at": "2026-10-03"
+    },
+    "2026-10-18": {
+      "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/2026-1017.1018-724x1024.jpg",
+      "sha256": "1eda61c5b1f29c4abe7765cce403992b37bf0c4a33f5e937056fcdc8a3536799",
+      "label": "",
+      "dates": [
+        "2026-10-18"
+      ],
+      "derived": [
+        "timetable_event_20261018"
+      ],
+      "processed_at": "2026-10-03T10:02:25+09:00",
+      "etag": "\"72645-65cd57ea439d7\"",
+      "last_modified": "Fri, 02 Oct 2026 06:18:02 GMT",
+      "checked_at": "2026-10-03"
     }
   },
   "managed_overrides": {
     "special": {},
     "event": {
+      "2026-10-18": "timetable_event_20261018",
       "2026-10-31": "timetable_event_20261031"
     },
     "vacation": {},
@@ -81,7 +97,7 @@
     "sha256": "cec37a743c96995cdb9cb52b685c9003634682a9b0e1a640a6b9b96881fe964a"
   },
   "ocr_usage": {
-    "date": "2026-09-29",
-    "calls": 6
+    "date": "2026-10-03",
+    "calls": 18
   }
 }
