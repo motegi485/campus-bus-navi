@@ -11,7 +11,7 @@
     "processed_at": "2026-09-25T09:25:38+09:00",
     "etag": "\"a2ed3-65ba846b8b64f\"",
     "last_modified": "Thu, 17 Sep 2026 06:55:59 GMT",
-    "checked_at": "2026-10-03"
+    "checked_at": "2026-10-04"
   },
   "vacations": {
     "summer": {
@@ -32,46 +32,56 @@
     }
   },
   "events": {
-    "2026-10-31": {
+    "2026-10-03": {
       "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/09/公開講座-1-724x1024.jpg",
       "sha256": "740bdecaeda7a6f9540e07d7e20653cd151698fe362842bcf5242a47314b1153",
-      "label": "",
+      "label": "公開講座",
       "dates": [
+        "2026-10-10",
         "2026-10-31"
       ],
       "derived": [
+        "timetable_event_20261010",
         "timetable_event_20261031"
       ],
       "processed_at": "2026-09-29T10:44:44+09:00",
       "etag": "\"57be2-65c889f18aca5\"",
       "last_modified": "Mon, 28 Sep 2026 10:35:14 GMT",
-      "checked_at": "2026-10-03"
+      "checked_at": "2026-10-04"
     },
-    "2026-10-18": {
+    "2026-10-17": {
       "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/2026-1017.1018-724x1024.jpg",
       "sha256": "1eda61c5b1f29c4abe7765cce403992b37bf0c4a33f5e937056fcdc8a3536799",
-      "label": "",
+      "label": "第52回福山大学三蔵祭",
       "dates": [
+        "2026-10-17",
         "2026-10-18"
       ],
       "derived": [
+        "timetable_event_20261017",
         "timetable_event_20261018"
       ],
       "processed_at": "2026-10-03T10:02:25+09:00",
       "etag": "\"72645-65cd57ea439d7\"",
       "last_modified": "Fri, 02 Oct 2026 06:18:02 GMT",
-      "checked_at": "2026-10-03"
+      "checked_at": "2026-10-04"
     }
   },
   "managed_overrides": {
-    "special": {},
+    "special": {
+      "2026-10-11": "timetable_special",
+      "2026-10-12": "timetable_special",
+      "2026-10-16": "timetable_special",
+      "2026-10-19": "timetable_special"
+    },
     "event": {
+      "2026-10-10": "timetable_event_20261010",
+      "2026-10-17": "timetable_event_20261017",
       "2026-10-18": "timetable_event_20261018",
       "2026-10-31": "timetable_event_20261031"
     },
     "vacation": {},
     "holiday": {
-      "2026-10-12": "timetable_holiday",
       "2026-11-03": "timetable_holiday",
       "2026-11-23": "timetable_holiday",
       "2027-01-01": "timetable_holiday",
@@ -97,7 +107,7 @@
     "sha256": "cec37a743c96995cdb9cb52b685c9003634682a9b0e1a640a6b9b96881fe964a"
   },
   "ocr_usage": {
-    "date": "2026-10-03",
-    "calls": 18
+    "date": "2026-10-04",
+    "calls": 9
   }
 }
