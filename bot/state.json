@@ -11,7 +11,7 @@
     "processed_at": "2026-09-25T09:25:38+09:00",
     "etag": "\"a2ed3-65ba846b8b64f\"",
     "last_modified": "Thu, 17 Sep 2026 06:55:59 GMT",
-    "checked_at": "2026-10-08"
+    "checked_at": "2026-10-09"
   },
   "vacations": {
     "summer": {
@@ -47,7 +47,7 @@
       "processed_at": "2026-09-29T10:44:44+09:00",
       "etag": "\"57be2-65c889f18aca5\"",
       "last_modified": "Mon, 28 Sep 2026 10:35:14 GMT",
-      "checked_at": "2026-10-08"
+      "checked_at": "2026-10-09"
     },
     "2026-10-17": {
       "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/2026-1017.1018-724x1024.jpg",
@@ -64,7 +64,7 @@
       "processed_at": "2026-10-03T10:02:25+09:00",
       "etag": "\"72645-65cd57ea439d7\"",
       "last_modified": "Fri, 02 Oct 2026 06:18:02 GMT",
-      "checked_at": "2026-10-08"
+      "checked_at": "2026-10-09"
     },
     "2026-10-19": {
       "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/2026-1019-724x1024.jpg",
@@ -79,7 +79,7 @@
       "processed_at": "2026-10-05T09:42:14+09:00",
       "etag": "\"5c023-65cd57ee653da\"",
       "last_modified": "Fri, 02 Oct 2026 06:18:07 GMT",
-      "checked_at": "2026-10-08"
+      "checked_at": "2026-10-09"
     },
     "2026-10-16": {
       "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/2026-1016-724x1024.jpg",
@@ -94,7 +94,7 @@
       "processed_at": "2026-10-07T10:23:00+09:00",
       "etag": "\"5e931-65cd57e5c0551\"",
       "last_modified": "Fri, 02 Oct 2026 06:17:58 GMT",
-      "checked_at": "2026-10-08"
+      "checked_at": "2026-10-09"
     }
   },
   "managed_overrides": {
@@ -147,7 +147,7 @@
       "reason": "イベントダイヤ画像からは1種別を期待しますが 2 件でした（日付ごとに別の表がある画像は取り込まず、適用日を特別ダイヤにします）。",
       "etag": "\"2a029-65cd57dff7da0\"",
       "last_modified": "Fri, 02 Oct 2026 06:17:51 GMT",
-      "checked_at": "2026-10-08"
+      "checked_at": "2026-10-09"
     }
   }
 }
