@@ -26,9 +26,13 @@
 
 import { readFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline/promises'
+import nodeProcess from 'node:process'
 import { VapidSigner, type VapidKeys } from '../src/vapid.js'
 import { sendPush } from '../src/send.js'
 import { DEV_VARS_PATH, readDevVars } from './devVars.js'
+
+// Worker のグローバル型と併せて検査しても、CLI では Node の終了処理の型を使う。
+const process: NodeJS.Process = nodeProcess
 
 // 鍵は server/.dev.vars（npm run keygen が作る）から読む。
 // 環境変数が設定されていればそちらを優先する（CI や本番鍵での確認用）。
