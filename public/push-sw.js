@@ -41,6 +41,9 @@ var DATA_CACHE = 'timetable-data'
 var IDB_NAME = 'campusBusNaviPush'
 var IDB_STORE = 'settings'
 var IDB_KEY = 'current'
+// 予約ミラーの保存では消えない独立した台帳。DB バージョンと既存 store は変えない。
+var DISPLAYED_KEY = 'displayed-reminders'
+var displayedInMemory = { dateKey: '', tags: [] }
 
 /** 便を同定できなかったときの通知タグ。便ごとの通知とは別枠にする */
 var FALLBACK_TAG = 'departure-reminder'
@@ -63,11 +66,11 @@ var MAX_NOTIFICATIONS = 4
 var VALID_LEAD_MINUTES = [5, 10, 15, 20]
 
 // ── JST ─────────────────────────────────────────────────────────────────────
-// 端末のタイムゾーンは JST とは限らない。UTC+9 に固定して計算する。
+// UTC+9 の値を UTC getter で読む。端末のローカル時刻への変換を挟むと、
+// 加算前後で夏時間が切り替わる地域では 1 時間ずれるため、すべて UTC getter に揃える。
 
 function jstNow() {
-  var now = new Date()
-  return new Date(now.getTime() + (now.getTimezoneOffset() + 9 * 60) * 60000)
+  return new Date(Date.now() + 9 * 60 * 60000)
 }
 
 function two(n) {
@@ -75,7 +78,7 @@ function two(n) {
 }
 
 function dateKeyOf(d) {
-  return d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate())
+  return d.getUTCFullYear() + '-' + two(d.getUTCMonth() + 1) + '-' + two(d.getUTCDate())
 }
 
 /**
@@ -94,14 +97,23 @@ function parseHHmmToMinutes(value) {
 
 // ── IndexedDB ───────────────────────────────────────────────────────────────
 
-/** 予約の写しを読む。読めない・形が違う場合は null（呼び出し側が汎用通知へ落とす） */
-function readMirror() {
+/** DB が使えないときも通知自体は止めない。blocked 後に接続できた場合は閉じる。 */
+function openPushDb() {
   return new Promise(function (resolve) {
     var request
+    var settled = false
+    function finish(db) {
+      if (settled) {
+        if (db) db.close()
+        return
+      }
+      settled = true
+      resolve(db)
+    }
     try {
       request = indexedDB.open(IDB_NAME, 1)
     } catch (e) {
-      resolve(null)
+      finish(null)
       return
     }
     request.onupgradeneeded = function () {
@@ -109,31 +121,94 @@ function readMirror() {
       if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE)
     }
     request.onerror = function () {
-      resolve(null)
+      finish(null)
+    }
+    request.onblocked = function () {
+      finish(null)
     }
     request.onsuccess = function () {
-      var db = request.result
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
+      finish(request.result)
+    }
+  })
+}
+
+function readSetting(key) {
+  return openPushDb().then(function (db) {
+    return new Promise(function (resolve) {
+      if (!db) {
         resolve(null)
         return
       }
+      function finish(value) {
+        db.close()
+        resolve(value)
+      }
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        finish(null)
+        return
+      }
       try {
-        var get = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(IDB_KEY)
+        var tx = db.transaction(IDB_STORE, 'readonly')
+        var get = tx.objectStore(IDB_STORE).get(key)
         get.onsuccess = function () {
-          var value = get.result
-          if (!value || typeof value.dateKey !== 'string' || !Array.isArray(value.reminders)) {
-            resolve(null)
-            return
-          }
-          resolve(value)
+          finish(get.result || null)
         }
         get.onerror = function () {
-          resolve(null)
+          finish(null)
+        }
+        tx.onabort = function () {
+          finish(null)
         }
       } catch (e) {
-        resolve(null)
+        finish(null)
       }
+    })
+  })
+}
+
+/** 予約の写しを読む。読めない・形が違う場合は null（呼び出し側が汎用通知へ落とす） */
+function readMirror() {
+  return readSetting(IDB_KEY).then(function (value) {
+    return value && typeof value.dateKey === 'string' && Array.isArray(value.reminders) ? value : null
+  })
+}
+
+function readDisplayed(dateKey) {
+  if (displayedInMemory.dateKey !== dateKey) displayedInMemory = { dateKey: dateKey, tags: [] }
+  return readSetting(DISPLAYED_KEY).then(function (saved) {
+    if (saved && saved.dateKey === dateKey && Array.isArray(saved.tags)) {
+      saved.tags.forEach(function (tag) {
+        if (typeof tag === 'string' && /^departure-reminder-(campus_to_station|station_to_campus)-\d{2}:\d{2}$/.test(tag) && displayedInMemory.tags.indexOf(tag) === -1) {
+          displayedInMemory.tags.push(tag)
+        }
+      })
     }
+    return displayedInMemory
+  })
+}
+
+/** 書けなければ同じ SW のメモリだけで重複を抑える。古い日の台帳は丸ごと置き換える。 */
+function saveDisplayed(ledger) {
+  return openPushDb().then(function (db) {
+    return new Promise(function (resolve) {
+      if (!db) {
+        resolve()
+        return
+      }
+      function finish() {
+        db.close()
+        resolve()
+      }
+      try {
+        var tx = db.transaction(IDB_STORE, 'readwrite')
+        tx.objectStore(IDB_STORE).put({ dateKey: ledger.dateKey, tags: ledger.tags.slice() }, DISPLAYED_KEY)
+        tx.oncomplete = finish
+        tx.onerror = finish
+        tx.onabort = finish
+      } catch (e) {
+        finish()
+      }
+    })
   })
 }
 
@@ -176,7 +251,7 @@ function resolveTimetableId(rules, jst) {
   var key = dateKeyOf(jst)
   if (rules.overrides && rules.overrides[key]) return rules.overrides[key]
   if (!rules.default_rules) return null
-  return rules.default_rules[String(jst.getDay())] || null
+  return rules.default_rules[String(jst.getUTCDay())] || null
 }
 
 // ── 予約の選択 ───────────────────────────────────────────────────────────────
@@ -206,7 +281,8 @@ function selectReservations(mirror, todayKey, nowMinutes) {
     if (a.minutes !== b.minutes) return a.minutes - b.minutes
     return a.route < b.route ? -1 : a.route > b.route ? 1 : 0
   })
-  return out.slice(0, MAX_NOTIFICATIONS)
+  // 表示済みを除く前に切らない。後ろの未表示便がいつまでも選ばれなくなるため。
+  return out
 }
 
 /** 当日のダイヤに、その route のその時刻の便が実在するか */
@@ -228,7 +304,7 @@ var FALLBACK = {
   tag: FALLBACK_TAG,
 }
 
-function buildFor(reservation, timetable, nowMinutes) {
+function buildFor(reservation, timetable, nowMinutes, dateKey) {
   var route = timetable.routes[reservation.route]
   var remaining = reservation.minutes - nowMinutes
   return {
@@ -241,6 +317,7 @@ function buildFor(reservation, timetable, nowMinutes) {
     // 便ごとに分ける。同じ push が二度届いても置き換わるだけで増えず、
     // 別の便の通知を押しのけることもない
     tag: 'departure-reminder-' + reservation.route + '-' + reservation.departure,
+    dateKey: dateKey,
   }
 }
 
@@ -252,7 +329,7 @@ function buildNotifications() {
   return readMirror().then(function (mirror) {
     var jst = jstNow()
     var todayKey = dateKeyOf(jst)
-    var nowMinutes = jst.getHours() * 60 + jst.getMinutes()
+    var nowMinutes = jst.getUTCHours() * 60 + jst.getUTCMinutes()
 
     var reservations = selectReservations(mirror, todayKey, nowMinutes)
     if (reservations.length === 0) return [FALLBACK]
@@ -270,7 +347,7 @@ function buildNotifications() {
         for (var i = 0; i < reservations.length; i++) {
           // ダイヤが差し替わって消えた便は名指ししない
           if (!departureExists(timetable, reservations[i].route, reservations[i].departure)) continue
-          out.push(buildFor(reservations[i], timetable, nowMinutes))
+          out.push(buildFor(reservations[i], timetable, nowMinutes, todayKey))
         }
         return out.length > 0 ? out : [FALLBACK]
       })
@@ -284,18 +361,34 @@ function showDepartureNotification() {
       return [FALLBACK]
     })
     .then(function (list) {
-      return Promise.all(
-        list.map(function (content) {
-          return self.registration.showNotification(content.title, {
-            body: content.body,
-            icon: ICON_URL,
-            badge: ICON_URL,
-            tag: content.tag,
-            renotify: true,
-            data: { url: '/' },
+      var dateKey = list[0].dateKey || dateKeyOf(jstNow())
+      return readDisplayed(dateKey).then(function (ledger) {
+        function wasDisplayed(content) {
+          return content.dateKey && ledger.tags.indexOf(content.tag) !== -1
+        }
+        // 上限に当たっても未表示便を先にする。重なる予約窓の先頭便による飢餓を防ぐ。
+        var fresh = list.filter(function (content) { return !wasDisplayed(content) })
+        var old = list.filter(wasDisplayed)
+        var selected = fresh.concat(old).slice(0, MAX_NOTIFICATIONS)
+        return Promise.all(selected.map(function (content) {
+          var repeated = Boolean(wasDisplayed(content))
+          var options = {
+            body: content.body, icon: ICON_URL, badge: ICON_URL, tag: content.tag,
+            renotify: !repeated, data: { url: '/' },
+          }
+          if (repeated) options.silent = true
+          return self.registration.showNotification(content.title, options).then(function () {
+            if (content.dateKey && ledger.tags.indexOf(content.tag) === -1) ledger.tags.push(content.tag)
+            return true
+          }).catch(function () {
+            return false
+          })
+        })).then(function (shown) {
+          return saveDisplayed(ledger).then(function () {
+            if (!shown.some(function (ok) { return ok })) throw new Error('notification failed')
           })
         })
-      )
+      })
     })
     .catch(function () {
       // showNotification 自体が落ちたときの最後の砦。ここで握りつぶすと
@@ -306,8 +399,11 @@ function showDepartureNotification() {
 
 // ── イベント ─────────────────────────────────────────────────────────────────
 
+// 同時に来た push も「表示→記録」が済んでから次へ進める。
+var pushQueue = Promise.resolve()
 self.addEventListener('push', function (event) {
-  event.waitUntil(showDepartureNotification())
+  pushQueue = pushQueue.catch(function () {}).then(showDepartureNotification)
+  event.waitUntil(pushQueue)
 })
 
 self.addEventListener('notificationclick', function (event) {

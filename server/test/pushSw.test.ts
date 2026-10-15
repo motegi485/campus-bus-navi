@@ -52,9 +52,13 @@ interface PushSwModule {
   buildNotifications: () => Promise<Notification[]>
 }
 
-/** `new Date()`（引数なし）だけを固定時刻にする Date。getTimezoneOffset 等は本物のまま */
-function fixedDateClass(isoWithOffset: string): DateConstructor {
+/** ローカル getter は指定地域の実際の DST を使う。実行プロセスの TZ は変更しない。 */
+function fixedDateClass(isoWithOffset: string, timeZone?: string): DateConstructor {
   const fixed = new Date(isoWithOffset).getTime()
+  const formatter = timeZone ? new Intl.DateTimeFormat('en-US', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  }) : null
   class FixedDate extends Date {
     constructor(...args: unknown[]) {
       // 引数ありの呼び出し（new Date(ms) など）は本物の挙動をそのまま使う
@@ -64,6 +68,19 @@ function fixedDateClass(isoWithOffset: string): DateConstructor {
     static override now(): number {
       return fixed
     }
+    private localDate(): Date {
+      const parts = Object.fromEntries(formatter!.formatToParts(this).map(part => [part.type, part.value]))
+      return new Date(Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second))
+    }
+    override getTimezoneOffset(): number {
+      return formatter ? (this.getTime() - this.localDate().getTime()) / 60000 : super.getTimezoneOffset()
+    }
+    override getFullYear(): number { return formatter ? this.localDate().getUTCFullYear() : super.getFullYear() }
+    override getMonth(): number { return formatter ? this.localDate().getUTCMonth() : super.getMonth() }
+    override getDate(): number { return formatter ? this.localDate().getUTCDate() : super.getDate() }
+    override getDay(): number { return formatter ? this.localDate().getUTCDay() : super.getDay() }
+    override getHours(): number { return formatter ? this.localDate().getUTCHours() : super.getHours() }
+    override getMinutes(): number { return formatter ? this.localDate().getUTCMinutes() : super.getMinutes() }
   }
   return FixedDate as unknown as DateConstructor
 }
@@ -74,6 +91,7 @@ function fakeIndexedDb(mirror: Mirror | null) {
     open() {
       const request: Record<string, unknown> = {
         result: {
+          close: () => undefined,
           objectStoreNames: { contains: () => mirror !== null },
           transaction: () => ({
             objectStore: () => ({
@@ -102,6 +120,8 @@ function loadPushSw(options: {
   mirror: Mirror | null
   now: string
   timetableId?: string | null
+  timeZone?: string
+  calendarRules?: { default_rules: Record<string, string>; overrides?: Record<string, string> }
   /** 時刻表 JSON を取得できない状況（ネットワークもキャッシュも空）を作る */
   timetableMissing?: boolean
 }): PushSwModule {
@@ -109,10 +129,10 @@ function loadPushSw(options: {
 
   const fetchStub = (path: string) => {
     if (path.startsWith('/data/calendar_rules.json')) {
-      const rules = timetableId === null ? { default_rules: {} } : { overrides: {}, default_rules: {
+      const rules = options.calendarRules ?? (timetableId === null ? { default_rules: {} } : { overrides: {}, default_rules: {
         '0': timetableId, '1': timetableId, '2': timetableId, '3': timetableId,
         '4': timetableId, '5': timetableId, '6': timetableId,
-      } }
+      } })
       return Promise.resolve({ ok: true, json: () => Promise.resolve(rules) })
     }
     if (options.timetableMissing) return Promise.reject(new Error('offline'))
@@ -135,7 +155,7 @@ function loadPushSw(options: {
     fakeIndexedDb(options.mirror),
     cachesStub,
     fetchStub,
-    fixedDateClass(options.now)
+    fixedDateClass(options.now, options.timeZone)
   ) as PushSwModule
 }
 
@@ -144,6 +164,28 @@ function mirror(reminders: Mirror['reminders'], dateKey = '2026-08-17'): Mirror 
 }
 
 const FALLBACK_TITLE = 'まもなく発車です'
+
+describe.each(['America/New_York', 'Asia/Tokyo', 'UTC'])('端末 TZ=%s の JST 便同定', timeZone => {
+  it.each([
+    // NY のローカル加算が DST 開始を跨ぐと、旧実装は 15:59 JST を 16:59 と解釈した。
+    ['2026-03-08T06:59:00Z', '2026-03-08', '16:00', '0'],
+    // DST 終了を跨ぐ加算では逆に 1 時間早くなっていた。
+    ['2026-11-01T05:59:00Z', '2026-11-01', '15:00', '0'],
+    // UTC と JST で日付・曜日が異なる通常日も、JST の月曜ルールを使う。
+    ['2026-08-16T23:00:00Z', '2026-08-17', '08:10', '1'],
+  ])('%s でも JST の日付・曜日・残り時間を使う', async (now, dateKey, departure, weekday) => {
+    const sw = loadPushSw({
+      now, timeZone,
+      mirror: mirror([{ route: 'station_to_campus', departure, leadMinutes: 10 }], dateKey),
+      calendarRules: { default_rules: { [weekday]: TIMETABLE_ID } },
+    })
+    const list = await sw.buildNotifications()
+    expect(list).toHaveLength(1)
+    const remaining = now.endsWith('23:00:00Z') ? 10 : 1
+    expect(list[0].title).toBe(`${departure} 発  あと ${remaining} 分`)
+    expect(list[0].tag).toBe(`departure-reminder-station_to_campus-${departure}`)
+  })
+})
 
 describe('selectReservations', () => {
   const one = mirror([{ route: 'station_to_campus', departure: '08:10', leadMinutes: 10 }])
@@ -187,7 +229,7 @@ describe('selectReservations', () => {
     expect(sw.selectReservations(broken, '2026-08-17', 8 * 60)).toEqual([])
   })
 
-  it('複数が該当したら発車の早い順で、上限 4 件まで返す', () => {
+  it('複数が該当したら発車の早い順で返す', () => {
     const sw = loadPushSw({ mirror: null, now: '2026-08-17T08:00:00+09:00' })
     const many = mirror([
       { route: 'campus_to_station', departure: '08:20', leadMinutes: 20 },

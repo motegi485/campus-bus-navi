@@ -71,7 +71,7 @@ function openDb(): Promise<IDBDatabase | null> {
  * IndexedDB が使えない端末（プライベートモード等）でも例外を投げない。
  * 通知の表示品質は下がるが、その場合は push-sw が汎用の文言へ落ちるだけで安全側に倒れる。
  */
-function write(value: PushMirror | null): Promise<void> {
+function writeNow(value: PushMirror | null): Promise<void> {
   return openDb().then(
     db =>
       new Promise<void>(resolve => {
@@ -103,6 +103,17 @@ function write(value: PushMirror | null): Promise<void> {
         }
       })
   )
+}
+
+// openDb の完了順が逆転しても、古い保存が後から通知オフの削除を上書きしない。
+// 読取り専用の readPushMirror と、SW が使う別キーの表示台帳には影響しない。
+let writeQueue: Promise<void> = Promise.resolve()
+
+function write(value: PushMirror | null): Promise<void> {
+  const queued = writeQueue.then(() => writeNow(value))
+  // 1 回の失敗で後続の保存・削除を止めない。
+  writeQueue = queued.catch(() => {})
+  return writeQueue
 }
 
 /** 予約ミラーを読む。無い・壊れている場合は null */
