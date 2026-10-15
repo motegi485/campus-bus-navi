@@ -151,7 +151,7 @@ export function NewsScreen({ open, onClose, news, loading, error, readIds, markA
   // 閉時の inert 化、開いた直後の初期フォーカス、閉時のフォーカス復帰。
   // Escape は詳細を開いていれば詳細を、そうでなければ画面を閉じる。
   const rootRef = useOverlayA11y(open, {
-    onEscape: () => { if (selected) setSelected(null); else onClose() },
+    onEscape: () => { if (selected) closeDetail(); else onClose() },
   })
 
   // 詳細パネルを開いている間は、その背後のナビバーとリストを操作対象から外す

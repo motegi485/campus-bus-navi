@@ -237,7 +237,14 @@ function DayDetailView({
         })?.departure
 
   let body: React.ReactNode
-  if (day.status === 'error') {
+  if (day.status === 'loading') {
+    body = (
+      <div role="status" className="flex flex-col items-center justify-center py-16 gap-3">
+        <Spinner size={32} />
+        <p className="text-[calc(13px*var(--font-scale))]" style={{ color: 'var(--text-muted)' }}>時刻表を読み込み中...</p>
+      </div>
+    )
+  } else if (day.status === 'error') {
     body = (
       <div
         className="section-card rounded-[20px] text-center"

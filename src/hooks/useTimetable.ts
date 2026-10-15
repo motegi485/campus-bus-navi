@@ -36,7 +36,7 @@ interface UseTimetableResult {
   error: string | null
   /** 保持中データの対象日が今日と違う（＝表示してはいけない） */
   stale: boolean
-  /** 本日分の本文がサーバから返ってきた時刻（epoch ms）。不明なら null */
+  /** カレンダーと本日分本文のうち古い取得時刻（epoch ms）。不明なら null */
   fetchedAt: number | null
   refresh: () => Promise<boolean>
 }
@@ -72,7 +72,7 @@ function saveFetchedAt(value: number): void {
 }
 
 /**
- * 「この本文がサーバから返ってきた時刻」を決める。
+ * カレンダーと本文の妥当な Date のうち古い方を取得時刻にする。
  *
  * fetch の成功は「サーバから新しいデータが返った」ことを意味しない。オフラインでも
  * SW の NetworkFirst が timetable-data キャッシュへフォールバックするため fetch は解決し、
@@ -83,15 +83,15 @@ function saveFetchedAt(value: number): void {
  * ヘッダが読めない環境では、オフライン中の成功を「取得できた」と数えないことで嘘を防ぐ
  * （null を返し、呼び出し側が前回値を維持する）。
  */
-function resolveFetchedAt(serverTime: number | null): number | null {
+function resolveFetchedAt(...serverTimes: (number | null)[]): number | null {
   const now = Date.now()
-  if (
-    serverTime !== null &&
+  const valid = serverTimes.filter((serverTime): serverTime is number =>
+    serverTime !== null && Number.isFinite(serverTime) && serverTime > 0 &&
     serverTime <= now + CLOCK_SKEW_TOLERANCE_MS &&
     now - serverTime <= MAX_AGE_MS
-  ) {
-    return serverTime
-  }
+  )
+  // 本文が新しくてもカレンダーの古い override で別ダイヤを選んでいる可能性がある。
+  if (valid.length > 0) return Math.min(...valid)
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return null
   return now
 }
@@ -199,9 +199,9 @@ export function useTimetable(now: dayjs.Dayjs): UseTimetableResult {
         // 参照されるだけで、内容は同一のオブジェクトで問題ない
         tomorrowTimetable: sameId ? todayTimetable : tomorrowFetched,
       })
-      // 鮮度の根拠は本日分の本文が返ってきた時刻。null は「取得できたとは言えない」の意味なので
+      // 鮮度はカレンダーと本日分本文の古い方。null は「取得できたとは言えない」の意味なので
       // その場合は前回値を維持する（オフラインでキャッシュから読めただけ、など）
-      const resolved = resolveFetchedAt(todayRes.serverTime)
+      const resolved = resolveFetchedAt(rules.serverTime, todayRes.serverTime)
       if (resolved !== null) {
         setFetchedAt(resolved)
         saveFetchedAt(resolved)

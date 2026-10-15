@@ -102,7 +102,14 @@ export default function App() {
   // 3タブ（バス/マップ/メニュー）の現在表示
   const [activeTab, setActiveTab] = useState<AppTab>('bus')
   // 画面表示状態
-  const [fullTimetableOpen, setFullTimetableOpen] = useState(false)
+  // 開いた対象日も保持する。日付変更直後の描画から旧日のシートを閉じるため、
+  // effect で閉じるだけにはしない（先読みを昇格できた日も開きっぱなしにしない）。
+  const [fullTimetableDate, setFullTimetableDate] = useState<string | null>(null)
+  const fullTimetableOpen = fullTimetableDate === now.format('YYYY-MM-DD') &&
+    !loading && !!timetable?.routes[route] && !stale && resolveDiagramType(timetable.id) !== 'special'
+  useEffect(() => {
+    if (fullTimetableDate !== null && !fullTimetableOpen) setFullTimetableDate(null)
+  }, [fullTimetableDate, fullTimetableOpen])
   const [newsOpen, setNewsOpen] = useState(false)
   const [weeklyOpen, setWeeklyOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -271,6 +278,9 @@ export default function App() {
     showToast('⟳ 時刻データを更新しています...', 1600)
     try {
       const ok = await refresh()
+      // 週一覧・お知らせも同じ操作で取り直す。個別の失敗は各画面で伝え、
+      // 二次取得の遅延で主時刻表の更新ボタンを押せなくしない。
+      if (ok) void Promise.allSettled([week.reload(), newsState.reload()])
       showToast(ok ? '✓ 最新の時刻データに更新しました' : '⚠ 更新に失敗しました（オフライン？）')
     } finally {
       setRefreshing(false)
@@ -284,7 +294,7 @@ export default function App() {
         turns * SPIN_PERIOD_MS - elapsed
       )
     }
-  }, [refresh, refreshing, showToast])
+  }, [refresh, refreshing, showToast, week.reload, newsState.reload])
 
   // アプリの初期化
   const handleInitApp = useCallback(async () => {
@@ -385,7 +395,8 @@ export default function App() {
             {/* 全時刻表シート（ホームの「全時刻表 ›」から開く） */}
             <FullTimetableSheet
               open={fullTimetableOpen}
-              onClose={() => setFullTimetableOpen(false)}
+              dataAvailable={showTimes && !isSpecial}
+              onClose={() => setFullTimetableDate(null)}
               schedule={schedule}
               route={route}
               onChangeRoute={setRoute}
@@ -601,7 +612,7 @@ export default function App() {
                           <h2 className="text-[calc(15px*var(--font-scale))] font-bold" style={{ color: 'var(--chip-text)' }}>今後の発車時刻</h2>
                           <button
                             type="button"
-                            onClick={() => { tapFeedback(8); setFullTimetableOpen(true) }}
+                            onClick={() => { tapFeedback(8); setFullTimetableDate(now.format('YYYY-MM-DD')) }}
                             className="text-[calc(13px*var(--font-scale))] font-semibold"
                             style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', font: 'inherit' }}
                           >
@@ -619,7 +630,7 @@ export default function App() {
                             設定画面の通知トグルへ導く。 */}
                         <button
                           type="button"
-                          onClick={() => { tapFeedback(8); reminderReady ? setFullTimetableOpen(true) : setSettingsOpen(true) }}
+                          onClick={() => { tapFeedback(8); reminderReady ? setFullTimetableDate(now.format('YYYY-MM-DD')) : setSettingsOpen(true) }}
                           className="flex items-center w-full"
                           style={{
                             gap: 12, margin: '14px 0 22px', padding: '13px 14px', borderRadius: 16,

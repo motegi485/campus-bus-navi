@@ -77,6 +77,7 @@ export function useDepartureReminders(params: {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadState, setLoadState] = useState<ReminderLoadState>('idle')
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
   /** reload() 用の世代。値が変わると下の useEffect が再取得する */
   const [loadSeq, setLoadSeq] = useState(0)
 
@@ -85,50 +86,78 @@ export function useDepartureReminders(params: {
    * push-sw のミラーは全ルートを持つ必要があるため、保存時に他ルートぶんを残せるよう控える。
    */
   const allRef = useRef<ServerReminder[]>([])
+  const contextKey = JSON.stringify([endpoint, dateKey, route])
+  const contextRef = useRef(contextKey)
+  contextRef.current = contextKey
+  const generationRef = useRef(0)
+  const readyRef = useRef<string | null>(null)
+  const activeSaveRef = useRef<number | null>(null)
+  const pendingSaveRef = useRef<Promise<boolean> | null>(null)
+  const mountedRef = useRef(false)
 
   // 起動時とルート・日付の変化時にサーバから取り直す
   useEffect(() => {
+    mountedRef.current = true
+    const generation = ++generationRef.current
+    let cancelled = false
+    const isCurrent = () => !cancelled && contextRef.current === contextKey && generationRef.current === generation
+    readyRef.current = null
+    setLoadedKey(contextKey)
+    setMarked(new Set())
+    setError(null)
     if (!endpoint) {
-      setMarked(new Set())
       setLoadState('idle')
       allRef.current = []
       // 通知がオフ（または未登録）なら端末に予約を残さない
       void clearPushMirror()
-      return
-    }
-    let cancelled = false
-    setLoadState('loading')
-    const query = `?endpoint=${encodeURIComponent(endpoint)}&dateKey=${dateKey}`
-    fetch(`/api/reminders${query}`)
-      .then(res => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
-      .then(body => {
-        if (cancelled) return
-        const all = (body as { reminders?: ServerReminder[] }).reminders ?? []
-        allRef.current = all
-        const list = all.filter(r => r.route === route)
-        setMarked(new Set(list.map(r => r.departure)))
-        // サーバに残っている値があれば、それを「何分前」の現在値として採用する
-        if (list.length > 0 && LEAD_OPTIONS.includes(list[0].leadMinutes as ReminderLead)) {
-          setLead(list[0].leadMinutes as ReminderLead)
+    } else {
+      setLoadState('loading')
+      void (async () => {
+        try {
+          // 前の方向・日付の保存を読み越さない。POST 自体は取り消せないため、
+          // 完了してから正であるサーバを読み直す。
+          await pendingSaveRef.current
+          if (!isCurrent()) return
+          const query = `?endpoint=${encodeURIComponent(endpoint)}&dateKey=${dateKey}`
+          const res = await fetch(`/api/reminders${query}`, { cache: 'no-store' })
+          if (!res.ok) throw new Error(String(res.status))
+          const body = await res.json() as { reminders?: ServerReminder[] }
+          if (!isCurrent()) return
+          const all = body.reminders ?? []
+          const list = all.filter(r => r.route === route)
+          allRef.current = all
+          readyRef.current = contextKey
+          setMarked(new Set(list.map(r => r.departure)))
+          if (list.length > 0 && LEAD_OPTIONS.includes(list[0].leadMinutes as ReminderLead)) {
+            setLead(list[0].leadMinutes as ReminderLead)
+          }
+          setLoadState('ok')
+          void writePushMirror(dateKey, all as MirroredReminder[])
+        } catch {
+          if (!isCurrent()) return
+          allRef.current = []
+          setMarked(new Set())
+          setLoadState('error')
         }
-        setLoadState('ok')
-        void writePushMirror(dateKey, all as MirroredReminder[])
-      })
-      .catch(() => {
-        if (cancelled) return
-        // 読めていない状態を隠さない。この間は保存を止める（見えない予約を消さないため）
-        allRef.current = []
-        setMarked(new Set())
-        setLoadState('error')
-      })
+      })()
+    }
     return () => {
       cancelled = true
+      mountedRef.current = false
+      readyRef.current = null
+      ++generationRef.current
     }
-  }, [endpoint, dateKey, route, loadSeq])
+  }, [endpoint, dateKey, route, contextKey, loadSeq])
 
-  const reload = useCallback(() => setLoadSeq(n => n + 1), [])
+  const reload = useCallback(() => {
+    readyRef.current = null
+    ++generationRef.current
+    setLoadState('loading')
+    setLoadSeq(n => n + 1)
+  }, [])
 
   const changeLead = useCallback((value: ReminderLead) => {
+    if (activeSaveRef.current !== null) return
     setLead(value)
     saveLead(value)
   }, [])
@@ -138,44 +167,65 @@ export function useDepartureReminders(params: {
    * その日・そのルートの指定を総入れ替えするので、空配列なら全解除になる。
    */
   const save = useCallback(
-    async (departures: string[]): Promise<boolean> => {
+    (departures: string[]): Promise<boolean> => {
+      // state の再描画前に同じ操作が重なっても POST を二重送信しない。
+      if (activeSaveRef.current !== null || contextRef.current !== contextKey) return Promise.resolve(false)
       if (!endpoint) {
         setError('設定画面で通知をオンにしてください')
-        return false
+        return Promise.resolve(false)
       }
-      if (loadState !== 'ok') {
+      if (readyRef.current !== contextKey || loadState !== 'ok') {
         // 総入れ替えの前提（現在の集合が既知）が崩れている。ここで止めないと
         // サーバにある既存の予約を、利用者が気づかないまま消してしまう
         setError('現在の設定を読み込めていないため保存できません。再読み込みしてください')
-        return false
+        return Promise.resolve(false)
       }
+      const generation = ++generationRef.current
+      activeSaveRef.current = generation
+      const isCurrent = () => mountedRef.current && contextRef.current === contextKey && generationRef.current === generation
       setSaving(true)
       setError(null)
-      try {
-        const response = await fetch('/api/reminders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint, dateKey, route, departures, leadMinutes: lead }),
-        })
-        if (!response.ok) throw new Error(await readError(response))
-        setMarked(new Set(departures))
-        // 他ルートぶんは残したまま、このルートだけ差し替える（サーバ側の総入れ替えと同じ形）
-        const next: ServerReminder[] = [
-          ...allRef.current.filter(r => r.route !== route),
-          ...departures.map(departure => ({ route, departure, leadMinutes: lead })),
-        ]
-        allRef.current = next
-        void writePushMirror(dateKey, next as MirroredReminder[])
-        return true
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
-        return false
-      } finally {
-        setSaving(false)
-      }
+      const pending = (async () => {
+        try {
+          const response = await fetch('/api/reminders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint, dateKey, route, departures, leadMinutes: lead }),
+          })
+          if (!response.ok) throw new Error(await readError(response))
+          if (!isCurrent()) return false
+          setMarked(new Set(departures))
+          const next: ServerReminder[] = [
+            ...allRef.current.filter(r => r.route !== route),
+            ...departures.map(departure => ({ route, departure, leadMinutes: lead })),
+          ]
+          allRef.current = next
+          void writePushMirror(dateKey, next as MirroredReminder[])
+          return true
+        } catch (e) {
+          if (isCurrent()) setError(e instanceof Error ? e.message : String(e))
+          return false
+        } finally {
+          if (activeSaveRef.current === generation) {
+            activeSaveRef.current = null
+            pendingSaveRef.current = null
+            if (mountedRef.current) setSaving(false)
+          }
+        }
+      })()
+      pendingSaveRef.current = pending
+      return pending
     },
-    [endpoint, dateKey, route, lead, loadState]
+    [endpoint, dateKey, route, contextKey, lead, loadState]
   )
 
-  return { marked, lead, changeLead, save, saving, error, loadState, reload }
+  // effect によるリセットを待つ描画でも、前の方向・日付の予約を見せない。
+  const matches = loadedKey === contextKey
+  return {
+    marked: matches ? marked : new Set<string>(),
+    lead, changeLead, save, saving,
+    error: matches ? error : null,
+    loadState: matches ? loadState : endpoint ? 'loading' as const : 'idle' as const,
+    reload,
+  }
 }
