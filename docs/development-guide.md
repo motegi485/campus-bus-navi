@@ -2,10 +2,10 @@
 
 ## 前提
 
-- Node.js 20 以上を使用します。リポジトリには Node.js バージョン固定ファイルはありません。
+- Node.js は 22.12 以上の 22 系、24 系、または 26 系以降を使用します。既定は `.node-version` の 22 系で、Bot の CI も 22 系です。Vitest 5 と Vite 7 への更新に伴う要件です。
 - フロントエンドと `bot/` は別々の npm パッケージです。それぞれのディレクトリで依存関係を管理します。
 - TypeScript は `strict`、`noUnusedLocals`、`noUnusedParameters`、`noFallthroughCasesInSwitch` を有効にしています。
-- ルートにはテスト・lint の npm スクリプトはありません。静的データ検証、型チェック、ビルドが品質ゲートです。
+- ルートにはテスト・lint の npm スクリプトはありません。静的データ検証、`node --test scripts/frontend-regressions.test.mjs`、型チェック、ビルドが品質ゲートです。
 
 ## 最初に読む文書
 
@@ -26,6 +26,7 @@ npm run dev
 |---|---|
 | `npm run dev` | Vite 開発サーバーを起動する。通常は `http://localhost:5173` |
 | `npm run validate:data` | `public/data/` の静的 JSON を検証する |
+| `node --test scripts/frontend-regressions.test.mjs` | 日付跨ぎ、通知選択・取得競合、週間表示・鮮度・更新連動の回帰を局所実行する（実ブラウザーとは別） |
 | `npx tsc --noEmit` | TypeScript の型検査だけを実行する |
 | `npm run build` | データ検証、型検査、Vite ビルドを順に実行し `dist/` を作る |
 | `npm run preview` | 本番ビルドをローカルで確認する。Service Worker を含む確認に使う |

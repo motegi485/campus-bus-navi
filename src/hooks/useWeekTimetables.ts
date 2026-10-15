@@ -78,6 +78,9 @@ export function useWeekTimetables(
     const seq = ++seqRef.current
     setLoading(true)
     setError(null)
+    // 旧世代の本文取得を確実に終わらせる。カレンダーの再取得が失敗した際に
+    // 古い loading 行だけが残り、本文 effect が再開されない状態も防ぐ。
+    setDays([])
     try {
       const res = await fetch('/data/calendar_rules.json')
       if (!res.ok) {
@@ -113,11 +116,8 @@ export function useWeekTimetables(
 
   useEffect(() => {
     if (!enabled) return
-    // 日付が変わった直後、前回の起点で作った行がそのまま残っていると
-    // 過ぎた日を「今日を含む 7 日間」の先頭として見せてしまう。新しい起点より前の
-    // 行は取得を待たずに落とす（残る行はどれも自分の日付を持っているので正しい）
-    setDays(prev => (prev.length > 0 ? prev.filter(d => d.dateKey >= startKey) : prev))
     void loadDays()
+    return () => { ++seqRef.current }
   }, [startKey, enabled, loadDays])
 
   /**

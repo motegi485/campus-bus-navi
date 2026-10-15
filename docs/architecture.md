@@ -20,7 +20,7 @@
 | 領域 | 採用技術 |
 |---|---|
 | UI | React 18、TypeScript |
-| ビルド | Vite 5、Tailwind CSS v4（`@tailwindcss/vite`） |
+| ビルド | Vite 7、Tailwind CSS v4（`@tailwindcss/vite`） |
 | 日時 | Day.js と `utc` / `timezone` プラグイン、`Asia/Tokyo` 固定 |
 | 地図 | Google マップ / Street View の埋め込み iframe（APIキー不要の非公式方式） |
 | PWA | vite-plugin-pwa、Workbox、workbox-window |
@@ -101,7 +101,7 @@ flowchart TD
 
 `App` がこのフックを 1 回だけ呼び、結果を `WeeklyScreen` へ渡します（改修たたき台への移行でホームの帯は廃止し、バスタブの日付ピルをタップすると `WeeklyScreen` を直接開くようにした）。画面ごとに呼ぶと同じ 7 日分を二重に取得します。`useTimetable` と同じくリクエスト世代で古い応答を破棄します。
 
-本文の取得は「`status: 'loading'` の日が残っているときだけ走る」effect が担います。取り終えると全日が `ok` / `error` になるので再入しません。`reload()` はカレンダーから読み直すので、全日が `loading` に戻り、本文も取り直されます。
+本文の取得は「`status: 'loading'` の日が残っているときだけ走る」effect が担います。取り終えると全日が `ok` / `error` になるので再入しません。`reload()` はまず一覧を空にしてカレンダーから読み直し、成功したら全日を `loading` にして本文も取り直します。カレンダー自体の取得に失敗したら全体のエラーを表示し、古い本文を読込中のまま残しません。
 
 ## 日付跨ぎの安全境界
 
@@ -111,6 +111,8 @@ flowchart TD
 - 一致しない場合、または当日取得が失敗した場合は `stale` になります。
 - `stale` 中は、前日の時刻表やダイヤ種別を当日の見出しで表示しません。日付変更の案内だけを出します。
 - 競合する古い取得結果は、世代番号で破棄します。
+
+全時刻表シートも開いた対象日とデータ有効状態を描画時に照合し、前日の便を出しません。通知の編集中に対象日・路線・便一覧・読込み状態が変わると選択を破棄し、保存中は選択と路線切替を止めます。予約の GET / POST も対象文脈と世代を照合し、古い応答を現在の表示・端末の予約ミラーへ反映しません。ミラーの保存と削除は呼出順に直列化します。
 
 これは「日付は今日なのに時刻は昨日」という誤案内を防ぐ必須の安全設計です。
 
@@ -136,7 +138,7 @@ flowchart TD
 
 ### 取得時刻
 
-`useTimetable` は当日分の本文が「サーバから返ってきた時刻」を `fetchedAt` として保持し、上表の異常系で表示します。判定根拠は `Date` レスポンスヘッダで、詳細と理由は [design-decisions.md](design-decisions.md) を参照してください。`fetchedAt` は `stale-data` の判定にも使います。
+`useTimetable` は、当日のダイヤを選ぶカレンダーと時刻表本文の `Date` レスポンスヘッダのうち、妥当な古い方を `fetchedAt` として保持します。本文だけ新しくても古いカレンダーが臨時ダイヤを見落としている可能性があるためです。上表の異常系と `stale-data` 判定に使います。詳細とフォールバックの理由は [design-decisions.md](design-decisions.md) を参照してください。
 
 ## 表示コンポーネント
 
@@ -169,14 +171,14 @@ flowchart TD
 | `campusBusNaviSettings` | 初期路線、テーマ（light / dark / system）、文字サイズ |
 | `campusBusNaviNewsReadIds` | 既読にしたお知らせ ID |
 | `campusBusNaviRouteToggleHinted` | 路線切替ナッジを一度表示済みか |
-| `campusBusNaviFetchedAt` | 当日分の時刻表がサーバから返ってきた時刻（epoch ミリ秒） |
+| `campusBusNaviFetchedAt` | カレンダーと当日分時刻表の取得時刻の古い方（epoch ミリ秒） |
 | `swWaitingReloadAttempted` | 待機中サービスワーカー起動救済の 1 セッション用ガード |
 
 アプリ初期化はサービスワーカー登録、localStorage、Cache Storage を削除してから再読み込みします。
 
 ## お知らせと地図
 
-`useNews` は初回マウント時に `/data/news.json` を取得します。未読状態は `App` で一元化され、メニュータブとお知らせ画面で同じ状態を共有します。`news.json` の `body` は `dangerouslySetInnerHTML` で描画されるため、Git 管理された信頼できる静的データだけを前提にしています。動的 CMS 等へ移す場合は、サニタイズを導入する必要があります。
+`useNews` は初回マウント時と、ホームの時刻データ更新が成功したときに `/data/news.json` を取得します。同じ更新操作で週間ダイヤも再取得します。未読状態は `App` で一元化され、メニュータブとお知らせ画面で同じ状態を共有します。`news.json` の `body` は `dangerouslySetInnerHTML` で描画されるため、Git 管理された信頼できる静的データだけを前提にしています。動的 CMS 等へ移す場合は、サニタイズを導入する必要があります。
 
 地図はマップタブがアクティブな間だけマウントします（前述のとおり、Google埋め込みの不要な再読み込みを避けるため）。地図・Street Viewとも`maps.google.com`のクロスオリジンiframeのため Service Worker ではキャッシュできず、オフライン時はこの2枚のカードが表示されません。徒歩経路 URL は OS を問わず Google マップのもの（`https://www.google.com/maps/dir/?api=1&...`）を生成します（`buildMapUrl.ts`、地図埋め込みとは別の仕組み）。この URL は Google マップアプリのユニバーサルリンク／App Link でもあるため、アプリがあればアプリが、無ければブラウザが開きます。以前は iOS / iPadOS だけ Apple Maps のリンクを返していましたが、実機で「Google マップで見たいのに Apple マップが開く」ことになるため 2026-09 に統一しました。
 

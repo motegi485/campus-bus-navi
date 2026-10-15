@@ -42,27 +42,30 @@ export function useNews(): UseNewsResult {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [readIds, setReadIds] = useState<Set<number>>(loadReadIds)
-  const cancelledRef = useRef(false)
+  const mountedRef = useRef(false)
+  const seqRef = useRef(0)
 
   const load = useCallback(async () => {
+    const seq = ++seqRef.current
+    const isCurrent = () => mountedRef.current && seq === seqRef.current
     setLoading(true)
     setError(null)
     try {
       const res = await fetch('/data/news.json')
       if (!res.ok) throw new Error('news.json の取得に失敗しました')
       const data: NewsItem[] = await res.json()
-      if (!cancelledRef.current) setNews(data)
+      if (isCurrent()) setNews(data)
     } catch (e) {
-      if (!cancelledRef.current) setError(e instanceof Error ? e.message : 'エラーが発生しました')
+      if (isCurrent()) setError(e instanceof Error ? e.message : 'エラーが発生しました')
     } finally {
-      if (!cancelledRef.current) setLoading(false)
+      if (isCurrent()) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    cancelledRef.current = false
+    mountedRef.current = true
     void load()
-    return () => { cancelledRef.current = true }
+    return () => { mountedRef.current = false; ++seqRef.current }
   }, [load])
 
   const markAsRead = useCallback((id: number) => {

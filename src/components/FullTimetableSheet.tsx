@@ -19,6 +19,8 @@ const DAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
 interface Props {
   open: boolean
+  /** 日付不一致・初回取得中では、閉じアニメーション中も旧便を露出させない */
+  dataAvailable: boolean
   onClose: () => void
   schedule: ScheduleEntry[]
   route: RouteKey
@@ -45,7 +47,8 @@ interface Props {
  * ホームを閉じなくてもルートや日付の文脈を保てるようにする。
  */
 export function FullTimetableSheet({
-  open,
+  open: requestedOpen,
+  dataAvailable,
   onClose,
   schedule,
   route,
@@ -65,7 +68,11 @@ export function FullTimetableSheet({
   saving,
   reminderError,
 }: Props) {
-  const [selectMode, setSelectMode] = useState(false)
+  const open = requestedOpen && dataAvailable
+  const contextKey = JSON.stringify([now.format('YYYY-MM-DD'), route, schedule.map(entry => entry.departure)])
+  const [selectionKey, setSelectionKey] = useState<string | null>(null)
+  // 方向・日付・便一覧・読み込み状態が変わった最初の描画から旧選択を使わせない。
+  const selectMode = open && selectionKey === contextKey && reminderReady && reminderLoadState === 'ok'
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const rootRef = useOverlayA11y(open, { covered: false, onEscape: onClose })
   const grabberRef = useRef<HTMLDivElement>(null)
@@ -80,23 +87,26 @@ export function FullTimetableSheet({
   // handleRef.current が null になり useSheetDragToClose は早期returnして無効化される）
   useSheetDragToClose(rootRef, grabberRef, open, onClose)
 
-  // 閉じたら選択モードも畳む。開き直したときに前回の選択が残っていると
-  // 「保存したつもり」の取り違えが起きる
+  // 閉じた後や文脈が変わった後に、前の選択を復活させない。
   useEffect(() => {
-    if (!open) setSelectMode(false)
-  }, [open])
+    if (!open || selectionKey !== contextKey || !reminderReady || reminderLoadState !== 'ok') {
+      setSelectionKey(null)
+    }
+  }, [open, selectionKey, contextKey, reminderReady, reminderLoadState])
 
   const isLastBus = remaining === 1
   const lastEntry = schedule.length > 0 ? schedule[schedule.length - 1] : null
 
   const enterSelectMode = () => {
-    if (reminderLoadState !== 'ok') return
+    if (!open || saving || !reminderReady || reminderLoadState !== 'ok') return
     tapFeedback(8)
-    setSelected(new Set(marked))
-    setSelectMode(true)
+    const available = new Set(schedule.map(entry => entry.departure))
+    setSelected(new Set([...marked].filter(departure => available.has(departure))))
+    setSelectionKey(contextKey)
   }
 
   const toggle = (departure: string) => {
+    if (!selectMode || saving) return
     tapFeedback(6)
     setSelected(prev => {
       const next = new Set(prev)
@@ -106,9 +116,10 @@ export function FullTimetableSheet({
   }
 
   const commit = async () => {
+    if (!selectMode || saving) return
     tapFeedback(10)
     const ok = await onSave(Array.from(selected))
-    if (ok) setSelectMode(false)
+    if (ok) setSelectionKey(null)
   }
 
   return (
@@ -126,7 +137,7 @@ export function FullTimetableSheet({
         aria-label="本日の全時刻表"
         aria-hidden={!open}
         className={`sheet-panel${open ? '' : ' sheet-panel-closed'}`}
-        style={{ zIndex: 46, pointerEvents: open ? 'auto' : 'none' }}
+        style={{ zIndex: 46, pointerEvents: open ? 'auto' : 'none', visibility: dataAvailable ? undefined : 'hidden' }}
       >
         {/* 上グラバー（下へ引くと閉じるハンドル）。PC（中央モーダル）では
             ドラッグクローズ自体が不要なため描画しない。
@@ -169,7 +180,9 @@ export function FullTimetableSheet({
 
           <div style={{ padding: '14px 20px 0' }}>
             {/* ルートトグル（シート内にも置く） */}
-            <RouteToggle route={route} onChange={onChangeRoute} />
+            <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+              <RouteToggle route={route} onChange={next => { if (!saving) onChangeRoute(next) }} />
+            </fieldset>
 
             {/* 日付ピル（種別バッジも同じピルの中に置く） */}
             <div
@@ -219,7 +232,8 @@ export function FullTimetableSheet({
                     </span>
                     <button
                       type="button"
-                      onClick={() => { tapFeedback(8); setSelectMode(false) }}
+                      onClick={() => { if (!saving) { tapFeedback(8); setSelectionKey(null) } }}
+                      disabled={saving}
                       className="text-[calc(12px*var(--font-scale))] font-bold"
                       style={{ color: 'var(--route-accent-fg)', background: 'none', border: 'none', cursor: 'pointer' }}
                     >
@@ -237,7 +251,8 @@ export function FullTimetableSheet({
                         <button
                           key={option}
                           type="button"
-                          onClick={() => { tapFeedback(6); onChangeLead(option) }}
+                          onClick={() => { if (!saving) { tapFeedback(6); onChangeLead(option) } }}
+                          disabled={saving}
                           aria-pressed={active}
                           className="flex-1 rounded-[18px] py-[5px] text-[calc(11.5px*var(--font-scale))] font-bold tabular-nums"
                           style={{
@@ -261,16 +276,18 @@ export function FullTimetableSheet({
               )}
 
               <div style={{ padding: '14px 20px 22px' }}>
-                <TimetableGrid
-                  schedule={schedule}
-                  currentDeparture={currentDeparture}
-                  nowMinutes={nowMinutes}
-                  marked={marked}
-                  selectMode={selectMode}
-                  selected={selected}
-                  onToggle={toggle}
-                  futureBg="var(--bg-card)"
-                />
+                <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+                  <TimetableGrid
+                    schedule={schedule}
+                    currentDeparture={currentDeparture}
+                    nowMinutes={nowMinutes}
+                    marked={marked}
+                    selectMode={selectMode}
+                    selected={selected}
+                    onToggle={toggle}
+                    futureBg="var(--bg-card)"
+                  />
+                </fieldset>
               </div>
 
               <div style={{ padding: '0 20px 24px' }}>
@@ -318,17 +335,19 @@ export function FullTimetableSheet({
                   <button
                     type="button"
                     onClick={enterSelectMode}
-                    disabled={reminderLoadState !== 'ok'}
+                    disabled={saving || reminderLoadState !== 'ok'}
                     className="w-full rounded-[12px] py-[10px] text-[calc(12px*var(--font-scale))] font-bold flex items-center justify-center gap-1.5"
                     style={{
                       background: 'transparent',
                       color: 'var(--text-secondary)',
                       border: '1px dashed var(--chip-border)',
-                      cursor: reminderLoadState === 'ok' ? 'pointer' : 'default',
-                      opacity: reminderLoadState === 'ok' ? 1 : 0.6,
+                      cursor: !saving && reminderLoadState === 'ok' ? 'pointer' : 'default',
+                      opacity: !saving && reminderLoadState === 'ok' ? 1 : 0.6,
                     }}
                   >
-                    {reminderLoadState === 'loading' ? (
+                    {saving ? (
+                      '保存中...'
+                    ) : reminderLoadState === 'loading' ? (
                       '設定を読み込み中...'
                     ) : (
                       <>

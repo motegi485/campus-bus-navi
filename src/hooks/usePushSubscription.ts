@@ -92,19 +92,20 @@ export function usePushSubscription() {
 
     setBusy(true)
     try {
-      // 公開鍵はサーバから取る。フロントに焼き込まないので、鍵を差し替えても再ビルドが要らない
-      const keyResponse = await fetch('/api/vapid-key')
-      if (!keyResponse.ok) throw new Error('サーバから鍵を取得できませんでした')
-      const { publicKey } = (await keyResponse.json()) as { publicKey?: string }
-      if (!publicKey) throw new Error('サーバに鍵が設定されていません')
-
-      // ここが唯一の許可要求
+      // iOS は許可要求が直接のユーザー操作に続く必要がある。
+      // 鍵の通信待ちで操作の有効期間を失う前に要求する。
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') {
         setStatus(permission === 'denied' ? 'denied' : 'idle')
         setError('通知が許可されませんでした')
         return
       }
+
+      // 公開鍵はサーバから取る。フロントに焼き込まないので、鍵を差し替えても再ビルドが要らない
+      const keyResponse = await fetch('/api/vapid-key')
+      if (!keyResponse.ok) throw new Error('サーバから鍵を取得できませんでした')
+      const { publicKey } = (await keyResponse.json()) as { publicKey?: string }
+      if (!publicKey) throw new Error('サーバに鍵が設定されていません')
 
       const registration = await navigator.serviceWorker.ready
       const created = await registration.pushManager.subscribe({
@@ -160,7 +161,7 @@ export function usePushSubscription() {
         })
         // fetch は 4xx / 5xx では reject しない。ok を見ずに端末だけ解除すると、
         // 画面は「オフ」なのに D1 に購読とリマインドが残り、README の
-        // 「オフにすると預かっている情報はすべて削除されます」と食い違う
+        // 「購読情報と便の予約をサーバーから削除します」と食い違う
         if (!response.ok) throw new Error(await readError(response))
         await existing.unsubscribe()
       }
