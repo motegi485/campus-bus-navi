@@ -70,6 +70,7 @@ function oneLine(value: string): string {
 }
 
 const BODY_ESCAPES: Record<string, string> = {
+  '\\': '\\\\',
   '&': '&amp;',
   '<': '&lt;',
   '>': '&gt;',
@@ -82,11 +83,12 @@ const BODY_ESCAPES: Record<string, string> = {
 /**
  * 本文へ埋める文字列の共通エスケープ（外部由来の文字列と、`_` を含む時刻表 ID・ファイル名）。
  * 改行を畳み、HTML として解釈される `& < >`、Markdown のリンク記法になる `[ ]`、
- * 強調記法になる `_ *` を逃がす。URL 中の `&` も `&amp;` になるが、HTML として描画されれば
+ * 強調記法になる `_ *` と、これらの escape を相殺しうる元のバックスラッシュを逃がす。
+ * URL 中の `&` も `&amp;` になるが、HTML として描画されれば
  * 元の `&` に戻る。バックスラッシュ escape も HTML 化の時点で消える。
  */
 function escapeExternal(value: string): string {
-  return oneLine(value).replace(/[&<>[\]_*]/g, (c) => BODY_ESCAPES[c] ?? c)
+  return oneLine(value).replace(/[\\&<>[\]_*]/g, (c) => BODY_ESCAPES[c] ?? c)
 }
 
 /** テーブルのセルへ入れる文字列 */

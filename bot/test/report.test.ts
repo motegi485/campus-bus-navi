@@ -133,6 +133,13 @@ describe('外部文字列の HTML / Markdown エスケープ（SEC-20260912-02�
   const HTML = '<img src="https://evil.example/x.png" onerror="alert(1)">'
   const LINK = '[大学ページ](https://evil.example/phish)'
 
+  it('元のバックスラッシュで Markdown のリンク・強調 escape を相殺させない', () => {
+    const message = String.raw`\[大学ページ\](https://evil.example/phish) \_強調\_ \*強調\*`
+    const body = report({ warnings: [{ level: 'warn', code: 'x', message }] })
+    // 元の slash は2つ、角括弧・強調記号の escape は1つ。計3つで記法の復活を防ぐ。
+    expect(body).toContain(String.raw`\\\[大学ページ\\\](https://evil.example/phish) \\\_強調\\\_ \\\*強調\\\*`)
+  })
+
   it('警告文に含まれる HTML タグとリンク記法を逃がす', () => {
     const body = report({
       warnings: [
