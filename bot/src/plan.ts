@@ -5,6 +5,7 @@
  * index.ts（オーケストレータ）と test/integration.test.ts の双方がここを通る。
  */
 
+import { createHash } from 'node:crypto'
 import { assemble } from './assemble.js'
 import { calculateOverrides, eventIdForDate, type CalendarResult } from './calendar.js'
 import { CONFIG } from './config.js'
@@ -286,12 +287,12 @@ export function buildPlan(input: PlanInput): PlanOutput {
     // 1つでも検証に落ちたら、その画像由来のファイルは全部書かない（中途半端な取り込みを避ける）
     if (plans.length !== result.outputs.length) continue
 
-    for (const plan of plans) {
-      filePlans.push(plan)
-      plannedWrites.add(plan.fileName)
-    }
     const newIds = plans.map((p) => p.fileName.replace(/\.json$/, ''))
     if (decision.link.kind !== 'event') {
+      for (const plan of plans) {
+        filePlans.push(plan)
+        plannedWrites.add(plan.fileName)
+      }
       succeeded.set(decision.key, { decision, derived: newIds })
       continue
     }
@@ -305,22 +306,43 @@ export function buildPlan(input: PlanInput): PlanOutput {
     // 猶予で残す日のファイルも、今回読んだ画像の内容で書き直す。旧画像の内容のまま残すと、
     // 後で日付が増えたときにそれが複製元に選ばれ、新しい日に古い時刻を書いてしまう
     const template = plans[0]?.timetable
+    let graceValidationFailed = false
     for (const id of keptIds) {
       if (newIds.includes(id) || !template) continue
       const fileName = `${id}.json`
       const existing = readTimetable(fileName)
       const timetable: Timetable = { ...(JSON.parse(JSON.stringify(template)) as Timetable), id }
       if (existing) timetable.name = existing.name
-      filePlans.push({
+      const prevCounts = existing ? counts(existing) : undefined
+      const validation = validateTimetable(timetable, {
+        fileName,
+        ...(prevCounts ? { prevCounts } : {}),
+        ocrVerified: true,
+      })
+      if (!validation.ok) {
+        graceValidationFailed = true
+        for (const error of validation.errors) {
+          validationFailures.push(`${fileName}: ${error}（元画像: ${decision.imageUrl}）`)
+        }
+        failureReasons.set(decision.key, `${fileName}: ${validation.errors.join(' ')}`)
+        continue
+      }
+      plans.push({
         op: existing ? 'update' : 'create',
         fileName,
         kind: 'event',
         ...(decision.imageUrl ? { sourceUrl: decision.imageUrl } : {}),
         timetable,
-        ...(existing ? { prevTimetable: existing, prevCounts: counts(existing) } : {}),
+        ...(existing ? { prevTimetable: existing } : {}),
+        ...(prevCounts ? { prevCounts } : {}),
         counts: counts(timetable),
       })
-      plannedWrites.add(fileName)
+    }
+    // 猶予日も同じ画像の出力なので、1件でも検証に落ちたら掲示に残る日を含めて書かない。
+    if (graceValidationFailed) continue
+    for (const plan of plans) {
+      filePlans.push(plan)
+      plannedWrites.add(plan.fileName)
     }
     const derived = [...new Set([...newIds, ...keptIds])].sort()
     retiredEventIds.push(
@@ -716,6 +738,18 @@ export function applySpecials(
 ): State {
   const next: State = { ...state }
   const specials: Record<string, StateSpecial> = {}
+  // 従来の日付キーを読み続け、同じ開始日の別掲示だけ URL 由来の接尾辞で区別する。
+  // Calendar は値の期間を使うため、キーの追加形式で優先順位や適用期間は変わらない。
+  const storeSpecial = (entry: StateSpecial, preferredKey?: string): void => {
+    let key = preferredKey ?? entry.period.start
+    if (specials[key] && specials[key]!.url !== entry.url) {
+      const suffix = createHash('sha256').update(entry.url).digest('hex').slice(0, 16)
+      const base = `${entry.period.start}:${suffix}`
+      key = base
+      for (let i = 1; specials[key] && specials[key]!.url !== entry.url; i++) key = `${base}:${i}`
+    }
+    specials[key] = entry
+  }
   /** 今回 needs_review として処理した URL。前回エントリの「置き換え済み」判定に使う */
   const reviewedUrls = new Set(links.map((link) => link.url))
 
@@ -752,15 +786,16 @@ export function applySpecials(
       continue
     }
 
-    const prev = state.specials?.[link.start]
-    specials[link.start] = {
+    const previous = Object.entries(state.specials ?? {}).find(([, entry]) => entry.url === link.url)
+    const prev = previous?.[1]
+    storeSpecial({
       url: link.url,
       line: link.normalizedLine,
       period: { start: link.start, end: link.end },
       reason: link.reason ?? '',
       // 掲示が変わっていなければ前回値を保つ（同じ日に2回実行しても state が変わらないように）
-      processed_at: prev && prev.url === link.url ? prev.processed_at : runAt,
-    }
+      processed_at: prev?.period.start === link.start ? prev.processed_at : runAt,
+    }, prev?.period.start === link.start ? previous?.[0] : undefined)
 
     warnings.push({
       level: 'warn',
@@ -778,12 +813,11 @@ export function applySpecials(
   for (const [start, prev] of Object.entries(state.specials ?? {})) {
     if (reviewedUrls.has(prev.url)) continue // 1. 今回の needs_review で置き換え済み
     if (isBefore(prev.period.end, today)) continue // 2. 期間終了
-    if (start in specials) continue // 別の掲示が同じ開始日を取った（今回の結果を優先）
 
     const period = `${prev.period.start}〜${prev.period.end}`
     if (options.extractionHealthy === false) {
       // 3. 抽出失敗。掲示が消えたのか判定できないので消さない
-      specials[start] = prev
+      storeSpecial(prev, start)
       warnings.push({
         level: 'info',
         code: 'special_kept_unverified',
@@ -799,7 +833,7 @@ export function applySpecials(
     if (!options.presentUrls) continue // 掲示の有無を判定する材料が無い → 従来どおり置き換え
 
     // 6. 別の種別に分類されたが取り込めなかった。保護を外すと通常/休暇ダイヤを出してしまう
-    specials[start] = prev
+    storeSpecial(prev, start)
     warnings.push({
       level: 'warn',
       code: 'special_kept_unreplaced',

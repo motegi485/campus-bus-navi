@@ -216,7 +216,8 @@ export interface State {
   events?: Record<string, StateEvent>
   /**
    * 読み取れなかった掲示（needs_review）のうち、期間が判明しているもの。
-   * キーは期間の開始日。calculateOverrides がここから timetable_special の override を張る。
+   * キーは期間の開始日。同じ開始日の別掲示には URL 由来の接尾辞を付けて衝突を避ける。
+   * calculateOverrides は各値の期間から timetable_special の override を張る。
    * 掲示がページから消えればこの記録も消え、override も自動で外れる。
    * ただし、同じ掲示が別の種別に分類し直されたのに取り込みに失敗した実行と、
    * ページからリンクを 1 件も抽出できなかった実行では前回の記録を維持する

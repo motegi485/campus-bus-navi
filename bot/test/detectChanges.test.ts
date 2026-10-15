@@ -79,6 +79,52 @@ function imageResponse(body: Buffer, headers: Record<string, string> = {}): Resp
   })
 }
 
+describe('イベント掲示の衝突は取得前に保留する', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  function event(dates: string[], file: string): ClassifiedLink {
+    const url = `https://www.fukuyama-u.ac.jp/${file}.jpg`
+    return { ...regularLink(), url, rawHref: url, kind: 'event', dates, label: file }
+  }
+
+  it.each([
+    [['2026-08-23', '2026-08-24'], ['2026-08-23']],
+    [['2026-08-23', '2026-08-24'], ['2026-08-24']],
+    // 先頭日が過去でも、同じ論理キーだと OCR の Map が衝突する。
+    [['2026-07-20', '2026-08-23'], ['2026-07-20', '2026-08-24']],
+  ])('同じ論理キーか未来日を共有する別画像は双方とも読まない: %j / %j', async (datesA, datesB) => {
+    const calls = stubFetch(() => { throw new Error('衝突した画像は取得しない') })
+    const { decisions, warnings } = await detectChanges([event(datesA, 'a'), event(datesB, 'b')], { version: 1 }, TODAY)
+
+    expect(calls).toHaveLength(0)
+    expect(decisions).toHaveLength(2)
+    expect(decisions.every((decision) => decision.action === 'skip' && decision.failure?.code === 'conflict')).toBe(true)
+    expect(warnings.filter((warning) => warning.code === 'event_conflict')).toHaveLength(2)
+  })
+
+  it('過去日だけの重複では、論理キーが違う掲示の将来分を保留しない', async () => {
+    const calls = stubFetch(() => imageResponse(jpeg(0xe0)))
+    const { decisions } = await detectChanges([
+      event(['2026-07-20', '2026-07-21', '2026-08-23'], 'a'),
+      event(['2026-07-21', '2026-08-24'], 'b'),
+    ], { version: 1 }, TODAY)
+
+    expect(calls).toHaveLength(2)
+    expect(decisions.every((decision) => decision.action === 'ocr')).toBe(true)
+  })
+
+  it('通常ダイヤとイベントの開始日が同じでも、従来どおり取り込む', async () => {
+    const calls = stubFetch(() => imageResponse(jpeg(0xe0)))
+    const { decisions, warnings } = await detectChanges([
+      { ...regularLink(), start: TODAY }, event([TODAY], 'a'),
+    ], { version: 1 }, TODAY)
+
+    expect(calls).toHaveLength(2)
+    expect(decisions.every((decision) => decision.action === 'ocr')).toBe(true)
+    expect(warnings.map((warning) => warning.code)).not.toContain('event_conflict')
+  })
+})
+
 describe('同一 URL の再検証（S2-BOT-01）', () => {
   afterEach(() => {
     vi.unstubAllGlobals()

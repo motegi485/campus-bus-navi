@@ -23,6 +23,133 @@ const TODAY = '2026-08-01'
 const RUN_AT = '2026-08-01T07:00:00+09:00'
 const EVENT_URL = 'https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/07/0823.jpg'
 
+describe('公開前監査: 衝突・期間保護・猶予日の検証', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('衝突した全画像の未来日を特別ダイヤにし、既存stateと手動overrideを保つ', async () => {
+    const fetchStub = vi.fn().mockRejectedValue(new Error('衝突時は外部取得しない'))
+    vi.stubGlobal('fetch', fetchStub)
+    const first = eventLink(['2026-08-23', '2026-08-24'])
+    const second = { ...eventLink(['2026-08-23']), url: `${EVENT_URL}?other=1`, rawHref: `${EVENT_URL}?other=1` }
+    const state = stateWithEvent(first.dates!, ['timetable_event_20260823', 'timetable_event_20260824'], 2)
+    const detected = await detectChanges([first, second], state, TODAY)
+    expect(fetchStub).not.toHaveBeenCalled()
+    const planned = buildPlan({
+      decisions: detected.decisions,
+      intermediates: new Map(),
+      state,
+      liveOverrides: { ...state.managed_overrides!.event, '2026-08-24': 'timetable_closed' },
+      holidays: [], today: TODAY, runAt: RUN_AT,
+      presentUrls: new Set([first.url, second.url]),
+      readTimetable: () => null,
+      timetableExists: () => true,
+    })
+
+    expect(planned.filePlans).toEqual([])
+    expect(planned.calendar.nextOverrides['2026-08-23']).toBe('timetable_special')
+    expect(planned.calendar.nextOverrides['2026-08-24']).toBe('timetable_closed')
+    expect(planned.failedEvents[0]!.dates).toEqual(['2026-08-23', '2026-08-24'])
+    expect(planned.nextState.events!['2026-08-23']!.sha256).toBe('sha-event')
+    expect(planned.nextState.events!['2026-08-23']!.missing_count).toBeUndefined()
+  })
+
+  function review(url: string, end: string): ClassifiedLink {
+    return {
+      ...eventLink([]), url, rawHref: url, kind: 'needs_review',
+      start: '2026-08-08', end, reason: '読めない掲示',
+    }
+  }
+
+  function specialPlan(links: ClassifiedLink[], state: State = { version: 1 }, options: Partial<PlanInput> = {}) {
+    return buildPlan({
+      decisions: [], intermediates: new Map(), needsReviewLinks: links, state,
+      liveOverrides: { ...state.managed_overrides?.special }, holidays: [], today: TODAY, runAt: RUN_AT,
+      presentUrls: new Set(links.map((link) => link.url)),
+      readTimetable: () => null, timetableExists: (file) => file === 'timetable_special.json',
+      ...options,
+    })
+  }
+
+  it('同じ開始日の別掲示を両方保持し、長い期間の末尾まで保護する', () => {
+    const links = [review(`${EVENT_URL}?a`, '2026-08-19'), review(`${EVENT_URL}?b`, '2026-08-17')]
+    const planned = specialPlan(links)
+
+    expect(Object.values(planned.nextState.specials!)).toHaveLength(2)
+    expect(planned.nextState.specials!['2026-08-08']!.url).toBe(links[0]!.url)
+    expect(planned.calendar.nextOverrides['2026-08-19']).toBe('timetable_special')
+    // 並びが逆になっても、各URLの既存キーと処理日時を保つ。
+    const repeated = specialPlan([...links].reverse(), planned.nextState, { runAt: '2026-08-02T07:00:00+09:00' })
+    expect(repeated.nextState.specials).toEqual(planned.nextState.specials)
+  })
+
+  it('同じ開始日の新掲示があっても、取り込めない前回掲示の保護を落とさない', () => {
+    const long = review(`${EVENT_URL}?a`, '2026-08-19')
+    const short = review(`${EVENT_URL}?b`, '2026-08-17')
+    const previous = specialPlan([long]).nextState
+    const planned = specialPlan([short], previous, { presentUrls: new Set([long.url, short.url]) })
+
+    expect(Object.values(planned.nextState.specials!)).toHaveLength(2)
+    expect(planned.calendar.nextOverrides['2026-08-19']).toBe('timetable_special')
+    expect(planned.warnings).toContainEqual(expect.objectContaining({ code: 'special_kept_unreplaced', url: long.url }))
+  })
+
+  it('複合キーの掲示もURL単位で期間を更新し、消えた掲示だけを撤去する', () => {
+    const long = review(`${EVENT_URL}?a`, '2026-08-19')
+    const short = review(`${EVENT_URL}?b`, '2026-08-17')
+    const previous = specialPlan([long, short]).nextState
+    const updated = { ...short, start: '2026-08-09', end: '2026-08-20' }
+    const planned = specialPlan([updated], previous)
+
+    expect(Object.values(planned.nextState.specials!)).toHaveLength(1)
+    expect(planned.nextState.specials!['2026-08-09']!.url).toBe(short.url)
+    expect(planned.calendar.nextOverrides['2026-08-08']).toBeUndefined()
+    expect(planned.calendar.nextOverrides['2026-08-20']).toBe('timetable_special')
+  })
+
+  it('抽出失敗時は同じ開始日の全掲示を維持する', () => {
+    const previous = specialPlan([review(`${EVENT_URL}?a`, '2026-08-19'), review(`${EVENT_URL}?b`, '2026-08-17')]).nextState
+    const planned = specialPlan([], previous, { extractionHealthy: false })
+    expect(planned.nextState.specials).toEqual(previous.specials)
+    expect(planned.calendar.nextOverrides['2026-08-19']).toBe('timetable_special')
+  })
+
+  it.each([[4, false], [5, true], [15, true], [16, false]])(
+    '猶予日の便数10→%iも±50%%で検証し、画像全体の採否を揃える', (nextCount, accepted) => {
+      const dates = ['2026-08-23', '2026-08-24']
+      const state = stateWithEvent(dates, dates.map((date) => `timetable_event_${date.replace(/-/g, '')}`))
+      const withCount = (id: string, count: number): Timetable => {
+        const table = eventTimetable(id)
+        for (const route of Object.values(table.routes)) {
+          route.schedule = Array.from({ length: count }, (_, i) => ({
+            departure: `08:${String(i).padStart(2, '0')}`, note: i === count - 1 ? '最終' : '',
+          }))
+        }
+        return table
+      }
+      const tables: Record<string, Timetable> = {
+        'timetable_event_20260823.json': withCount('timetable_event_20260823', nextCount),
+        'timetable_event_20260824.json': withCount('timetable_event_20260824', 10),
+      }
+      const rows = [{ hour: 8, minutes: Array.from({ length: nextCount }, (_, i) => i) }]
+      const decision: ChangeDecision = {
+        key: 'event:2026-08-23', link: eventLink(['2026-08-23']), action: 'ocr', reason: '画像変更',
+        sha256: 'new-sha', imageUrl: EVENT_URL, stateKeys: ['2026-08-23'],
+      }
+      const planned = buildPlan({
+        decisions: [decision], intermediates: new Map([[decision.key, { day_types: [{ label: 'OC', matsunaga: rows, university: rows }] }]]),
+        state, liveOverrides: { ...state.managed_overrides!.event }, holidays: [], today: TODAY, runAt: RUN_AT,
+        readTimetable: (file) => tables[file] ?? null,
+        timetableExists: (file) => file in tables || file === 'timetable_special.json',
+      })
+
+      expect(planned.filePlans).toHaveLength(accepted ? 2 : 0)
+      expect(planned.validationFailures.length > 0).toBe(!accepted)
+      expect(planned.nextState.events!['2026-08-23']!.sha256).toBe(accepted ? 'new-sha' : 'sha-event')
+      if (!accepted) expect(planned.calendar.nextOverrides['2026-08-23']).toBe('timetable_special')
+    },
+  )
+})
+
 function eventTimetable(id: string): Timetable {
   const route = (origin: string, destination: string) => ({
     origin,

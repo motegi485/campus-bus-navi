@@ -17,7 +17,7 @@ import type { ClassifiedLink, Season, State, StateFetchCheck, StateVacation, War
  * retry=false は画像の内容による拒否で、同じ内容の間は読み直さない。
  */
 export interface DecisionFailure {
-  code: 'fetch_failed' | 'fetch_deferred' | 'rejected'
+  code: 'fetch_failed' | 'fetch_deferred' | 'rejected' | 'conflict'
   retry: boolean
 }
 
@@ -342,6 +342,33 @@ export async function detectChanges(
   if (chosenRegular) targets.push(chosenRegular)
   targets.push(...links.filter((l) => l.kind === 'vacation' || l.kind === 'event'))
 
+  // 別画像が同じ論理キー・適用日を共有すると、OCR の Map や出力ファイルが衝突する。
+  // 優先する掲示を推測せず、関係する画像を丸ごと保留して全未来日を特別ダイヤにする。
+  const eventGroups = new Map<string, ClassifiedLink[]>()
+  for (const link of targets) {
+    if (link.kind !== 'event') continue
+    const futureDates = (link.dates ?? []).filter((date) => !isBefore(date, today))
+    if (futureDates.length === 0) continue
+    const groupKeys = new Set([`key:${logicalKey(link)}`, ...futureDates.map((date) => `date:${date}`)])
+    for (const groupKey of groupKeys) {
+      const group = eventGroups.get(groupKey) ?? []
+      group.push(link)
+      eventGroups.set(groupKey, group)
+    }
+  }
+  const conflictingEvents = new Map<string, Set<string>>()
+  for (const [groupKey, group] of eventGroups) {
+    if (new Set(group.map((link) => link.url)).size < 2) continue
+    const reason = groupKey.startsWith('date:')
+      ? `適用日 ${groupKey.slice(5)}`
+      : `論理キー ${groupKey.slice(4)}`
+    for (const link of group) {
+      const reasons = conflictingEvents.get(link.url) ?? new Set<string>()
+      reasons.add(reason)
+      conflictingEvents.set(link.url, reasons)
+    }
+  }
+
   const seenSeasons = new Set<Season>()
 
   /** 内容を理由に拒否した記録（event のみ。regular / vacation は拒否しない） */
@@ -414,6 +441,15 @@ export async function detectChanges(
           message: `複数日イベントのうち過去日はスキップしました（スキップ: ${past.join(', ')} / 取込: ${effectiveDates.join(', ')}）。`,
           url: link.url,
         })
+      }
+      const conflicts = conflictingEvents.get(link.url)
+      if (conflicts) {
+        const reason =
+          `別のイベント画像と ${[...conflicts].join('・')} が重複しています。` +
+          '掲示の優先順位を決められないため、この画像の今日以降の適用日をすべて特別ダイヤにして取り込みを保留します。'
+        warnings.push({ level: 'warn', code: 'event_conflict', message: reason, url: link.url })
+        decisions.push({ key, link, action: 'skip', reason, failure: { code: 'conflict', retry: true }, effectiveDates })
+        continue
       }
     }
 
