@@ -21,3 +21,10 @@ VAPID_PUBLIC_KEY = "BLRMuFokCo7G7eGZDlcNt_juDny8UYxxASkVOspnYxcEy0FUGrKnKWpGIBxL
 binding = "DB"
 database_name = "campus-bus-navi"
 database_id = "51b085a4-cc14-4a84-a346-69cfc27909d4"
+
+# Pages は native RateLimit binding 非対応のため、既存通知 Worker の専用 RPC を呼ぶ。
+# named entrypoint に限定し、Worker の公開 fetch や Cron へ API 本文を転送しない。
+[[services]]
+binding = "API_RATE_LIMITER"
+service = "campus-bus-navi-push"
+entrypoint = "ApiRateLimiter"

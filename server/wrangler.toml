@@ -33,3 +33,16 @@ class_name = "ReminderSender"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ReminderSender"]
+
+# IP を共有する学内・携帯回線を考慮した暫定値。拒否数を観測して運用で調整する。
+# namespace_id は SHA-256("campus-bus-navi:api:<all|mutation>") の先頭32bit + 1。
+# 同じアカウント内の別用途との衝突がないことを本番反映前に確認する。
+[[ratelimits]]
+name = "API_RATE_LIMIT"
+namespace_id = "2659274278"
+simple = { limit = 600, period = 60 }
+
+[[ratelimits]]
+name = "API_MUTATION_RATE_LIMIT"
+namespace_id = "1076940132"
+simple = { limit = 300, period = 60 }

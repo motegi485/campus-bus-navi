@@ -23,6 +23,7 @@ import { toReminderRow } from './subscription.js'
 import type { CalendarRules, Timetable } from '../../src/types/timetable'
 
 export { ReminderSender } from './sender.js'
+export { ApiRateLimiter } from './apiRateLimit.js'
 
 export interface Env {
   DB: D1Database
