@@ -59,6 +59,22 @@ describe('isValidEndpoint', () => {
   it('fragment つきの URL を拒否する（同一宛先への増幅を防ぐ）', () => {
     expect(isValidEndpoint(`${FCM}#a`)).toBe(false)
     expect(isValidEndpoint(`${FCM}#b`)).toBe(false)
+    expect(isValidEndpoint(`${FCM}#`)).toBe(false)
+  })
+
+  it('同じ Request URL になる別表記を拒否する（購読 ID の増幅を防ぐ）', () => {
+    for (const endpoint of [
+      ` ${FCM}`, `${FCM} `, FCM.replace('https:', 'HTTPS:'),
+      FCM.replace('fcm.googleapis.com', 'FCM.GOOGLEAPIS.COM'),
+      FCM.replace('fcm.googleapis.com', 'fcm.googleapis.com:443'),
+    ]) {
+      expect(new Request(endpoint).url).toBe(FCM)
+      expect(isValidEndpoint(endpoint), endpoint).toBe(false)
+    }
+  })
+
+  it('許可ホストでも非標準ポートには送信させない', () => {
+    expect(isValidEndpoint(FCM.replace('fcm.googleapis.com', 'fcm.googleapis.com:8443'))).toBe(false)
   })
 
   it('IP リテラルを拒否する', () => {

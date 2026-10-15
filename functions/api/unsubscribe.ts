@@ -13,26 +13,16 @@
  */
 
 import { isValidEndpoint, subscriptionId } from '../../server/src/subscription.js'
+import { privateJson as json, readMutationJson } from '../../server/src/apiRequest.js'
 
 interface Env {
   DB: D1Database
 }
 
-const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' }
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS })
-}
-
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  let payload: { endpoint?: unknown }
-  try {
-    payload = (await request.json()) as { endpoint?: unknown }
-  } catch {
-    return json({ error: 'JSON を解釈できませんでした' }, 400)
-  }
-
-  const endpoint = payload.endpoint
+  const payload = await readMutationJson(request)
+  if (!payload.ok) return payload.response
+  const endpoint = payload.value.endpoint
   if (!isValidEndpoint(endpoint)) return json({ error: 'endpoint が不正です' }, 400)
 
   try {

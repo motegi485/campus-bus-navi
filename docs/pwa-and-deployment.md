@@ -134,6 +134,10 @@ Cache API はクエリ文字列を既定では無視しません。したがっ�
 
 サーバーの `no-store` と、Service Worker が保持するオフライン用キャッシュは別の層です。オンラインでは NetworkFirst で最新取得を優先し、通信失敗または低速時は端末内にある前回取得分を使います。
 
+全静的レスポンスに `X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`、`X-Frame-Options: DENY` を設定します。CSP は `frame-ancestors 'none'; base-uri 'self'; object-src 'none'` により、他サイトへのアプリ埋め込み、外部の基準 URL、プラグイン埋め込みを禁止します。スクリプトの全面的な許可リストではなく、既存の Google Fonts・地図・Analytics と React のインラインスタイルは妨げません。XSS 全般をこの CSP だけで防げるという意味ではありません。
+
+`_headers` は Pages Functions が生成する API 応答へ適用されません。端末の購読・予約 API の `no-store` と `nosniff` は API 自身が設定します（[Cloudflare 公式](https://developers.cloudflare.com/pages/configuration/headers/)）。本番のヘッダー反映はデプロイ後に別途確認します。
+
 `_headers` は `Date` レスポンスヘッダを落としていません。アプリはこのヘッダを「本文が実際にサーバから返ってきた時刻」として読み、鮮度表示の根拠にします。Cache API はレスポンスをヘッダごと保存するため、キャッシュから返った場合も取得当時の値が残ります。`Date` を落とす設定を足すと、鮮度表示は `navigator.onLine` と localStorage によるフォールバック経路へ落ち、精度が下がります。理由は [design-decisions.md](design-decisions.md) を参照してください。
 
 ## 外部リソース

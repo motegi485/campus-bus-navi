@@ -56,7 +56,7 @@ function isNonEmptyString(value: unknown): value is string {
  *     「別 ID・同一宛先」の行を無限に作れる（同じ宛先への送信を増幅できる）
  */
 export function isValidEndpoint(value: unknown): value is string {
-  if (!isNonEmptyString(value) || value.length > 2048) return false
+  if (!isNonEmptyString(value) || value.length > 2048 || value.includes('#')) return false
   let url: URL
   try {
     url = new URL(value)
@@ -64,6 +64,9 @@ export function isValidEndpoint(value: unknown): value is string {
     return false
   }
   if (url.protocol !== 'https:') return false
+  // ブラウザが発行する正規化済みの URL 表記だけを受け付け、空白・大文字ホスト・既定ポート等による
+  // 「別 ID・同一送信先」を防ぐ。非標準ポートへの外向き通信も許可しない。
+  if (url.href !== value || url.port !== '') return false
   if (url.username !== '' || url.password !== '') return false
   if (url.hash !== '') return false
   if (isIpLiteral(url.hostname)) return false

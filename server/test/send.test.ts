@@ -55,6 +55,7 @@ describe('sendPush', () => {
     expect(calls[0].url).toBe(ENDPOINT)
     expect(calls[0].init.method).toBe('POST')
     expect(calls[0].init.body).toBeUndefined()
+    expect(calls[0].init.redirect).toBe('manual')
 
     const headers = calls[0].init.headers as Record<string, string>
     expect(headers.Authorization).toMatch(/^vapid t=/)
@@ -71,6 +72,14 @@ describe('sendPush', () => {
   it('404 Not Found も失効として扱う', async () => {
     stubFetch(new Response(null, { status: 404 }))
     expect(await sendPush({ endpoint: ENDPOINT, signer, nowSeconds: NOW })).toEqual({ status: 'expired', code: 404 })
+  })
+
+  it('リダイレクトは送信成功にせず、認可ヘッダを別ホストへ転送しない', async () => {
+    const calls = stubFetch(new Response(null, { status: 307, headers: { Location: 'https://other.example.test/' } }))
+    const result = await sendPush({ endpoint: ENDPOINT, signer, nowSeconds: NOW })
+    expect(result).toEqual({ status: 'failed', code: 307, detail: '' })
+    expect(calls).toHaveLength(1)
+    expect(calls[0].init.redirect).toBe('manual')
   })
 
   it('429 は絞られただけなので購読を消さない', async () => {
