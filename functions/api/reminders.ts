@@ -21,34 +21,25 @@
 
 import {
   isValidDateKey,
+  isValidEndpoint,
   parseReminderRequest,
   reminderId,
   subscriptionId,
 } from '../../server/src/subscription.js'
 import { notifyAtEpochMs, toJst } from '../../server/src/schedule.js'
+import { privateJson as json, readMutationJson } from '../../server/src/apiRequest.js'
 
 interface Env {
   DB: D1Database
 }
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-  })
-}
-
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  let payload: unknown
-  try {
-    payload = await request.json()
-  } catch {
-    return json({ error: 'JSON を解釈できませんでした' }, 400)
-  }
+  const payload = await readMutationJson(request)
+  if (!payload.ok) return payload.response
 
   // 受理するのは JST の当日ぶんだけ。判定はサーバ側の時計で行い、クライアントを信じない
   const today = toJst(Date.now()).dateKey
-  const parsed = parseReminderRequest(payload, today)
+  const parsed = parseReminderRequest(payload.value, today)
   // 日付が変わった直後の取りこぼしをクライアントが判別できるよう、サーバの当日を返す
   if (!parsed.ok) return json({ error: parsed.error, today }, 400)
   const { endpoint, dateKey, route, departures, leadMinutes } = parsed.value
@@ -121,6 +112,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   // endpoint はクエリ文字列に載せない方針もあるが、GET で本文は送れず、
   // 同一オリジンかつログに残るのは Cloudflare 側のみなので許容する
   if (!endpoint || !dateKey) return json({ error: 'endpoint と dateKey が必要です' }, 400)
+  if (!isValidEndpoint(endpoint)) return json({ error: 'endpoint が不正です' }, 400)
   // 読み取りなので当日縛りは掛けないが、書式・実在日は POST と同じ規則で検査する
   if (!isValidDateKey(dateKey)) {
     return json({ error: 'dateKey は実在する "YYYY-MM-DD" でなければなりません' }, 400)

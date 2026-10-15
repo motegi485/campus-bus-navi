@@ -15,16 +15,10 @@
  */
 
 import { toJst } from '../../server/src/schedule.js'
+import { privateJson as json } from '../../server/src/apiRequest.js'
 
 interface Env {
   DB: D1Database
-}
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body, null, 2), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
-  })
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {

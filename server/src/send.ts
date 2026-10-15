@@ -53,7 +53,8 @@ export async function sendPush(params: {
 
   let response: Response
   try {
-    response = await fetch(endpoint, { method: 'POST', headers })
+    // Workers は追従先が別ホストでも Authorization を転送するため、許可した宛先から出ない。
+    response = await fetch(endpoint, { method: 'POST', headers, redirect: 'manual' })
   } catch (e) {
     // ネットワーク層の失敗（DNS・TLS・タイムアウト）。購読は消さない
     return { status: 'failed', code: 0, detail: e instanceof Error ? e.message : String(e) }
