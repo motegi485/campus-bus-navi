@@ -7,7 +7,7 @@
 - 応答は日本語で行う。コード内のコメントも日本語でよい（識別子は英語）。
 - OS は Windows 11、シェルは PowerShell。コマンドは PowerShell 互換で記述・実行し、環境変数には `$env:NAME` を使う。
 - 改行コードは LF に統一する。`.gitattributes` がある場合はそれに従う。
-- Node.js 20 以上を前提とする。Bot の CI は Node.js 22 を使う。
+- Node.js は 22.12 以上の 22 系、24 系、または 26 系以降を使う（Vitest 5 / Vite 7 の要件）。既定は `.node-version` の 22 系で、Bot の CI も Node.js 22 を使う。
 
 ## 作業前に読む文書
 
