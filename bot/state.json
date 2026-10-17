@@ -11,7 +11,7 @@
     "processed_at": "2026-09-25T09:25:38+09:00",
     "etag": "\"a2ed3-65ba846b8b64f\"",
     "last_modified": "Thu, 17 Sep 2026 06:55:59 GMT",
-    "checked_at": "2026-10-16"
+    "checked_at": "2026-10-17"
   },
   "vacations": {
     "summer": {
@@ -47,7 +47,7 @@
       "processed_at": "2026-10-03T10:02:25+09:00",
       "etag": "\"72645-65cd57ea439d7\"",
       "last_modified": "Fri, 02 Oct 2026 06:18:02 GMT",
-      "checked_at": "2026-10-16"
+      "checked_at": "2026-10-17"
     },
     "2026-10-19": {
       "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/2026-1019-724x1024.jpg",
@@ -62,22 +62,7 @@
       "processed_at": "2026-10-05T09:42:14+09:00",
       "etag": "\"5c023-65cd57ee653da\"",
       "last_modified": "Fri, 02 Oct 2026 06:18:07 GMT",
-      "checked_at": "2026-10-16"
-    },
-    "2026-10-16": {
-      "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/2026-1016-724x1024.jpg",
-      "sha256": "5eff3f56662139d23c09b4a1d28bf1edaa51b651ff19bbb09ea295ac368fe85f",
-      "label": "令和8年度後期学長杯争奪競技大会 第52回福山大学三蔵祭 準備日",
-      "dates": [
-        "2026-10-16"
-      ],
-      "derived": [
-        "timetable_event_20261016"
-      ],
-      "processed_at": "2026-10-07T10:23:00+09:00",
-      "etag": "\"5e931-65cd57e5c0551\"",
-      "last_modified": "Fri, 02 Oct 2026 06:17:58 GMT",
-      "checked_at": "2026-10-16"
+      "checked_at": "2026-10-17"
     },
     "2026-10-31": {
       "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/09/公開講座-1-724x1024.jpg",
@@ -92,13 +77,12 @@
       "processed_at": "2026-09-29T10:44:44+09:00",
       "etag": "\"57be2-65c889f18aca5\"",
       "last_modified": "Mon, 28 Sep 2026 10:35:14 GMT",
-      "checked_at": "2026-10-16"
+      "checked_at": "2026-10-17"
     }
   },
   "managed_overrides": {
     "special": {},
     "event": {
-      "2026-10-16": "timetable_event_20261016",
       "2026-10-17": "timetable_event_20261017",
       "2026-10-18": "timetable_event_20261018",
       "2026-10-19": "timetable_event_20261019",
