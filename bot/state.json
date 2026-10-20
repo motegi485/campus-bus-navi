@@ -11,7 +11,7 @@
     "processed_at": "2026-09-25T09:25:38+09:00",
     "etag": "\"a2ed3-65ba846b8b64f\"",
     "last_modified": "Thu, 17 Sep 2026 06:55:59 GMT",
-    "checked_at": "2026-10-19"
+    "checked_at": "2026-10-20"
   },
   "vacations": {
     "summer": {
@@ -32,21 +32,6 @@
     }
   },
   "events": {
-    "2026-10-19": {
-      "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/2026-1019-724x1024.jpg",
-      "sha256": "b327794fd41c3ca1c2eaede81a4bec7c4f1b43a8180d8863ce89986cc3cb0b19",
-      "label": "第52回福山大学三蔵祭 片付け日",
-      "dates": [
-        "2026-10-19"
-      ],
-      "derived": [
-        "timetable_event_20261019"
-      ],
-      "processed_at": "2026-10-05T09:42:14+09:00",
-      "etag": "\"5c023-65cd57ee653da\"",
-      "last_modified": "Fri, 02 Oct 2026 06:18:07 GMT",
-      "checked_at": "2026-10-19"
-    },
     "2026-10-31": {
       "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/09/公開講座-1-724x1024.jpg",
       "sha256": "740bdecaeda7a6f9540e07d7e20653cd151698fe362842bcf5242a47314b1153",
@@ -60,13 +45,12 @@
       "processed_at": "2026-09-29T10:44:44+09:00",
       "etag": "\"57be2-65c889f18aca5\"",
       "last_modified": "Mon, 28 Sep 2026 10:35:14 GMT",
-      "checked_at": "2026-10-19"
+      "checked_at": "2026-10-20"
     }
   },
   "managed_overrides": {
     "special": {},
     "event": {
-      "2026-10-19": "timetable_event_20261019",
       "2026-10-31": "timetable_event_20261031"
     },
     "vacation": {},
