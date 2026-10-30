@@ -11,7 +11,7 @@
     "processed_at": "2026-09-25T09:25:38+09:00",
     "etag": "\"a2ed3-65ba846b8b64f\"",
     "last_modified": "Thu, 17 Sep 2026 06:55:59 GMT",
-    "checked_at": "2026-10-29"
+    "checked_at": "2026-10-30"
   },
   "vacations": {
     "summer": {
@@ -45,16 +45,31 @@
       "processed_at": "2026-09-29T10:44:44+09:00",
       "etag": "\"57be2-65c889f18aca5\"",
       "last_modified": "Mon, 28 Sep 2026 10:35:14 GMT",
-      "checked_at": "2026-10-29"
+      "checked_at": "2026-10-30"
+    },
+    "2026-11-17": {
+      "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/20261117.1118　公募推薦型選抜A.jpg",
+      "sha256": "476e07cbdd03a1f80100fd4a89f5bb1d4e707db254baec274163dcb49af2ff07",
+      "label": "公募推薦型選抜A 18日",
+      "dates": [
+        "2026-11-17"
+      ],
+      "derived": [
+        "timetable_event_20261117"
+      ],
+      "processed_at": "2026-10-30T10:49:12+09:00",
+      "etag": "\"5bc54-65ed331f32475\"",
+      "last_modified": "Tue, 27 Oct 2026 14:23:49 GMT",
+      "checked_at": "2026-10-30"
     }
   },
   "managed_overrides": {
     "special": {
-      "2026-11-15": "timetable_special",
-      "2026-11-17": "timetable_special"
+      "2026-11-15": "timetable_special"
     },
     "event": {
-      "2026-10-31": "timetable_event_20261031"
+      "2026-10-31": "timetable_event_20261031",
+      "2026-11-17": "timetable_event_20261117"
     },
     "vacation": {},
     "holiday": {
@@ -83,7 +98,7 @@
     "sha256": "cec37a743c96995cdb9cb52b685c9003634682a9b0e1a640a6b9b96881fe964a"
   },
   "ocr_usage": {
-    "date": "2026-10-29",
-    "calls": 5
+    "date": "2026-10-30",
+    "calls": 4
   }
 }
