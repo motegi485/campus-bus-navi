@@ -22,8 +22,8 @@ import { fetchHolidays } from './holidays.js'
 import { detectChanges, sortOcrTargets } from './detectChanges.js'
 import { OcrClient } from './ocr.js'
 import { buildPlan } from './plan.js'
-import { isPastOverrideCleanupOnly } from './calendar.js'
-import { buildReport, formatWarning, linkDates } from './report.js'
+import { botOwnedEventIds, isManualEventDate, isPastOverrideCleanupOnly } from './calendar.js'
+import { buildReport, buildStepSummary, formatWarning, linkDates } from './report.js'
 import {
   readState,
   writeState,
@@ -33,6 +33,7 @@ import {
   deleteTimetableFile,
   writeHolidaysCache,
   writeTextFile,
+  timetableExists,
 } from './files.js'
 import { nowIsoJst, todayJst } from './time.js'
 import type { Intermediate, State, Warning } from './types.js'
@@ -42,9 +43,22 @@ loadLocalEnv()
 const isDryRun = process.env.DRY_RUN === '1'
 const today = todayJst()
 
+/**
+ * ログ 1 件を 1 行に収める。
+ *
+ * 警告や検証失敗の文には、大学ページの URL や OCR のラベルなど外部由来の文字列が入る。
+ * 改行（CR・NEL・U+2028/2029 を含む）が残ると、GitHub Actions は次の行の先頭の `::` を
+ * ワークフローコマンド（`::warning::`、`::add-mask::` など）として解釈し得るため、
+ * 改行と制御文字を空白へ畳む。行頭は呼出し側の `[step]` や `  - ` で始まるので `::` にはならない。
+ */
+function singleLine(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/\r\n|[\r\n\u0085\u2028\u2029]/g, ' ').replace(/[\u0000-\u001f\u007f]/g, ' ')
+}
+
 function log(step: string, message: string, detail?: unknown): void {
   const suffix = detail === undefined ? '' : ` ${JSON.stringify(detail)}`
-  console.log(`[${step}] ${message}${suffix}`)
+  console.log(`[${step}] ${singleLine(message)}${suffix}`)
 }
 
 function summary(lines: string[]): void {
@@ -109,9 +123,12 @@ async function main(): Promise<void> {
   // ---- 5〜6. 変更検知（必要なら画像 DL） --------------------------------
   // 取得フェーズにも締切と件数上限を渡す。無いと遅い応答が並んだだけで
   // 取得だけに実行時間を使い切り、レポートもメールも残さずジョブが強制終了される
+  const ownedEventIds = botOwnedEventIds(state)
   const detected = await detectChanges(classified, state, today, {
     deadlineAt: startedAt + CONFIG.fetchDeadlineMs,
     maxFetches: CONFIG.maxImageFetchesPerRun,
+    // §1.4-4: state に記録の無い（人が手置きした）event ファイルの日は取り込まない（取得も OCR もしない）
+    isManualEventDate: (date) => isManualEventDate(date, ownedEventIds, timetableExists),
   })
   warnings.push(...detected.warnings)
   log(
@@ -287,7 +304,7 @@ async function main(): Promise<void> {
     console.log('\n===== DRY RUN 変更計画 =====')
     console.log(JSON.stringify(summaryData, null, 2))
     console.log('===== ファイルは一切変更していません =====')
-    summary(buildSummaryLines(summaryData))
+    summary(buildStepSummary(summaryData))
     output('report_written', 'false')
     return
   }
@@ -331,7 +348,7 @@ async function main(): Promise<void> {
   writeTextFile(CONFIG.reportPath, body)
   log('report', `${CONFIG.reportPath} を生成しました`)
   output('report_written', 'true')
-  summary(buildSummaryLines(summaryData))
+  summary(buildStepSummary(summaryData))
 
   /**
    * 要手動確認はログにも出す（メールが届かなかったときの二重化）。
@@ -346,43 +363,10 @@ async function main(): Promise<void> {
   if (hasWarn) {
     console.warn('[warn] 要手動確認があります（通知メールの「⚠ 要手動確認」節と同じ内容）:')
     for (const warning of warnings.filter((w) => w.level === 'warn')) {
-      console.warn(`  - ${formatWarning(warning)}`)
+      console.warn(`  - ${singleLine(formatWarning(warning))}`)
     }
-    for (const failure of planned.validationFailures) console.warn(`  - ${failure}`)
+    for (const failure of planned.validationFailures) console.warn(`  - ${singleLine(failure)}`)
   }
-}
-
-function buildSummaryLines(data: {
-  today: string
-  dryRun: boolean
-  links: { line: string; dates: string[]; yearGuessed: boolean }[]
-  files: { op: string; fileName: string }[]
-  overrideChanges: unknown[]
-  deletions: string[]
-  warnings: Warning[]
-  validationFailures: string[]
-}): string[] {
-  const lines = [
-    `## timetable-sync (${data.today})${data.dryRun ? ' — DRY RUN' : ''}`,
-    '',
-    `- 時刻表ファイル: ${data.files.length} 件`,
-    `- overrides 差分: ${data.overrideChanges.length} 件`,
-    `- 削除: ${data.deletions.length} 件`,
-    `- 要手動確認: ${data.validationFailures.length} 件`,
-    `- 警告: ${data.warnings.filter((w) => w.level === 'warn').length} 件`,
-  ]
-  const warns = data.warnings.filter((w) => w.level === 'warn')
-  if (warns.length > 0) {
-    lines.push('', '### ⚠ 警告')
-    for (const warning of warns) lines.push(`- ${formatWarning(warning)}`)
-  }
-  // FR-3: 年を推定した日付は必ず人の目に触れるところへ出す
-  const guessed = data.links.filter((l) => l.yearGuessed)
-  if (guessed.length > 0) {
-    lines.push('', '### 年を推定した日付')
-    for (const link of guessed) lines.push(`- ${link.dates.join(', ') || '-'} ← 「${link.line}」`)
-  }
-  return lines
 }
 
 main().catch((error: unknown) => {

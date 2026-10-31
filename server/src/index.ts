@@ -24,10 +24,17 @@ import type { CalendarRules, Timetable } from '../../src/types/timetable'
 
 export { ReminderSender } from './sender.js'
 export { ApiRateLimiter } from './apiRateLimit.js'
+export { ApiRateLimitShard, ApiDailyMutationBudget } from './apiRateLimitStore.js'
 
 export interface Env {
   DB: D1Database
   SENDER: DurableObjectNamespace
+  /** API レート制限の計数（ApiRateLimiter だけが使う。Cron からは触らない） */
+  API_RATE_SHARDS: DurableObjectNamespace
+  API_DAILY_MUTATIONS: DurableObjectNamespace
+  API_RATE_LIMIT_PER_MINUTE: string
+  API_MUTATION_RATE_LIMIT_PER_MINUTE: string
+  API_MUTATION_DAILY_LIMIT: string
   /** 静的データの取得元。例: https://campus-bus-navi.pages.dev */
   SITE_ORIGIN: string
   VAPID_PUBLIC_KEY: string
@@ -112,6 +119,13 @@ async function run(env: Env): Promise<void> {
     .all()
 
   const reminders = (query.results ?? []).map(r => toReminderRow(r as Record<string, unknown>))
+  // 上限ちょうど引けたときは、notify_at の遅い行が今回の実行から押し出されている可能性がある。
+  // SQL は変えず、`wrangler tail` / Workers Logs で検知できるようにログだけ残す
+  if (reminders.length >= MAX_REMINDERS_PER_RUN) {
+    console.warn(
+      `送信候補が 1 実行の上限 ${MAX_REMINDERS_PER_RUN} 件に達しました。notify_at の遅い行が今回の実行から押し出されている可能性があります`
+    )
+  }
   // 対象が 0 件の分は、ダイヤの取得すらせずに終える（無駄なサブリクエストを出さない）
   if (reminders.length === 0) return
 

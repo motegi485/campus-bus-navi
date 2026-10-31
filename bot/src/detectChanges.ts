@@ -250,6 +250,8 @@ export interface DetectOptions {
   deadlineAt?: number
   /** 1 実行で画像を取得しにいくリンク数の上限。省略すると CONFIG の値 */
   maxFetches?: number
+  /** 人が手置きした event ファイルがある日か（§1.4-4）。その日は取り込み対象から外す */
+  isManualEventDate?: (date: string) => boolean
 }
 
 export async function detectChanges(
@@ -450,6 +452,22 @@ export async function detectChanges(
         warnings.push({ level: 'warn', code: 'event_conflict', message: reason, url: link.url })
         decisions.push({ key, link, action: 'skip', reason, failure: { code: 'conflict', retry: true }, effectiveDates })
         continue
+      }
+      // §1.4-4: state に記録の無い（人が手置きした）event ファイルの日は取り込まない。
+      // 全日が手置きなら画像の取得も OCR もしない（取り込み失敗ではないので failure は付けない）
+      const manual = options.isManualEventDate ? effectiveDates.filter(options.isManualEventDate) : []
+      if (manual.length > 0) {
+        effectiveDates = effectiveDates.filter((d) => !manual.includes(d))
+        if (effectiveDates.length === 0) {
+          decisions.push({
+            key,
+            link,
+            action: 'skip',
+            reason: `今日以降の適用日（${manual.join(', ')}）はすべて人が置いた時刻表ファイルがあるため取り込みません。`,
+            effectiveDates,
+          })
+          continue
+        }
       }
     }
 

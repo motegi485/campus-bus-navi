@@ -25,7 +25,6 @@ describe('isValidEndpoint', () => {
   it('既知の push サービスを受け入れる', () => {
     for (const url of [
       FCM,
-      'https://android.googleapis.com/gcm/send/xyz',
       'https://updates.push.services.mozilla.com/wpush/v2/abc',
       'https://web.push.apple.com/QAbc123',
       'https://par02p.notify.windows.com/w/?token=abc',
@@ -41,6 +40,22 @@ describe('isValidEndpoint', () => {
       // 接尾辞の部分一致で通してはいけない
       'https://evil-fcm.googleapis.com.attacker.test/x',
       'https://notfcm.googleapis.com.example.org/x',
+    ]) {
+      expect(isValidEndpoint(url), url).toBe(false)
+    }
+  })
+
+  // 修正前の攻撃: 接尾辞一致だったので、許可ドメイン配下の任意のサブドメインと旧 GCM を送信先にできた
+  it('許可ホストのサブドメインと旧 GCM（android.googleapis.com）を拒否する', () => {
+    for (const url of [
+      'https://android.googleapis.com/gcm/send/xyz',
+      'https://x.fcm.googleapis.com/fcm/send/x',
+      'https://x.web.push.apple.com/QAbc',
+      'https://push.services.mozilla.com/wpush/v2/abc',
+      'https://other.push.services.mozilla.com/wpush/v2/abc',
+      'https://x.updates.push.services.mozilla.com/wpush/v2/abc',
+      'https://a.b.notify.windows.com/w/?token=abc',
+      'https://notify.windows.com/w/?token=abc',
     ]) {
       expect(isValidEndpoint(url), url).toBe(false)
     }
@@ -92,10 +107,18 @@ describe('isValidEndpoint', () => {
     expect(isValidEndpoint(`${FCM}${'x'.repeat(2048)}`)).toBe(false)
   })
 
-  it('ホスト判定はドット境界で行う', () => {
-    expect(isAllowedPushHost('fcm.googleapis.com')).toBe(true)
-    expect(isAllowedPushHost('a.b.notify.windows.com')).toBe(true)
-    expect(isAllowedPushHost('xfcm.googleapis.com')).toBe(false)
+  it('ホスト判定は完全一致（WNS だけは 1 ラベル）で行う', () => {
+    for (const host of ['fcm.googleapis.com', 'web.push.apple.com', 'updates.push.services.mozilla.com',
+      'par02p.notify.windows.com', 'wns2-by3p.notify.windows.com', `${'a'.repeat(63)}.notify.windows.com`,
+      'FCM.GOOGLEAPIS.COM']) {
+      expect(isAllowedPushHost(host), host).toBe(true)
+    }
+    for (const host of ['xfcm.googleapis.com', 'x.fcm.googleapis.com', 'android.googleapis.com',
+      'push.services.mozilla.com', 'a.b.notify.windows.com', 'notify.windows.com', '.notify.windows.com',
+      'a_b.notify.windows.com', `${'a'.repeat(64)}.notify.windows.com`, 'par02p.notify.windows.com.attacker.test',
+      'fcm.googleapis.com.', '']) {
+      expect(isAllowedPushHost(host), host).toBe(false)
+    }
   })
 })
 

@@ -26,9 +26,11 @@ import {
   reminderId,
   subscriptionId,
 } from '../../server/src/subscription.js'
-import { notifyAtEpochMs, toJst } from '../../server/src/schedule.js'
+import { departuresExistOn, notifyAtEpochMs, toJst } from '../../server/src/schedule.js'
+import { loadTimetableFor } from '../../server/src/timetableSource.js'
 import { privateJson as json, readMutationJson } from '../../server/src/apiRequest.js'
 
+// env.ASSETS（同じデプロイの静的ファイル）は PagesFunction の EventContext が型として持つので、ここには書かない
 interface Env {
   DB: D1Database
 }
@@ -37,12 +39,40 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const payload = await readMutationJson(request)
   if (!payload.ok) return payload.response
 
-  // 受理するのは JST の当日ぶんだけ。判定はサーバ側の時計で行い、クライアントを信じない
-  const today = toJst(Date.now()).dateKey
+  // 受理するのは JST の当日ぶんだけ。判定はサーバ側の時計で行い、クライアントを信じない。
+  // 日付と曜日（ダイヤの解決に使う）は同じ瞬間から取り、0 時をまたぐ競合を避ける
+  const nowJst = toJst(Date.now())
+  const today = nowJst.dateKey
   const parsed = parseReminderRequest(payload.value, today)
   // 日付が変わった直後の取りこぼしをクライアントが判別できるよう、サーバの当日を返す
   if (!parsed.ok) return json({ error: parsed.error, today }, 400)
   const { endpoint, dateKey, route, departures, leadMinutes } = parsed.value
+
+  // 当日の時刻表に実在する便だけを受け付ける（D1 に触れる前に判定する）。
+  // 実在しない便（運休日・特別ダイヤを含む）は selectDue で送られず、sent_at が NULL のまま
+  // 送信窓のあいだ毎分 Cron の SQL に引かれて LIMIT の枠を占めるため。
+  // 時刻の前後は見ない（過去便を含む再保存は従来どおり受理する）。空配列（全解除）は検査しない
+  if (departures.length > 0) {
+    let source: Awaited<ReturnType<typeof loadTimetableFor>>
+    try {
+      source = await loadTimetableFor(env.ASSETS, request.url, nowJst)
+    } catch (e) {
+      // 検査できないときは受理しない（フェイルクローズ）。理由はログにだけ残す
+      console.error('時刻表を確認できませんでした', e)
+      const response = json(
+        { error: '時刻表を確認できないため保存できませんでした。しばらくしてからやり直してください' },
+        503
+      )
+      response.headers.set('Retry-After', '60')
+      return response
+    }
+    if (!departuresExistOn({ ...source, route, departures })) {
+      return json(
+        { error: '本日の時刻表に無い便が含まれています。アプリを再読み込みしてからもう一度お試しください', today },
+        400
+      )
+    }
+  }
 
   try {
     const subId = await subscriptionId(endpoint)

@@ -49,7 +49,7 @@ function isNonEmptyString(value: unknown): value is string {
  *
  * 次をすべて満たすものだけを通す:
  *   - https で、長さが妥当
- *   - ホストが既知の push サービス（pushProviders.ts の許可リスト）
+ *   - ホストが既知の push サービス（pushProviders.ts の許可リスト。完全一致、WNS だけ 1 ラベル）
  *   - IP リテラルでない（許可リストで既に落ちるが、意図を明示する）
  *   - 資格情報（user:pass@）を含まない
  *   - フラグメントを含まない … HTTP 送信時に落ちるため、`#a` と `#b` で

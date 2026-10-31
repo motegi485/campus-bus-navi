@@ -517,6 +517,23 @@ export function classifyLink(link: LinkInfo, today: string = todayJst()): Classi
   // 優先2: イベント（日付が1つ以上あり `～` を含まない）
   if (raws.length >= 1 && !hasTilde) {
     const { dates, yearGuessed } = resolveDates(raws, today)
+    // 適用日の件数・距離の上限。誤読や改ざんされた掲示で大量のファイルと override を作らない。
+    // reviewed() に期間を渡さない ＝ 特別ダイヤも張らない（special_range_too_long と同じ方針）
+    const unique = [...new Set(dates)]
+    if (unique.length > CONFIG.eventMaxDatesPerLink) {
+      return reviewed(
+        `イベントの適用日が ${unique.length} 件あり、上限（${CONFIG.eventMaxDatesPerLink} 件）を超えるため取り込みません。` +
+          `日付の誤読の可能性があります: 「${normalizedLine}」`,
+      )
+    }
+    const limit = parseDate(today).add(CONFIG.eventMaxDaysAhead, 'day')
+    const far = unique.filter((d) => parseDate(d).isAfter(limit, 'day'))
+    if (far.length > 0) {
+      return reviewed(
+        `イベントの適用日 ${far.join(', ')} が今日から ${CONFIG.eventMaxDaysAhead} 日より先のため取り込みません。` +
+          `日付の誤読の可能性があります（正しければ、その日が近づいた実行で取り込みます）: 「${normalizedLine}」`,
+      )
+    }
     return {
       ...base,
       kind: 'event',

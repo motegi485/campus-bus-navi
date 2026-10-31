@@ -7,7 +7,13 @@
 
 import { createHash } from 'node:crypto'
 import { assemble } from './assemble.js'
-import { calculateOverrides, eventIdForDate, type CalendarResult } from './calendar.js'
+import {
+  botOwnedEventIds,
+  calculateOverrides,
+  eventIdForDate,
+  isManualEventDate,
+  type CalendarResult,
+} from './calendar.js'
 import { CONFIG } from './config.js'
 import { pruneEvents, type ChangeDecision } from './detectChanges.js'
 import { readTimetable as readTimetableFromRepo, timetableExists as timetableExistsInRepo } from './files.js'
@@ -189,8 +195,27 @@ export function buildPlan(input: PlanInput): PlanOutput {
   /** 撤去されたイベントの時刻表 ID（override から外れていれば calculateOverrides が削除計画に載せる） */
   const retiredEventIds: string[] = []
 
-  for (const decision of input.decisions) {
+  // §1.4-4: state に記録の無い（人が手置きした）event ファイルの日は、書かない・state に取り込まない。
+  // 適用日から外しておけば、OCR 成功時の書込・猶予日の書き直し・同一画像の複製のどれにも載らない。
+  // detectChanges を通さない呼び出しでも守られるよう、書込み経路の正式なガードはここに置く
+  const ownedEventIds = botOwnedEventIds(input.state)
+  const isManual = (date: string) => isManualEventDate(date, ownedEventIds, timetableExists)
+  /** 手置きファイルがある今日以降の日 → その日を含む掲示の決定 */
+  const manualDates = new Map<string, ChangeDecision>()
+  const decisions = input.decisions.map((d) => {
+    if (d.link.kind !== 'event') return d
+    for (const date of (d.link.dates ?? []).filter((x) => !isBefore(x, input.today) && isManual(x))) {
+      if (!manualDates.has(date)) manualDates.set(date, d)
+    }
+    const dates = d.effectiveDates ?? d.link.dates ?? []
+    const kept = dates.filter((x) => !isManual(x))
+    return kept.length === dates.length ? d : { ...d, effectiveDates: kept }
+  })
+
+  for (const decision of decisions) {
     if (decision.action === 'skip') continue
+    // 今日以降の適用日がすべて手置きファイル（detectChanges を通さない呼び出し向けの保険）
+    if (decision.link.kind === 'event' && decision.effectiveDates?.length === 0) continue
 
     if (decision.action !== 'ocr') {
       // 画像は同一。state のメタだけ更新し、override は既存 derived を使って再計算する。
@@ -403,7 +428,8 @@ export function buildPlan(input: PlanInput): PlanOutput {
     if (d.link.kind !== 'event') continue
     const failed = (d.action === 'ocr' && !succeeded.has(d.key)) || (d.action === 'skip' && d.failure !== undefined)
     if (!failed) continue
-    const dates = (d.link.dates ?? []).filter((date) => !isBefore(date, input.today))
+    // 手置きファイルの日は下の manualDates が扱う（取り込み失敗としては数えない）
+    const dates = (d.link.dates ?? []).filter((date) => !isBefore(date, input.today) && !manualDates.has(date))
     if (dates.length === 0) continue
     failedEvents.push({
       key: d.key,
@@ -422,6 +448,39 @@ export function buildPlan(input: PlanInput): PlanOutput {
     })
   }
 
+  // 手置きファイルの日。人の override（Bot の管理キーでないもの）か人の削除記録があればそれに任せ、
+  // 無ければ特別ダイヤにする（ファイルを置いただけで override が無いと、既定ダイヤが出てしまうため）。
+  // Bot の管理キーかを見ないと、前回 Bot が張った special を人の override と誤認し、日ごとに付け外しが起きる
+  const managedNow = input.state.managed_overrides
+  const isBotKey = (date: string) =>
+    [managedNow?.special, managedNow?.event, managedNow?.vacation, managedNow?.holiday].some(
+      (cat) => cat?.[date] !== undefined && cat[date] === input.liveOverrides[date],
+    )
+  const manualSpecialDates: string[] = []
+  for (const [date, d] of [...manualDates].sort(([a], [b]) => a.localeCompare(b))) {
+    const fileName = `${eventIdForDate(date)}.json`
+    const humanOverride = date in input.liveOverrides && !isBotKey(date)
+    if (humanOverride || input.state.suppressed_overrides?.[date] !== undefined) {
+      warnings.push({
+        level: 'info',
+        code: 'event_manual_file_kept',
+        message: `${date} には人が置いた ${fileName} があるため、Bot は書き込みません（手動の override に任せます）。`,
+        url: d.link.url,
+      })
+      continue
+    }
+    manualSpecialDates.push(date)
+    warnings.push({
+      level: 'warn',
+      code: 'event_manual_file_unreferenced',
+      message:
+        `${date} には state に記録の無い ${fileName}（人が置いたファイル）があるため、Bot は上書きしません。` +
+        'override が無いので、その日は特別ダイヤにします。手置きの時刻表を使うなら calendar_rules.json に手動 override を追加し、' +
+        `Bot に取り込ませるならファイルを削除してください「${d.link.normalizedLine}」`,
+      url: d.link.url,
+    })
+  }
+
   nextState = applyRejectedImages(nextState, input.decisions, newlyRejected, succeeded, input.presentUrls)
   nextState = markPendingReplacements(nextState, input.decisions, succeeded)
 
@@ -433,7 +492,7 @@ export function buildPlan(input: PlanInput): PlanOutput {
     holidays: input.holidays,
     today: input.today,
     retiredEventIds,
-    failedEventDates: failedEvents.flatMap((f) => f.dates),
+    failedEventDates: [...failedEvents.flatMap((f) => f.dates), ...manualSpecialDates],
     timetableExists: (id) => plannedWrites.has(`${id}.json`) || timetableExists(`${id}.json`),
   })
   warnings.push(...calendar.warnings)

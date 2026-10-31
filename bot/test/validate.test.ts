@@ -114,3 +114,52 @@ describe('テスト5: validate（FR-8）', () => {
     expect(validateTimetable(base(), opts).ok).toBe(true)
   })
 })
+
+// zod の版更新で書込み前検証（FR-8 の安全境界）の挙動が変わっていないことを固定する契約テスト。
+// 特殊文字はソース上でエスケープ表記が化けないよう、文字コードから組み立てる。
+describe('zod スキーマの契約（FR-8）', () => {
+  const ch = (code: number) => String.fromCharCode(code)
+
+  it('routes に未知のキーがあると失敗する（strict）', () => {
+    const t = base() as unknown as { routes: Record<string, unknown> }
+    t.routes.extra_route = t.routes.station_to_campus
+    expect(validateTimetable(t as unknown as Timetable, opts).ok).toBe(false)
+  })
+
+  it('schedule が空なら失敗する', () => {
+    const t = base()
+    t.routes.station_to_campus.schedule = []
+    expect(validateTimetable(t, opts).ok).toBe(false)
+  })
+
+  it('座標が数値でなければ失敗する', () => {
+    const t = base() as unknown as { routes: { station_to_campus: { bus_stop_coords: { lat: unknown } } } }
+    t.routes.station_to_campus.bus_stop_coords.lat = '34.4'
+    expect(validateTimetable(t as unknown as Timetable, opts).ok).toBe(false)
+  })
+
+  it('name は 40 文字ちょうどなら通り、41 文字なら失敗する', () => {
+    const ok = base()
+    ok.name = 'あ'.repeat(40)
+    expect(validateTimetable(ok, opts).ok).toBe(true)
+    const ng = base()
+    ng.name = 'あ'.repeat(41)
+    const result = validateTimetable(ng, opts)
+    expect(result.ok).toBe(false)
+    expect(result.errors.join('\n')).toContain('40 文字以内')
+  })
+
+  it.each([
+    ['双方向制御 U+202E', `オープン${ch(0x202e)}キャンパスダイヤ`],
+    ['制御文字 BEL', `A${ch(0x07)}Bダイヤ`],
+    ['改行', `x${ch(0x0a)}::warning::yダイヤ`],
+    ['行区切り U+2028', `x${ch(0x2028)}yダイヤ`],
+    ['山括弧', '<img src=x onerror=alert(1)>ダイヤ'],
+  ])('name に %s を含むと失敗する', (_label, name) => {
+    const t = base()
+    t.name = name
+    const result = validateTimetable(t, opts)
+    expect(result.ok).toBe(false)
+    expect(result.errors.join('\n')).toContain('制御文字')
+  })
+})

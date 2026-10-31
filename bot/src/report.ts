@@ -64,9 +64,17 @@ const OP_LABEL: Record<FilePlan['op'], string> = { create: '新規', update: '�
 // 同じ関数で `_` と `*` も逃がす。
 // ---------------------------------------------------------------------------
 
-/** 1 行に収める（改行はセル・箇条書きの構造を壊す） */
+/**
+ * 1 行に収める（改行はセル・箇条書きの構造を壊す）。
+ *
+ * LF だけでなく単独の CR・NEL（U+0085）・行/段落区切り（U+2028/2029）も畳む。
+ * 外部由来の URL は `%0D` がデコードされて生の CR になり得るため、LF だけを見ていると
+ * Showdown（CR を LF に正規化する）でメールの箇条書きが割れ、Actions のログでも行が分かれる。
+ * その他の C0 制御文字と DEL も空白にする（表示されず、ログやメールの解釈を乱すだけなので）。
+ */
 function oneLine(value: string): string {
-  return String(value).replace(/\r?\n/g, ' ')
+  // eslint-disable-next-line no-control-regex
+  return String(value).replace(/\r\n|[\r\n\u0085\u2028\u2029]/g, ' ').replace(/[\u0000-\u001f\u007f]/g, ' ')
 }
 
 const BODY_ESCAPES: Record<string, string> = {
@@ -87,7 +95,7 @@ const BODY_ESCAPES: Record<string, string> = {
  * URL 中の `&` も `&amp;` になるが、HTML として描画されれば
  * 元の `&` に戻る。バックスラッシュ escape も HTML 化の時点で消える。
  */
-function escapeExternal(value: string): string {
+export function escapeExternal(value: string): string {
   return oneLine(value).replace(/[\\&<>[\]_*]/g, (c) => BODY_ESCAPES[c] ?? c)
 }
 
@@ -374,13 +382,56 @@ export function rollbackSection(): string[] {
  *
  * message は掲載ページ由来の文字列を含みうるので改行を畳む（改行は箇条書きを割る）。
  * URL はリンクにせず素の文字列で出す（リンク表示先の改変余地を作らない）。
- * HTML / Markdown のエスケープはここでは行わない。index.ts が console と
- * GITHUB_STEP_SUMMARY にも同じ文字列を出すため、本文へ埋める buildReport 側で
- * escapeExternal を通す。
+ * HTML / Markdown のエスケープはここでは行わない。console 用には素のまま返し、
+ * Markdown として描画される先（メール本文の buildReport と、GITHUB_STEP_SUMMARY の
+ * buildStepSummary）へ埋めるときに escapeExternal を通す。
  */
 export function formatWarning(warning: Warning): string {
   const message = oneLine(warning.message)
   return warning.url ? `${message}（${oneLine(warning.url)}）` : message
+}
+
+export interface StepSummaryInput {
+  today: string
+  dryRun: boolean
+  links: { line: string; dates: string[]; yearGuessed: boolean }[]
+  files: { op: string; fileName: string }[]
+  overrideChanges: unknown[]
+  deletions: string[]
+  warnings: Warning[]
+  validationFailures: string[]
+}
+
+/**
+ * GITHUB_STEP_SUMMARY（GitHub が Markdown として描画する）の行。
+ * 警告文と掲示行は外部由来なので、通知メールと同じ escapeExternal を通す
+ * （偽リンク・リモート画像・偽見出しでサマリーの表示を改変させない）。
+ * index.ts は import した時点で main() を実行するため、テストできるようここに置く。
+ */
+export function buildStepSummary(data: StepSummaryInput): string[] {
+  const lines = [
+    `## timetable-sync (${data.today})${data.dryRun ? ' — DRY RUN' : ''}`,
+    '',
+    `- 時刻表ファイル: ${data.files.length} 件`,
+    `- overrides 差分: ${data.overrideChanges.length} 件`,
+    `- 削除: ${data.deletions.length} 件`,
+    `- 要手動確認: ${data.validationFailures.length} 件`,
+    `- 警告: ${data.warnings.filter((w) => w.level === 'warn').length} 件`,
+  ]
+  const warns = data.warnings.filter((w) => w.level === 'warn')
+  if (warns.length > 0) {
+    lines.push('', '### ⚠ 警告')
+    for (const warning of warns) lines.push(`- ${escapeExternal(formatWarning(warning))}`)
+  }
+  // FR-3: 年を推定した日付は必ず人の目に触れるところへ出す
+  const guessed = data.links.filter((l) => l.yearGuessed)
+  if (guessed.length > 0) {
+    lines.push('', '### 年を推定した日付')
+    for (const link of guessed) {
+      lines.push(`- ${escapeExternal(link.dates.join(', ') || '-')} ← 「${escapeExternal(link.line)}」`)
+    }
+  }
+  return lines
 }
 
 /** 年を推定して日付を解決したリンク（FR-3） */

@@ -49,8 +49,18 @@ concurrency:
 # contents: write はこの job の全ステップ・全 action に効く。push 専用の job へ
 # 分離すれば境界を狭められるが、作業ツリー（Bot が書いた public/data）を artifact
 # 経由で受け渡す必要があり、複雑さに見合わないと判断した。
-# 緩和として、外部 action は full SHA 固定、fork/PR からは起動しない、
-# checkout は資格情報を残さない、runner は実行ごとに破棄される。
+# 緩和として次を置いている。
+#   - 外部 action は full SHA 固定、fork/PR からは起動しない、runner は実行ごとに破棄される
+#   - checkout は資格情報を残さない。token は Commit and push ステップの中だけで remote に差し、
+#     途中で失敗・キャンセルしても trap で必ず戻す
+#   - npm ci は install スクリプトを実行しない（--ignore-scripts）
+#   - Commit and push ステップでは git hook を無効にする（.git/hooks 経由で token を読ませない）
+#   - commit するのは Bot の書込み対象（bot/src/files.ts と同じ許可リスト）だけで、
+#     それ以外のファイルに差分があれば何も push せずに失敗する
+#   - ref 名などの式は run へ直接埋め込まず env 経由で渡す
+# ただし、これらは同じ job 内での緩和にとどまる。hosted runner では sudo が使えるため、
+# job 内で任意のコードを実行できる攻撃者（侵害された依存など）は、~/.gitconfig や
+# git 本体の差し替えなどでこれらを迂回し得る。本当の境界は push 専用 job への分離である。
 permissions:
   contents: write
 
@@ -64,10 +74,14 @@ jobs:
       # 手動実行では ref を自由に選べる。このワークフローは `HEAD:main` を push するため、
       # main 以外の ref で走らせると **Bot が作った差分だけでなく、その ref に既にある
       # コミットまで main へ運んでしまう**。ドライラン（何も書かない）以外は明示的に止める。
+      # ref 名は env 経由で渡す。run の中へ式を直接埋め込むと、Actions がシェルに渡す前に
+      # 文字列として置き換えるため、ref 名に含まれる $(...) がコマンドとして実行される。
       - name: Guard ref
         if: ${{ inputs.dry_run != true && github.ref != 'refs/heads/main' }}
+        env:
+          REF: ${{ github.ref }}
         run: |
-          echo "::error::main 以外の ref では実行できません（現在: ${{ github.ref }}）。"
+          echo "::error::main 以外の ref では実行できません（現在: ${REF}）。"
           echo "選んだ ref の既存コミットまで main へ運んでしまうためです。"
           echo "ブランチで試すときは dry_run を有効にしてください。"
           exit 1
@@ -85,8 +99,12 @@ jobs:
           cache: npm
           cache-dependency-path: bot/package-lock.json
 
+      # 依存の install 時スクリプト（preinstall / postinstall など）は実行しない。
+      # サプライチェーン攻撃で最もよく使われる経路を塞ぐ。install スクリプトを持つ依存
+      # （esbuild・protobufjs・@google/genai）は、どれも動作に必須の処理をしていない。
+      # 実行時に読み込む依存のコードは引き続き実行される点に注意。
       - name: Install
-        run: npm ci
+        run: npm ci --ignore-scripts
         working-directory: bot
 
       - name: Run sync
@@ -107,6 +125,8 @@ jobs:
 
       # commit と通知の判断材料。対象パスを限定するのが要点で、
       # gitignore 下の bot/.out や無関係な変更を巻き込まない。
+      # ここでは public/data 全体を見る。news.json など Bot の書込み対象外のファイルが
+      # 変わった場合も changed=true になり、Commit and push ステップの許可リスト検査で失敗する。
       #
       # 前日までの override を calendar_rules.json から落とすだけの差分は、
       # 今日以降にアプリが選ぶ時刻表を変えない定期保守なので更新メールを送らない。
@@ -149,6 +169,36 @@ jobs:
         run: |
           set -euo pipefail
 
+          # npm ci や Bot 本体は .git/hooks に任意の hook を置ける。このステップは GH_TOKEN を
+          # 持つので、ステップ内のすべての git 呼び出しで hook を無効にする。
+          # GIT_CONFIG_* はコマンドライン（-c）と同じ最優先の設定で、.git/config に書かれず、
+          # .git/config の include で上書きされない。git add も post-index-change hook を
+          # 起こすため、コマンドごとの -c ではなくステップ全体に効かせる（git 2.31 以降）。
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=core.hooksPath
+          export GIT_CONFIG_VALUE_0=/dev/null
+
+          # Bot が書いてよいファイルだけを通す許可リスト。bot/src/files.ts の WRITABLE_PATTERNS・
+          # DELETABLE_PATTERNS と、bot/src/config.ts の calendarRulesPath / statePath /
+          # holidaysCachePath に一致させる。files.ts を変えたらここも合わせる
+          # （bot/test/workflow-guard.test.ts が食い違いを検出する）。
+          # news.json・_examples・timetable_closed / special / vacation_obon は人が管理するので含めない。
+          ALLOWED_PATHS_RE='^(public/data/calendar_rules\.json|public/data/timetables/timetable_(weekday|holiday|vacation_(spring|summer|winter)_(weekday|holiday)|event_[0-9]{8})\.json|bot/state\.json|bot/holidays\.json)$'
+
+          # 標準入力のパス一覧に許可外が 1 件でもあれば失敗する。
+          # core.quotepath が既定のままなので、非 ASCII や制御文字を含むパスは引用符付きで
+          # 出力され、許可リストに一致せず拒否される。
+          check_paths() {
+            local bad
+            bad=$(grep -vE "$ALLOWED_PATHS_RE" || true)
+            if [ -n "$bad" ]; then
+              echo "::error::Bot の書込み対象外のファイルが変更されています。push しません。"
+              printf '%s\n' "$bad"
+              return 1
+            fi
+            return 0
+          }
+
           # rebase 後の tree を検証し直すための共通処理。
           # 個別に検証済みでも「Bot の差分 + main の新しい変更」の組合せは未検証なので、
           # 同じ検証器と同じ範囲チェックをもう一度通してから push する。
@@ -159,14 +209,14 @@ jobs:
               return 1
             fi
             local changed
-            changed=$(git diff --name-only "$base" HEAD)
+            # --no-renames: 改名として検出されると元のパス（例: _examples/ 側の削除）が一覧から消える
+            changed=$(git diff --name-only --no-renames "$base" HEAD)
             if [ -z "$changed" ]; then
               echo "::error::rebase 後の変更が空です。push しません。"
               return 1
             fi
-            if printf '%s\n' "$changed" | grep -qvE '^(public/data/|bot/state\.json$|bot/holidays\.json$)'; then
+            if ! printf '%s\n' "$changed" | check_paths; then
               echo "::error::rebase 後の変更範囲が想定外です。push しません。"
-              printf '%s\n' "$changed"
               return 1
             fi
             return 0
@@ -175,15 +225,30 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # add-paths 相当のホワイトリスト。git add -A は使わない。
+          # 3 つの根をステージしてから、ステージ内容が許可リストに収まるかを検査する。git add -A は使わない。
+          # pathspec で対象を絞らないのは、シェルの glob では削除済みの event ファイルが展開されず、
+          # git の pathspec の timetable_*.json は closed / special / obon にも一致してしまうため。
+          # 対象外のファイルに差分があれば、正当な更新も含めて何も commit せずに失敗する
+          # （Bot はそれらを書かない設計なので、侵害か不具合の兆候として扱う。❌ メールで通知される）。
           git add -- public/data bot/state.json bot/holidays.json
           if git diff --cached --quiet; then
             echo "ステージされた差分がありません。コミットしません。"
             exit 0
           fi
+          if ! git diff --cached --name-only --no-renames | check_paths; then
+            exit 1
+          fi
           git commit -m "bot: 時刻表データの自動更新 ($(date +%Y-%m-%d))"
 
-          # token はこのステップの中だけで remote に差す
+          # token はこのステップの中だけで remote に差し、どの経路で抜けても必ず戻す。
+          # set -e で途中終了しても EXIT trap は走る。INT / TERM（キャンセル）は exit に変換して
+          # EXIT trap を通す。token が .git/config に残ると、後続の upload-artifact や
+          # メール送信の action から読めてしまう（SIGKILL だけは戻せないが、そのとき後続ステップも走らない）。
+          restore_remote() {
+            git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git" || true
+          }
+          trap restore_remote EXIT
+          trap 'exit 130' INT TERM
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           if ! git push origin HEAD:main; then
             # 人手のコミットと競合した場合。--autostash は、対象外パスに残った
@@ -191,10 +256,10 @@ jobs:
             echo "push が拒否されました。rebase して 1 回だけ再試行します。"
             git pull --rebase --autostash origin main
 
-            # rebase で自分のコミットが空になった（同じ変更が既に main にある）場合
+            # rebase で自分のコミットが空になった（同じ変更が既に main にある）場合。
+            # remote URL は EXIT trap が戻す。
             if [ "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" ]; then
               echo "rebase の結果 main と同一になりました。push は不要です。"
-              git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
               exit 0
             fi
 
@@ -202,7 +267,8 @@ jobs:
             verify_tree FETCH_HEAD
             git push origin HEAD:main
           fi
-          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          # output を書く前に明示的に戻す（EXIT trap でもう一度呼ばれても害は無い）
+          restore_remote
 
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "committed=true" >> "$GITHUB_OUTPUT"

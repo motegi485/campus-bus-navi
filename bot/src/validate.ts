@@ -22,9 +22,23 @@ const routeSchema = z.object({
   schedule: z.array(scheduleEntrySchema).min(1, '発車時刻が1件もありません'),
 })
 
+/**
+ * 時刻表の表示名。イベントダイヤでは OCR のラベルから作るため、外部由来の文字列が入る。
+ * React のテキスト描画なので XSS にはならないが、長文の偽案内・表示を反転させる双方向制御
+ * （U+202E など）・制御文字・改行がそのまま公開データへ入らないよう、長さと文字種を絞る。
+ * 既存データの最長は 12 文字（2026-11-01 時点）。違反した画像は検証失敗の経路に乗り、
+ * その日は特別ダイヤのまま残る（推測で取り込まない）。
+ */
+const NAME_MAX_LENGTH = 40
+const timetableNameSchema = z
+  .string()
+  .min(1)
+  .max(NAME_MAX_LENGTH, `name は ${NAME_MAX_LENGTH} 文字以内にしてください`)
+  .refine((s) => !/[\p{Cc}\p{Cf}\u2028\u2029<>]/u.test(s), 'name に制御文字・書式制御文字・山括弧は使えません')
+
 const timetableSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1),
+  name: timetableNameSchema,
   routes: z
     .object({
       station_to_campus: routeSchema,

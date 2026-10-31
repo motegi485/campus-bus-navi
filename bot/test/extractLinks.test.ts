@@ -12,6 +12,7 @@ import {
   extractEventLabel,
 } from '../src/extractLinks.js'
 import { isRealDate } from '../src/time.js'
+import { CONFIG } from '../src/config.js'
 import type { LinkInfo } from '../src/types.js'
 
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures')
@@ -828,5 +829,49 @@ describe('テスト4: 取得先ホストの制限（F-009）', () => {
     const { links, warnings } = extractLinks(html, undefined, TODAY)
     expect(links).toHaveLength(1)
     expect(warnings.some((w) => w.code === 'link_host_not_allowed')).toBe(true)
+  })
+})
+
+describe('イベント適用日の上限（L5）', () => {
+  // 誤読や改ざんで 1 掲示に大量の日付・遠い未来の日付が入ると、日付ごとのファイルと override を作ってしまう
+  const L5_TODAY = '2026-11-01'
+  const L5_URL = 'https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/x.jpg'
+  const eventInfo = (lineText: string): LinkInfo => ({
+    url: L5_URL,
+    rawHref: L5_URL,
+    anchorText: '時刻表はコチラ',
+    lineText,
+  })
+  const days = (n: number) => Array.from({ length: n }, (_, i) => `11月${i + 2}日`).join('・')
+
+  it(`適用日が ${CONFIG.eventMaxDatesPerLink} 件までは event`, () => {
+    expect(CONFIG.eventMaxDatesPerLink).toBe(10)
+    const c = classifyLink(eventInfo(`● 行事 ${days(10)} 時刻表はコチラ`), L5_TODAY)
+    expect(c.kind).toBe('event')
+    expect(c.dates).toHaveLength(10)
+  })
+
+  it('上限を超えると needs_review で、期間（start/end）を残さない＝特別ダイヤも張らない', () => {
+    const c = classifyLink(eventInfo(`● 行事 ${days(11)} 時刻表はコチラ`), L5_TODAY)
+    expect(c.kind).toBe('needs_review')
+    expect(c.start).toBeUndefined()
+    expect(c.end).toBeUndefined()
+  })
+
+  it('今日から 183 日目までは event、184 日目は needs_review', () => {
+    expect(CONFIG.eventMaxDaysAhead).toBe(183)
+    expect(classifyLink(eventInfo('● 行事 2027年5月3日 時刻表はコチラ'), L5_TODAY).kind).toBe('event') // +183
+    expect(classifyLink(eventInfo('● 行事 2027年5月4日 時刻表はコチラ'), L5_TODAY).kind).toBe('needs_review') // +184
+  })
+
+  it('年の誤記（翌年）は needs_review', () => {
+    expect(classifyLink(eventInfo('● 行事 2027年11月3日 時刻表はコチラ'), L5_TODAY).kind).toBe('needs_review')
+  })
+
+  it('年なしで並びが逆の日付（2 つ目が翌年に回る）も needs_review', () => {
+    const c = classifyLink(eventInfo('● 行事 11月3日・11月2日 時刻表はコチラ'), L5_TODAY)
+    expect(c.kind).toBe('needs_review')
+    expect(c.start).toBeUndefined()
+    expect(c.end).toBeUndefined()
   })
 })

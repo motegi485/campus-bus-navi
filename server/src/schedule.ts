@@ -108,6 +108,28 @@ function departureMinutes(schedule: ScheduleEntry[] | undefined): number[] {
     .sort((a, b) => a - b)
 }
 
+/**
+ * 指定した便がすべて、その日のダイヤに実在するか。
+ *
+ * 予約の受理時（functions/api/reminders.ts）に使う。規則は selectDue と同じ
+ * （運休日・特別ダイヤは便なし、"HH:mm" を分にして比較）。送られることのない便の行を
+ * D1 に作らせない（sent_at が NULL のまま送信窓のあいだ Cron の SQL と LIMIT の枠を占めるため）。
+ * 時刻の前後は見ない（過去便でも実在すれば true）。空配列は true になるので、呼び出し側で扱う。
+ */
+export function departuresExistOn(params: {
+  timetable: Timetable
+  timetableId: string
+  route: RouteKey
+  departures: string[]
+}): boolean {
+  if (!hasDepartures(resolveDiagramType(params.timetableId))) return false
+  const real = new Set(departureMinutes(params.timetable.routes?.[params.route]?.schedule))
+  return params.departures.every(departure => {
+    const minutes = parseHHmmToMinutes(departure)
+    return minutes !== null && real.has(minutes)
+  })
+}
+
 // ── 送信対象の抽出 ───────────────────────────────────────────────────────────
 
 export interface DueSelection {

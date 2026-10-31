@@ -23,6 +23,22 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 const ROUTE_KEYS = ['station_to_campus', 'campus_to_station']
 const VALID_TAGS = ['important', 'info', 'change', 'event']
 
+// news.json の body は NewsScreen.tsx で dangerouslySetInnerHTML によって描画される。
+// 改ざんや書き間違いでスクリプト・外部リソース・イベント属性が入らないよう、
+// 既存データが使う属性なしの <p> <b> <br> だけを許可する（許可リスト方式）。
+// 「<」で始まる断片をすべて検査するので、閉じないタグ・コメント・大文字・属性付きのタグも拒否される。
+// &lt; などのエンティティと単独の > は要素を作らないので許可する。
+// タグを足すときは、属性を伴わないものに限ってこの正規表現に 1 つずつ足すこと。
+const NEWS_BODY_ALLOWED_TAG_RE = /^(?:<\/?(?:p|b)>|<br\s*\/?>)$/
+
+/** body の中で最初に見つかった許可外の HTML 断片を返す。無ければ null */
+function findDisallowedNewsHtml(body) {
+  for (const m of body.matchAll(/<[^>]*>?/g)) {
+    if (!NEWS_BODY_ALLOWED_TAG_RE.test(m[0])) return m[0]
+  }
+  return null
+}
+
 const errors = []
 
 function readJSON(filePath) {
@@ -244,6 +260,13 @@ function validateNews() {
         errors.push(`${file}: [${i}] に必須フィールド "${field}" がありません`)
       } else {
         requireString(`${file}: [${i}] の ${field}`, item[field])
+      }
+    }
+
+    if (typeof item.body === 'string') {
+      const bad = findDisallowedNewsHtml(item.body)
+      if (bad !== null) {
+        errors.push(`${file}: [${i}] の body に許可されていない HTML があります: ${JSON.stringify(bad.slice(0, 80))}（使えるのは属性なしの <p> <b> <br> だけです）`)
       }
     }
 

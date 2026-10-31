@@ -15,6 +15,13 @@ VAPID_SUBJECT = "https://campus-bus-navi.pages.dev/"
 # 公開鍵は公開してよい値なので vars に置く。
 # ⚠️ VAPID_PRIVATE_KEY はここに書かない。`npx wrangler secret put VAPID_PRIVATE_KEY` で登録する
 VAPID_PUBLIC_KEY = "BLRMuFokCo7G7eGZDlcNt_juDny8UYxxASkVOspnYxcEy0FUGrKnKWpGIBxL32OLtSRvp7b0QtlRXwky0e0lHkY"
+# API のレート制限（Durable Object で数える）。正の整数の 10 進文字列以外は設定不正として 503 になる。
+# IP ごとの上限（件/60 秒、分の境界に揃えた固定窓）。IP を共有する学内・携帯回線を考慮した暫定値
+API_RATE_LIMIT_PER_MINUTE = "600"
+API_MUTATION_RATE_LIMIT_PER_MINUTE = "300"
+# 全利用者を合わせた変更系の上限（件/UTC 日 = JST 9:00 リセット）。解除の 2 経路は数えない。
+# 最悪 1 要求約 73 行 × 1,300 ≒ 9.5 万行で、D1 の書込み枠に収まる
+API_MUTATION_DAILY_LIMIT = "1300"
 
 # 購読の保存先。Pages Functions（functions/api/）と同じデータベースを指すこと。
 # database_id は `npx wrangler d1 create campus-bus-navi` の出力で置き換える
@@ -29,20 +36,26 @@ database_id = "51b085a4-cc14-4a84-a346-69cfc27909d4"
 name = "SENDER"
 class_name = "ReminderSender"
 
+# API のレート制限の計数。IP 由来キー（SHA-256）を 4 個のシャードへ振り分ける
+[[durable_objects.bindings]]
+name = "API_RATE_SHARDS"
+class_name = "ApiRateLimitShard"
+
+# 全利用者を合わせた変更系の 1 日の数え（1 個）
+[[durable_objects.bindings]]
+name = "API_DAILY_MUTATIONS"
+class_name = "ApiDailyMutationBudget"
+
 # 無料プランで使えるのは SQLite バックエンドの Durable Objects
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ReminderSender"]
 
-# IP を共有する学内・携帯回線を考慮した暫定値。拒否数を観測して運用で調整する。
-# namespace_id は SHA-256("campus-bus-navi:api:<all|mutation>") の先頭32bit + 1。
-# 同じアカウント内の別用途との衝突がないことを本番反映前に確認する。
-[[ratelimits]]
-name = "API_RATE_LIMIT"
-namespace_id = "2659274278"
-simple = { limit = 600, period = 60 }
+# ⚠️ v2 適用後は、クラスの export が無い旧コミットをそのまま deploy できない。
+#    戻すときはクラス・binding・v2 を残し、判定だけを変える前進修正の版を出す
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ApiRateLimitShard", "ApiDailyMutationBudget"]
 
-[[ratelimits]]
-name = "API_MUTATION_RATE_LIMIT"
-namespace_id = "1076940132"
-simple = { limit = 300, period = 60 }
+# native の [[ratelimits]]（API_RATE_LIMIT / API_MUTATION_RATE_LIMIT）は、本番で効き目が
+# 観測されなかったため外した（2026-11-01）。経緯と namespace_id は docs/backend-push.md に残す

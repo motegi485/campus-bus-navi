@@ -155,6 +155,10 @@ export const CONFIG = {
   specialTimetableId: 'timetable_special',
   /** 特別ダイヤを張る期間の上限日数。日付の誤読で長大な期間を塗り潰すのを防ぐ */
   specialMaxRangeDays: 92,
+  /** 1 掲示あたりのイベント適用日の上限。超えたら日付の誤読を疑い needs_review（特別ダイヤも張らない） */
+  eventMaxDatesPerLink: 10,
+  /** イベント適用日の、今日からの上限日数。超える日を含む掲示は needs_review（近づけば翌日以降に自動で取り込む） */
+  eventMaxDaysAhead: 183,
 
   /**
    * 掲載ページから消えた未来イベントを撤去するまでの連続確認回数。

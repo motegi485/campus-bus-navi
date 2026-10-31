@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { buildReport, formatWarning, rollbackSection } from '../src/report.js'
+import { buildReport, buildStepSummary, formatWarning, rollbackSection } from '../src/report.js'
 import type { ClassifiedLink, FilePlan, Timetable } from '../src/types.js'
 
 const RUN_AT = '2026-08-18T07:00:00+09:00'
@@ -354,5 +354,44 @@ describe('取り消し手順の一貫性（S2-BOT-06）', () => {
     expect(text).toContain('停止手段ではない')
     // 旧文面の危険な誘導が残っていないこと
     expect(text).not.toContain('消さないと再取得されない')
+  })
+})
+
+describe('GITHUB_STEP_SUMMARY の外部由来文字列（I7）', () => {
+  // GitHub はジョブサマリーを Markdown として描画する。偽リンク・リモート画像・偽見出しで表示を改変させない
+  const base = { today: '2026-11-01', dryRun: false, files: [], overrideChanges: [], deletions: [], validationFailures: [] }
+
+  it('警告文の HTML・リンク記法・改行を逃がす', () => {
+    const lines = buildStepSummary({
+      ...base,
+      links: [],
+      warnings: [
+        {
+          level: 'warn',
+          code: 'x',
+          message: '<img src=https://evil.example/p.gif>[公式](https://evil.example)\r\n## 偽見出し',
+          url: 'https://a.example/x_(1).jpg',
+        },
+      ],
+    })
+    const text = lines.join('\n')
+    expect(text).not.toContain('<img')
+    expect(text).not.toContain('[公式](')
+    expect(text).not.toMatch(/\n## 偽見出し/)
+    expect(text).toContain('&lt;img')
+    expect(text).toContain('\\[公式\\]')
+    // 1 件の警告は 1 行に収まる（改行で Markdown の行を割らない）
+    expect(lines.filter((l) => l.includes('偽見出し'))).toHaveLength(1)
+  })
+
+  it('年推定の掲示行（link.line）も逃がす', () => {
+    const text = buildStepSummary({
+      ...base,
+      warnings: [],
+      links: [{ line: '● 行事 <b>x</b> [a](https://evil.example)', dates: ['2026-11-03'], yearGuessed: true }],
+    }).join('\n')
+    expect(text).not.toContain('<b>')
+    expect(text).toContain('&lt;b&gt;x&lt;/b&gt;')
+    expect(text).toContain('\\[a\\]')
   })
 })

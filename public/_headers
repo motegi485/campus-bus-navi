@@ -4,6 +4,9 @@
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
   Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'
+  Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'sha256-lQwUiu3JU9tt10gUkoEB6TT3AL230J46TQm2EywhcNU=' 'sha256-nuqM7zlwgCPEtW8ZXMCDGXlAeIUB4kaIQbukGwHi8+Y=' https://static.cloudflareinsights.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; frame-src https://maps.google.com https://www.google.com; worker-src 'self'; manifest-src 'self'; form-action 'self'; base-uri 'self'; object-src 'none'
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

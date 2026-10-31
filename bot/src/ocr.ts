@@ -6,6 +6,7 @@
  */
 
 import { GoogleGenAI, Type, ThinkingLevel, MediaResolution, type Schema } from '@google/genai'
+import { z } from 'zod'
 import { CONFIG } from './config.js'
 import type { Intermediate, IntermediateDayType, IntermediateRow } from './types.js'
 
@@ -89,6 +90,54 @@ export const INTERMEDIATE_SCHEMA: Schema = {
       },
     },
   },
+}
+
+/**
+ * §8.5.2 の中間構造を実行時に検証する zod スキーマ（INTERMEDIATE_SCHEMA と同じ論理形）。
+ * responseSchema はモデルへの指示であって保証ではない。型アサーションだけだと、形の崩れた応答が
+ * 照合（normalizeIntermediate）で例外を投げて実行全体が落ちる（state もレポートも残らない）うえ、
+ * minutes が文字列 "05" だと new Set("05") で '0','5' に分かれ、存在しない時刻を作ってしまう。
+ */
+const rowSchema = z.object({
+  hour: z.number().int().min(0).max(23),
+  minutes: z.array(z.number().int().min(0).max(59)),
+})
+export const intermediateSchema = z.object({
+  day_types: z
+    .array(
+      z.object({
+        label: z.string(),
+        matsunaga: z.array(rowSchema),
+        university: z.array(rowSchema),
+        irregular_notes: z.boolean().optional(),
+      }),
+    )
+    .min(1)
+    .max(2),
+})
+
+/** 応答が JSON でない・§8.5.2 の形でない。その画像の読み取り失敗として扱い、再試行しない */
+export class OcrResponseInvalidError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'OcrResponseInvalidError'
+  }
+}
+
+/** Gemini の応答テキストを §8.5.2 の中間構造として検証する。未知のキーは落とす */
+export function parseIntermediate(text: string): Intermediate {
+  let json: unknown
+  try {
+    json = JSON.parse(text)
+  } catch {
+    throw new OcrResponseInvalidError('Gemini の応答が JSON ではありません')
+  }
+  const parsed = intermediateSchema.safeParse(json)
+  if (!parsed.success) {
+    const where = parsed.error.issues.slice(0, 3).map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+    throw new OcrResponseInvalidError(`Gemini の応答が中間構造（§8.5.2）に合いません（${where.join(' / ')}）`)
+  }
+  return parsed.data
 }
 
 // ---------------------------------------------------------------------------
@@ -321,8 +370,8 @@ export class OcrClient {
       },
     })
     const text = res.text
-    if (!text) throw new Error('Gemini の応答にテキストが含まれていません')
-    return JSON.parse(text) as Intermediate
+    if (!text) throw new OcrResponseInvalidError('Gemini の応答にテキストが含まれていません')
+    return parseIntermediate(text)
   }
 
   /** 429 / 一時障害のバックオフ ＋ モデル利用不可・過負荷継続時のフォールバックを含む1回読み */
@@ -337,6 +386,8 @@ export class OcrClient {
         // 呼び出し上限・実行時間の締切はリトライしない
         if (e instanceof CallBudgetExhaustedError) throw e
         if (e instanceof RunDeadlineExceededError) throw e
+        // 形の崩れた応答は再試行・fallback しない（JSON.parse 失敗の従来挙動と同じ）。read() が ok:false にする
+        if (e instanceof OcrResponseInvalidError) throw e
 
         const dailyExhausted = isDailyQuotaExhausted(e)
         if (dailyExhausted) {

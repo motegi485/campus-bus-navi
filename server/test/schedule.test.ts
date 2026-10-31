@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Timetable } from '../../src/types/timetable'
 import {
+  departuresExistOn,
   notifyAtEpochMs,
   parseHHmmToMinutes,
   resolveTimetableId,
@@ -172,6 +173,45 @@ describe('selectDue', () => {
     const b = reminder({ id: 'b', departure: '18:40', leadMinutes: 100 })
     // 17:00 時点で、17:10 は 10 分前、18:40 は 100 分前。どちらも窓の中
     expect(run([a, b]).due.map(d => d.id)).toEqual(['a', 'b'])
+  })
+})
+
+/**
+ * 予約の受理時に使う「便の実在」判定（functions/api/reminders.ts）。
+ * selectDue と同じ規則で、送られない便（時刻表に無い・運休日・特別ダイヤ）の行を D1 に作らせない。
+ */
+describe('departuresExistOn', () => {
+  const weekday = timetable('timetable_weekday', ['08:30', '17:10'], ['08:10', '12:00'])
+  const exists = (departures: string[], tt: Timetable = weekday, timetableId = tt.id, route: ReminderRow['route'] = 'station_to_campus') =>
+    departuresExistOn({ timetable: tt, timetableId, route, departures })
+
+  it('実在する便だけなら true', () => {
+    expect(exists(['08:10'])).toBe(true)
+    expect(exists(['08:10', '12:00'])).toBe(true)
+  })
+
+  it('分が 1 つずれた便（時刻表に無い便）が 1 つでも混ざれば false', () => {
+    expect(exists(['08:11'])).toBe(false)
+    expect(exists(['08:10', '03:33'])).toBe(false)
+  })
+
+  it('別ルートにしか無い便は false', () => {
+    expect(exists(['08:30'])).toBe(false)
+    expect(exists(['08:30'], weekday, weekday.id, 'campus_to_station')).toBe(true)
+  })
+
+  it('運休日・特別ダイヤの ID なら、schedule に便があっても false', () => {
+    expect(exists(['08:10'], weekday, 'timetable_closed')).toBe(false)
+    expect(exists(['08:10'], weekday, 'timetable_special')).toBe(false)
+  })
+
+  it('不正な書式は false', () => {
+    expect(exists(['8:10'])).toBe(false)
+    expect(exists(['24:00'])).toBe(false)
+  })
+
+  it('routes が欠けた時刻表でも例外にせず false', () => {
+    expect(exists(['08:10'], { id: 'timetable_weekday', name: '' } as unknown as Timetable, 'timetable_weekday')).toBe(false)
   })
 })
 

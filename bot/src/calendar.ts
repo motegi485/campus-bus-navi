@@ -64,6 +64,20 @@ export function eventIdForDate(date: string): string {
 }
 
 /**
+ * Bot が作った event 時刻表の ID（state.events のいずれかの derived に記録したもの）。
+ * derived が「Bot が作った」ことを示す唯一の恒久的な記録（§1.4-4）。
+ */
+export function botOwnedEventIds(state: State): Set<string> {
+  return new Set(Object.values(state.events ?? {}).flatMap((entry) => entry.derived))
+}
+
+/** その日の event ファイルが、state に記録の無い（人が手置きした）ものか（§1.4-4） */
+export function isManualEventDate(date: string, owned: Set<string>, exists: (fileName: string) => boolean): boolean {
+  const id = eventIdForDate(date)
+  return !owned.has(id) && exists(`${id}.json`)
+}
+
+/**
  * calendar_rules.json の実変更が、過去日の override 剪定だけかを判定する。
  *
  * `skip` は手動 override を優先したという計画上の記録で、ファイル自体は変更しないため
