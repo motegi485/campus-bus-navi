@@ -480,3 +480,41 @@ test('お知らせ詳細をEscapeで閉じても元の行へフォーカスを�
   await new Promise(resolve => setTimeout(resolve, 5))
   assert.equal(restored, 1)
 })
+
+// Cloudflare Pages は、同じヘッダーを複数のルールが付けるとカンマで連結する（ルールの具体性では選ばない）。
+// /* に Cache-Control を置くと /assets/* などの値と連結され、max-age が矛盾する（2026-11-02 に本番で確認）。
+// HTML などは Pages の既定（public, max-age=0, must-revalidate）に任せる。
+function parseHeadersFile(text) {
+  const rules = []
+  for (const line of text.split('\n')) {
+    if (line.trim() === '' || line.trimStart().startsWith('#')) continue
+    if (!/^\s/.test(line)) rules.push({ path: line.trim(), headers: [] })
+    else rules.at(-1).headers.push(line.trim())
+  }
+  return rules
+}
+
+test('_headers: Cache-Control を複数のルールが重ねて付けない', () => {
+  const rules = parseHeadersFile(readFileSync(path.join(root, 'public/_headers'), 'utf8'))
+  const cacheRules = rules.filter(r => r.headers.some(h => /^cache-control:/i.test(h)))
+  const catchAll = rules.find(r => r.path === '/*')
+  assert.ok(catchAll, '/* のルールがある')
+  assert.equal(catchAll.headers.some(h => /^cache-control:/i.test(h)), false, '/* に Cache-Control を置かない')
+  // Cache-Control を持つルールのパスが互いに重ならない（/data/*.json は /data/timetables/ 配下にも一致する）
+  const toRe = p => new RegExp('^' + p.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$')
+  for (const a of cacheRules) {
+    for (const b of cacheRules) {
+      if (a === b) continue
+      const sample = b.path.replace(/\*/g, 'x/y')
+      assert.equal(toRe(a.path).test(sample), false, `${a.path} と ${b.path} が重なる`)
+    }
+  }
+})
+
+test('_headers: データ JSON は保存させず、アセットとアイコンは長期キャッシュする', () => {
+  const rules = parseHeadersFile(readFileSync(path.join(root, 'public/_headers'), 'utf8'))
+  const value = p => rules.find(r => r.path === p)?.headers.find(h => /^cache-control:/i.test(h))
+  assert.match(value('/data/*.json') ?? '', /no-store/)
+  assert.match(value('/assets/*') ?? '', /max-age=31536000, immutable/)
+  assert.match(value('/icons/*') ?? '', /max-age=86400/)
+})
