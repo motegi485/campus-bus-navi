@@ -1,7 +1,7 @@
 /**
  * VAPID 鍵ペアを生成し、server/.dev.vars へ保存する。
  *
- *   Set-Location C:\Users\mote1\dev\campus-bus-navi\server
+ *   Set-Location <リポジトリのルート>\server
  *   npm run keygen
  *
  * 秘密鍵はターミナルに出さない。人が控えて持ち歩くと取り違え・紛失が起きるので、
