@@ -71,7 +71,9 @@ export function UpcomingList({ buses, nowMinutes, marked }: Props) {
               <span
                 style={{
                   fontSize: fs(12.5), fontWeight: 800, whiteSpace: 'nowrap', borderRadius: 9999, padding: '7px 12px',
-                  color: isNext ? 'var(--slot-current-fg)' : 'var(--text-secondary)',
+                  // 未来便のピルは --past-bg の面に載る 12.5px の文字。--text-secondary だとライトで 4.40:1 と
+                  // AA を割るので、チップ文字用の --chip-text を使う（ライト 6.88:1 / ダーク 10.71:1）
+                  color: isNext ? 'var(--slot-current-fg)' : 'var(--chip-text)',
                   background: isNext ? 'var(--slot-current-bg)' : 'var(--past-bg)',
                 }}
               >

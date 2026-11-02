@@ -209,7 +209,8 @@ export function FullTimetableSheet({
                 {lastEntry && (
                   <span
                     className="whitespace-nowrap"
-                    style={{ borderRadius: 9999, padding: '7px 12px', fontSize: fs(12.5), fontWeight: 800, background: 'var(--past-bg)', color: 'var(--text-secondary)' }}
+                    // --past-bg 上の 12.5px。--text-secondary はライトで 4.40:1 と AA を割るので --chip-text（6.88:1）
+                    style={{ borderRadius: 9999, padding: '7px 12px', fontSize: fs(12.5), fontWeight: 800, background: 'var(--past-bg)', color: 'var(--chip-text)' }}
                   >
                     最終 {lastEntry.departure}
                   </span>
