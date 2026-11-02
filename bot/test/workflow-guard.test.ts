@@ -173,3 +173,24 @@ describe('timetable-sync.yml: push ステップの堅牢化', () => {
     expect(yml).toMatch(/REF: \$\{\{ github\.ref \}\}/)
   })
 })
+
+describe('timetable-sync.yml: 実行成果物の保存', () => {
+  /** `- name: Upload run artifacts` から次のステップまでを抜き出す */
+  function uploadStep(): string {
+    const start = yml.indexOf('- name: Upload run artifacts')
+    expect(start).toBeGreaterThan(-1)
+    const next = yml.indexOf('\n      - name:', start + 1)
+    return yml.slice(start, next === -1 ? undefined : next)
+  }
+
+  it('隠しディレクトリ bot/.out を成果物に含める（既定では除外され 1 件も残らなかった）', () => {
+    const step = uploadStep()
+    expect(step).toMatch(/^\s*path: bot\/\.out\/\*\*\s*$/m)
+    expect(step).toMatch(/^\s*include-hidden-files: true\s*$/m)
+  })
+
+  it('対象パスは bot/.out に限る（.git などほかの隠しファイルを上げない）', () => {
+    const paths = [...uploadStep().matchAll(/^\s*path: (.+)$/gm)].map((m) => m[1]!.trim())
+    expect(paths).toEqual(['bot/.out/**'])
+  })
+})

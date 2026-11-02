@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { fetchWithTimeout, ResponseTooLargeError } from '../src/fetchPage.js'
+import { fetchPage, fetchWithTimeout, ResponseTooLargeError } from '../src/fetchPage.js'
 import { CONFIG } from '../src/config.js'
 
 const HOST = 'https://www.fukuyama-u.ac.jp'
@@ -30,6 +30,7 @@ function streamResponse(totalBytes: number, headers: Record<string, string> = {}
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('取得サイズの上限（F-017）', () => {
@@ -105,5 +106,69 @@ describe('リダイレクトの追従と検査（F-009）', () => {
       return new Response(null, { status: 302, headers: { location: `${HOST}/hop${n}.jpg` } })
     }))
     await expect(fetchWithTimeout(`${HOST}/start.jpg`, OPTIONS)).rejects.toThrow(/リダイレクトが/)
+  })
+})
+
+describe('掲載ページ取得の 1 回だけの再試行（v1.20）', () => {
+  const PAGE = `${HOST}/campuslife/student-affairs/attending-school/`
+  const html = () => new Response('<html>ok</html>', { status: 200, headers: { 'content-type': 'text/html' } })
+
+  it('ネットワーク層の失敗は 1 回だけ取り直し、成功すれば本文を返す', async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce(html())
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await expect(fetchPage(PAGE, { retryDelayMs: 0 })).resolves.toBe('<html>ok</html>')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('タイムアウトによる中断も一時的な失敗として扱う', async () => {
+    const abort = Object.assign(new Error('aborted'), { name: 'AbortError' })
+    const fetchMock = vi.fn().mockRejectedValueOnce(abort).mockResolvedValueOnce(html())
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await expect(fetchPage(PAGE, { retryDelayMs: 0 })).resolves.toBe('<html>ok</html>')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('5xx は 1 回だけ取り直す', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('busy', { status: 503 }))
+      .mockResolvedValueOnce(html())
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await expect(fetchPage(PAGE, { retryDelayMs: 0 })).resolves.toBe('<html>ok</html>')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('再試行も失敗したら従来どおり例外にする（3 回目は取りに行かない）', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed'))
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await expect(fetchPage(PAGE, { retryDelayMs: 0 })).rejects.toThrow(/ネットワークエラー.*再試行後/)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('4xx は待っても変わらないので再試行しない', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('gone', { status: 404 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(fetchPage(PAGE, { retryDelayMs: 0 })).rejects.toThrow(/HTTP 404/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('許可外ホストは再試行せず、fetch も呼ばない', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(fetchPage('https://evil.example.com/', { retryDelayMs: 0 })).rejects.toThrow()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('サイズ超過は再試行しない', async () => {
+    const big = () => new Response('x', { status: 200, headers: { 'content-length': String(CONFIG.maxPageBytes + 1) } })
+    const fetchMock = vi.fn().mockImplementation(async () => big())
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(fetchPage(PAGE, { retryDelayMs: 0 })).rejects.toThrow(/上限/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

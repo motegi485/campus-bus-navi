@@ -1,4 +1,7 @@
-/** FR-1: 対象ページ取得。非200・ネットワーク失敗はジョブ失敗（この時点で変更は一切していないので安全）。 */
+/**
+ * FR-1: 対象ページ取得。非200・ネットワーク失敗はジョブ失敗（この時点で変更は一切していないので安全）。
+ * ネットワーク層の失敗と 5xx だけは、失敗にする前に 1 回だけ取り直す（v1.20）。
+ */
 
 import { CONFIG } from './config.js'
 import { assertAllowedUrl } from './url.js'
@@ -127,18 +130,62 @@ export async function fetchWithTimeout(url: string, options: FetchOptions): Prom
   }
 }
 
-export async function fetchPage(url: string = CONFIG.pageUrl): Promise<string> {
-  let res: FetchResult
-  try {
-    res = await fetchWithTimeout(url, {
-      allowedHostSuffixes: CONFIG.allowedPageHostSuffixes,
-      maxBytes: CONFIG.maxPageBytes,
-    })
-  } catch (e) {
-    throw new Error(`ページ取得に失敗しました（ネットワークエラー）: ${url} / ${(e as Error).message}`)
+/**
+ * 一時的な失敗として 1 回だけ取り直してよいか。
+ *
+ * fetch 自体の失敗（`TypeError: fetch failed`）とタイムアウトによる中断だけを対象にする。
+ * 許可外ホスト・リダイレクト超過・サイズ超過は、待っても結果が変わらないので再試行しない。
+ */
+function isTransientFetchError(e: unknown): boolean {
+  if (e instanceof ResponseTooLargeError) return false
+  const name = (e as { name?: unknown } | null)?.name
+  return e instanceof TypeError || name === 'AbortError' || name === 'TimeoutError'
+}
+
+export interface FetchPageOptions {
+  /** 再試行までの待ち時間。省略時は CONFIG.pageFetchRetryDelayMs（テストで 0 にする） */
+  retryDelayMs?: number
+}
+
+/**
+ * 掲載ページ（HTML）を取得する。
+ *
+ * 【v1.20 追加・2026-11-02】ネットワーク層の失敗と HTTP 5xx は、待ってから 1 回だけ取り直す。
+ * 2026-11-01 の定時実行（run 41258906625）は大学ページへの `fetch failed` 1 回で実行全体が
+ * 失敗し、その日の取り込みが丸ごと止まった。再試行も失敗した場合は従来どおり例外にする
+ * （この時点ではまだ何も書いていないので、失敗させても安全）。4xx は再試行しない。
+ */
+export async function fetchPage(url: string = CONFIG.pageUrl, options: FetchPageOptions = {}): Promise<string> {
+  const retryDelayMs = options.retryDelayMs ?? CONFIG.pageFetchRetryDelayMs
+  let lastError = ''
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (attempt === 2) {
+      console.warn(`[fetchPage] ${lastError}。${Math.round(retryDelayMs / 1000)} 秒待って 1 回だけ再試行します: ${url}`)
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+    }
+    let res: FetchResult
+    try {
+      res = await fetchWithTimeout(url, {
+        allowedHostSuffixes: CONFIG.allowedPageHostSuffixes,
+        maxBytes: CONFIG.maxPageBytes,
+      })
+    } catch (e) {
+      const message = `ページ取得に失敗しました（ネットワークエラー）: ${url} / ${(e as Error).message}`
+      if (attempt === 1 && isTransientFetchError(e)) {
+        lastError = `ネットワークエラー（${(e as Error).message}）`
+        continue
+      }
+      throw new Error(attempt === 2 ? `${message}（再試行後）` : message)
+    }
+    if (!res.ok) {
+      if (attempt === 1 && res.status >= 500) {
+        lastError = `HTTP ${res.status}`
+        continue
+      }
+      throw new Error(`ページ取得に失敗しました（HTTP ${res.status}）: ${url}${attempt === 2 ? '（再試行後）' : ''}`)
+    }
+    return res.buffer.toString('utf-8')
   }
-  if (!res.ok) {
-    throw new Error(`ページ取得に失敗しました（HTTP ${res.status}）: ${url}`)
-  }
-  return res.buffer.toString('utf-8')
+  // ループは必ず return か throw で抜ける（型検査のための到達不能な分岐）
+  throw new Error(`ページ取得に失敗しました: ${url}`)
 }

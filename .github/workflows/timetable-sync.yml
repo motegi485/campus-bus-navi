@@ -275,12 +275,17 @@ jobs:
 
       # 差分ゼロの実行では何も残らないため、失敗したときこそ中身が要る。
       # if: always() で必ず上げる（bot/.out は gitignore 下）。
+      # include-hidden-files が必須。`.out` は名前が `.` で始まる隠しディレクトリで、
+      # upload-artifact の既定（隠しファイルを含めない）では中身ごと除外され、
+      # 2026-11-02 まで成果物が 1 件も保存されていなかった（ログに「No files were found」）。
+      # 対象は bot/.out/** に限ったままなので、.git などほかの隠しファイルは含まれない。
       - name: Upload run artifacts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: timetable-sync-out
           path: bot/.out/**
+          include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 30
 
