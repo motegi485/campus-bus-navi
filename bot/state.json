@@ -11,7 +11,7 @@
     "processed_at": "2026-09-25T09:25:38+09:00",
     "etag": "\"a2ed3-65ba846b8b64f\"",
     "last_modified": "Thu, 17 Sep 2026 06:55:59 GMT",
-    "checked_at": "2026-10-31"
+    "checked_at": "2026-11-02"
   },
   "vacations": {
     "summer": {
@@ -32,21 +32,6 @@
     }
   },
   "events": {
-    "2026-10-31": {
-      "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/09/公開講座-1-724x1024.jpg",
-      "sha256": "740bdecaeda7a6f9540e07d7e20653cd151698fe362842bcf5242a47314b1153",
-      "label": "公開講座",
-      "dates": [
-        "2026-10-31"
-      ],
-      "derived": [
-        "timetable_event_20261031"
-      ],
-      "processed_at": "2026-09-29T10:44:44+09:00",
-      "etag": "\"57be2-65c889f18aca5\"",
-      "last_modified": "Mon, 28 Sep 2026 10:35:14 GMT",
-      "checked_at": "2026-10-31"
-    },
     "2026-11-17": {
       "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/20261117.1118　公募推薦型選抜A.jpg",
       "sha256": "476e07cbdd03a1f80100fd4a89f5bb1d4e707db254baec274163dcb49af2ff07",
@@ -60,7 +45,7 @@
       "processed_at": "2026-10-30T10:49:12+09:00",
       "etag": "\"5bc54-65ed331f32475\"",
       "last_modified": "Tue, 27 Oct 2026 14:23:49 GMT",
-      "checked_at": "2026-10-31"
+      "checked_at": "2026-11-02"
     },
     "2026-11-15": {
       "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/20261115　指定校推薦型選抜.jpg",
@@ -75,13 +60,12 @@
       "processed_at": "2026-10-31T10:29:06+09:00",
       "etag": "\"591a6-65ed331b1974a\"",
       "last_modified": "Tue, 27 Oct 2026 14:23:45 GMT",
-      "checked_at": "2026-10-31"
+      "checked_at": "2026-11-02"
     }
   },
   "managed_overrides": {
     "special": {},
     "event": {
-      "2026-10-31": "timetable_event_20261031",
       "2026-11-15": "timetable_event_20261115",
       "2026-11-17": "timetable_event_20261117"
     },
