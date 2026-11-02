@@ -47,12 +47,13 @@
 ```powershell
 npm run dev
 npm run validate:data
+node --test scripts/frontend-regressions.test.mjs
 npx tsc --noEmit
 npm run build
 npm run preview
 ```
 
-`npm run build` は、静的データ検証、TypeScript の型検査、Vite ビルドを順に行う。時刻表・カレンダー・お知らせを変更した場合は、少なくとも `npm run validate:data` を実行する。
+`npm run build` は、静的データ検証、TypeScript の型検査、Vite ビルドを順に行う。`scripts/frontend-regressions.test.mjs` は日付跨ぎ・通知選択・配信ヘッダーなどの回帰テストで、`npm run build` には含まれない。時刻表・カレンダー・お知らせを変更した場合は、少なくとも `npm run validate:data` を実行する。
 
 Bot はフロントエンドと依存を分離している。Bot を扱うときは、まず `docs/backend-bot.md` と正本を読んでから次を実行する。
 
@@ -66,7 +67,16 @@ $env:SKIP_OCR = '1'
 npx tsx src/index.ts
 ```
 
-`DRY_RUN` を外すと、実データや state を変更し得る。`GEMINI_API_KEY` などの秘密情報は読み上げ・出力・コミットしない。
+`DRY_RUN` を外すと、実データや state を変更し得る。
+
+通知配信（`server/`）も依存を分離している。扱うときは `docs/backend-push.md` を読んでから、`server/` で次を実行する（`wrangler` のコマンドはリポジトリ直下で実行しない）。
+
+```powershell
+Set-Location server
+npm ci
+npm run typecheck
+npm test
+````GEMINI_API_KEY` などの秘密情報は読み上げ・出力・コミットしない。
 
 ## 重要な作業規則
 

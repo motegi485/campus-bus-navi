@@ -10,13 +10,16 @@
  *    （iPhone は必ず「ホーム画面に追加」してから、そのアイコンで開くこと。
  *      Safari のタブでは push は動かない）
  *
- * 2. 「表示・通知オプション」→ 通知 で購読し、「subscription.json を保存」を押す
- *    （ダウンロードフォルダに落ちる）
+ * 2. 設定画面で「発車リマインダー」をオンにして購読し、その端末の開発者ツールのコンソールで
+ *    次を実行して購読情報（{"endpoint":... の 1 行）を得る（アプリに書き出し画面は無い）:
  *
- * 3. 送る。鍵は .dev.vars から、購読情報はダウンロードフォルダから自動で読まれる:
+ *      JSON.stringify((await (await navigator.serviceWorker.ready).pushManager.getSubscription()).toJSON())
+ *
+ * 3. 送る。鍵は .dev.vars から読む。購読情報はプロンプトへ貼り付けるか、ファイルのパスを渡す:
  *
  *      Set-Location server
- *      npm run send-test
+ *      npm run send-test                  # 貼り付け
+ *      npm run send-test -- <ファイルのパス>
  *
  * 購読情報の受け渡しにクリップボードは使わない。次に別のものをコピーした時点で
  * 消えてしまい、原因の分かりにくい失敗になるため。
@@ -98,8 +101,8 @@ try {
 } catch (e) {
   console.error(`\n購読情報を読めませんでした（${source}）: ${e instanceof Error ? e.message : String(e)}`)
   console.error('')
-  console.error('アプリの「表示・通知オプション」→ 通知 →「コピー（予備）」で得られる、')
-  console.error('{"endpoint":"https://... で始まる 1 行を貼り付けてください。')
+  console.error('通知をオンにした端末の開発者ツールのコンソールで、次の結果（{"endpoint":"https://... で始まる 1 行）を貼り付けてください。')
+  console.error('  JSON.stringify((await (await navigator.serviceWorker.ready).pushManager.getSubscription()).toJSON())')
   process.exit(1)
 }
 
