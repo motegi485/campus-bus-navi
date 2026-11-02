@@ -336,7 +336,7 @@ export class OcrClient {
     this.lastCallAt = Date.now()
   }
 
-  private async callOnce(buffer: Buffer, mimeType: string, model: string): Promise<Intermediate> {
+  private async callOnce<T>(buffer: Buffer, spec: ReadSpec<T>, model: string): Promise<T> {
     if (this.calls >= CONFIG.geminiMaxCallsPerRun) {
       throw new CallBudgetExhaustedError(CONFIG.geminiMaxCallsPerRun, '1実行あたり')
     }
@@ -357,12 +357,12 @@ export class OcrClient {
       contents: [
         {
           role: 'user',
-          parts: [{ inlineData: { mimeType, data: buffer.toString('base64') } }, { text: OCR_PROMPT }],
+          parts: [{ inlineData: { mimeType: spec.mimeType, data: buffer.toString('base64') } }, { text: spec.prompt }],
         },
       ],
       config: {
         responseMimeType: 'application/json',
-        responseSchema: INTERMEDIATE_SCHEMA,
+        responseSchema: spec.schema,
         thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         mediaResolution: MediaResolution.MEDIA_RESOLUTION_HIGH,
         abortSignal: AbortSignal.timeout(requestTimeoutMs),
@@ -371,17 +371,17 @@ export class OcrClient {
     })
     const text = res.text
     if (!text) throw new OcrResponseInvalidError('Gemini の応答にテキストが含まれていません')
-    return parseIntermediate(text)
+    return spec.parse(text)
   }
 
   /** 429 / 一時障害のバックオフ ＋ モデル利用不可・過負荷継続時のフォールバックを含む1回読み */
-  private async readOnce(buffer: Buffer, mimeType: string): Promise<Intermediate> {
+  private async readOnce<T>(buffer: Buffer, spec: ReadSpec<T>): Promise<T> {
     let rateLimitRetries = 0
     let transientRetries = 0
 
     for (;;) {
       try {
-        return await this.callOnce(buffer, mimeType, this.model)
+        return await this.callOnce(buffer, spec, this.model)
       } catch (e) {
         // 呼び出し上限・実行時間の締切はリトライしない
         if (e instanceof CallBudgetExhaustedError) throw e
@@ -473,69 +473,222 @@ export class OcrClient {
    * 全不一致 → needs_review（1画像あたり最大3回）。
    */
   async read(buffer: Buffer, mimeType: string): Promise<OcrOutcome> {
-    const results: Intermediate[] = []
-    try {
-      results.push(await this.readOnce(buffer, mimeType))
-      results.push(await this.readOnce(buffer, mimeType))
-    } catch (e) {
+    const verified = await this.readVerified(buffer, timetableSpec(mimeType), sameIntermediate)
+    if (!verified.ok) {
       return {
         ok: false,
-        attempts: results.length,
+        attempts: verified.attempts,
         majority: false,
         fallbackUsed: this.fallbackUsed,
         modelUsed: this.model,
-        reason: `Gemini の呼び出しに失敗しました: ${(e as Error).message}`,
+        reason: verified.reason,
       }
     }
+    const [first, second] = verified.pair
+    return {
+      ok: true,
+      // 注記の有無は、採用した一致ペアの 2 回だけで OR を取る（多数決で捨てた読み取りの判断は使わない）
+      intermediate: withIrregularNotes(normalizeIntermediate(first), [first, second]),
+      attempts: verified.attempts,
+      majority: verified.majority,
+      fallbackUsed: this.fallbackUsed,
+      modelUsed: this.model,
+    }
+  }
 
-    if (sameIntermediate(results[0]!, results[1]!)) {
-      return {
-        ok: true,
-        intermediate: withIrregularNotes(normalizeIntermediate(results[0]!), [results[0]!, results[1]!]),
-        attempts: 2,
-        majority: false,
-        fallbackUsed: this.fallbackUsed,
-        modelUsed: this.model,
-      }
+  /**
+   * 学年暦 PDF の読み取り（FR-13【v1.19】）。照合は read() と同じ 2 回読み＋3 回目の多数決。
+   * 比べるのは年度と日付の集合だけ（種別・備考の言い回しは揺れても override の結果は変わらないため）。
+   * 採用するのは一致したペアの先の読み取り。日付への変換と検証は academicCalendar.ts の toAcademicDays。
+   */
+  async readAcademicCalendar(buffer: Buffer): Promise<AcademicOcrOutcome> {
+    const verified = await this.readVerified(buffer, ACADEMIC_SPEC, sameAcademicDates)
+    if (!verified.ok) {
+      return { ok: false, attempts: verified.attempts, majority: false, modelUsed: this.model, reason: verified.reason }
+    }
+    return {
+      ok: true,
+      calendar: verified.pair[0],
+      attempts: verified.attempts,
+      majority: verified.majority,
+      modelUsed: this.model,
+    }
+  }
+
+  /**
+   * §8.5.4 2回読み照合の共通部分。
+   * 一致 → 採用。不一致 → 3回目を実行し、3つのうち2つが一致すればそれを採用。
+   * 全不一致 → 失敗（1件あたり最大3回）。
+   */
+  private async readVerified<T>(
+    buffer: Buffer,
+    spec: ReadSpec<T>,
+    same: (a: T, b: T) => boolean,
+  ): Promise<{ ok: true; pair: [T, T]; attempts: number; majority: boolean } | { ok: false; attempts: number; reason: string }> {
+    const results: T[] = []
+    try {
+      results.push(await this.readOnce(buffer, spec))
+      results.push(await this.readOnce(buffer, spec))
+    } catch (e) {
+      return { ok: false, attempts: results.length, reason: `Gemini の呼び出しに失敗しました: ${(e as Error).message}` }
+    }
+
+    if (same(results[0]!, results[1]!)) {
+      return { ok: true, pair: [results[0]!, results[1]!], attempts: 2, majority: false }
     }
 
     try {
-      results.push(await this.readOnce(buffer, mimeType))
+      results.push(await this.readOnce(buffer, spec))
     } catch (e) {
-      return {
-        ok: false,
-        attempts: 2,
-        majority: false,
-        fallbackUsed: this.fallbackUsed,
-        modelUsed: this.model,
-        reason: `2回読みが不一致で、3回目の呼び出しに失敗しました: ${(e as Error).message}`,
-      }
+      return { ok: false, attempts: 2, reason: `2回読みが不一致で、3回目の呼び出しに失敗しました: ${(e as Error).message}` }
     }
 
     for (const [i, j] of [
       [0, 2],
       [1, 2],
     ] as const) {
-      if (sameIntermediate(results[i]!, results[j]!)) {
-        return {
-          ok: true,
-          // 注記の有無は、採用した一致ペアの 2 回だけで OR を取る（多数決で捨てた読み取りの判断は使わない）
-          intermediate: withIrregularNotes(normalizeIntermediate(results[i]!), [results[i]!, results[j]!]),
-          attempts: 3,
-          majority: true,
-          fallbackUsed: this.fallbackUsed,
-          modelUsed: this.model,
-        }
+      if (same(results[i]!, results[j]!)) {
+        return { ok: true, pair: [results[i]!, results[j]!], attempts: 3, majority: true }
       }
     }
 
-    return {
-      ok: false,
-      attempts: 3,
-      majority: false,
-      fallbackUsed: this.fallbackUsed,
-      modelUsed: this.model,
-      reason: '3回読んでも結果が一致しませんでした（読み取りが不安定です）。',
-    }
+    return { ok: false, attempts: 3, reason: '3回読んでも結果が一致しませんでした（読み取りが不安定です）。' }
   }
+}
+
+// ---------------------------------------------------------------------------
+// 読み取りの種類（プロンプト・スキーマ・応答の検証）
+// ---------------------------------------------------------------------------
+
+/** 1 種類の読み取りの定義。callOnce / readOnce はこれを受け取って呼び出しと検証だけを行う */
+interface ReadSpec<T> {
+  mimeType: string
+  prompt: string
+  schema: Schema
+  parse: (text: string) => T
+}
+
+function timetableSpec(mimeType: string): ReadSpec<Intermediate> {
+  return { mimeType, prompt: OCR_PROMPT, schema: INTERMEDIATE_SCHEMA, parse: parseIntermediate }
+}
+
+/**
+ * 学年暦の読み取りプロンプト（FR-13【v1.19】）。
+ *
+ * 平日の通常の授業日は数が多く（年 140 日超）、列挙させると誤読と照合の不一致が増えるうえ、
+ * override にもならない。土日・祝日に授業・試験がある日と、備考欄の曜日調整日・授業予備日だけを挙げさせる。
+ * 曜日を一緒に答えさせ、toAcademicDays で実際の曜日と突き合わせて月の取り違えを検出する。
+ */
+export const ACADEMIC_PROMPT = `あなたは福山大学の「学年暦」PDF の読み取り器です。
+学年暦から、次の A または B に当たる日だけを抽出し、指定スキーマの JSON のみを返してください。
+
+A. 備考欄に「曜日調整日」または「授業予備日」と書かれた日（曜日を問わず、すべて）
+B. 土曜日・日曜日・祝日（日付が赤字など祝日として示された日）のうち、カレンダーのセルが
+   凡例の「授業日」「曜日調整日」「授業予備日」「定期試験実施日」のいずれかの色で塗られている日
+
+厳守事項:
+1. 各日について次を答えてください。
+   - month: 月（1〜12）
+   - day: 日（1〜31）
+   - weekday: その日の曜日（日・月・火・水・木・金・土 の 1 文字）。備考の「2(土)」の括弧内、またはカレンダーの列見出しで確かめる
+   - kind: 凡例に基づく種別。「授業日」「曜日調整日」「授業予備日」「定期試験実施日」のいずれか
+   - note: 備考欄のその日の記載をそのまま（例:「曜日調整日(水曜日の授業を実施)」）。記載が無ければ空文字
+2. 「7/30(木)～8/7(金)定期試験実施期間」のように期間で書かれた行事は、その期間のうち B に当たる日だけを
+   1 日ずつ列挙してください。期間内の平日は列挙しません。
+3. 平日の通常の授業日は列挙しないでください。休業日や、行事だけで授業の無い日（色の付いていないセル、
+   授業日以外の色のセル）も列挙しないでください。
+4. fiscal_year は表題に書かれた年度（西暦。例:「令和8(2026)年度」なら 2026）です。
+   4〜12 月はその年、1〜3 月は翌年の日付です。
+5. 存在しない日を作らない。該当する日を省略しない。同じ日を 2 回挙げない。
+6. 出力は JSON のみ。説明文・マークダウン・コードフェンスを含めないでください。`
+
+export const ACADEMIC_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  required: ['fiscal_year', 'days'],
+  properties: {
+    fiscal_year: { type: Type.INTEGER },
+    days: {
+      type: Type.ARRAY,
+      maxItems: '80',
+      items: {
+        type: Type.OBJECT,
+        required: ['month', 'day', 'weekday', 'kind', 'note'],
+        properties: {
+          month: { type: Type.INTEGER, minimum: 1, maximum: 12 },
+          day: { type: Type.INTEGER, minimum: 1, maximum: 31 },
+          // enum は付けない。値の検査は toAcademicDays が厳密に行う（曜日の一致・種別の 4 値）。
+          // 動作実績のある時刻表のスキーマ（INTERMEDIATE_SCHEMA）に無い機能を増やさないため。
+          // なお 2026-11-02 の実 API 確認では enum の有無にかかわらず 400 INVALID_ARGUMENT が返り、
+          // 同時に 503（高負荷）とタイムアウトも出ていたため、400 の原因は特定できていない
+          weekday: { type: Type.STRING },
+          kind: { type: Type.STRING },
+          note: { type: Type.STRING },
+        },
+      },
+    },
+  },
+}
+
+/** ACADEMIC_SCHEMA と同じ論理形の実行時検証（responseSchema はモデルへの指示であって保証ではない） */
+export const academicCalendarSchema = z.object({
+  fiscal_year: z.number().int().min(2000).max(2100),
+  days: z
+    .array(
+      z.object({
+        month: z.number().int().min(1).max(12),
+        day: z.number().int().min(1).max(31),
+        weekday: z.string(),
+        kind: z.string(),
+        note: z.string(),
+      }),
+    )
+    .max(80),
+})
+
+export type AcademicCalendarRead = z.infer<typeof academicCalendarSchema>
+
+export function parseAcademicCalendar(text: string): AcademicCalendarRead {
+  let json: unknown
+  try {
+    json = JSON.parse(text)
+  } catch {
+    throw new OcrResponseInvalidError('Gemini の応答が JSON ではありません')
+  }
+  const parsed = academicCalendarSchema.safeParse(json)
+  if (!parsed.success) {
+    const where = parsed.error.issues.slice(0, 3).map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+    throw new OcrResponseInvalidError(`Gemini の応答が学年暦のスキーマに合いません（${where.join(' / ')}）`)
+  }
+  return parsed.data
+}
+
+const ACADEMIC_SPEC: ReadSpec<AcademicCalendarRead> = {
+  mimeType: 'application/pdf',
+  prompt: ACADEMIC_PROMPT,
+  schema: ACADEMIC_SCHEMA,
+  parse: parseAcademicCalendar,
+}
+
+/** 2 回読み照合のキー: 年度と（月, 日）の集合。種別・備考・曜日の表記は比べない */
+export function academicDateKey(value: AcademicCalendarRead): string {
+  const dates = [...new Set(value.days.map((d) => `${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`))]
+  // 4 月始まりの年度順に並べる（1〜3 月を後ろへ）
+  dates.sort((a, b) => {
+    const order = (s: string) => (Number(s.slice(0, 2)) >= 4 ? '0' : '1') + s
+    return order(a).localeCompare(order(b))
+  })
+  return `${value.fiscal_year}|${dates.join(',')}`
+}
+
+function sameAcademicDates(a: AcademicCalendarRead, b: AcademicCalendarRead): boolean {
+  return academicDateKey(a) === academicDateKey(b)
+}
+
+export interface AcademicOcrOutcome {
+  ok: boolean
+  calendar?: AcademicCalendarRead
+  attempts: number
+  majority: boolean
+  modelUsed: string
+  reason?: string
 }

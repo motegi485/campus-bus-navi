@@ -7,11 +7,13 @@
 
 import { createHash } from 'node:crypto'
 import { assemble } from './assemble.js'
+import { nextAcademicCalendars, type AcademicResult, type AcademicUpdate } from './academicCalendar.js'
 import {
   botOwnedEventIds,
   calculateOverrides,
   eventIdForDate,
   isManualEventDate,
+  isOffDay,
   type CalendarResult,
 } from './calendar.js'
 import { CONFIG } from './config.js'
@@ -20,6 +22,7 @@ import { readTimetable as readTimetableFromRepo, timetableExists as timetableExi
 import { eachDate, isAfter, isBefore } from './time.js'
 import { validateTimetable } from './validate.js'
 import type {
+  AcademicDay,
   ClassifiedLink,
   FilePlan,
   Holiday,
@@ -62,6 +65,26 @@ export interface PlanInput {
   /** 差し替え可能なリポジトリアクセス（テスト用） */
   readTimetable?: (fileName: string) => Timetable | null
   timetableExists?: (fileName: string) => boolean
+  /**
+   * 学年暦の取り込み結果（FR-13【v1.19】）。pageHealthy は教務課ページを取得できたか。
+   * 省略すると前回の state.academic_calendars をそのまま使う（剪定も未取り込みの警告もしない）。
+   */
+  academic?: { results: AcademicResult[]; pageHealthy: boolean }
+}
+
+/** 学年暦の 1 日の扱い（通知メール用） */
+export interface AcademicReportDay extends AcademicDay {
+  status: string
+}
+
+/** 取り込み内容が変わった年度（通知メール用） */
+export interface AcademicReport {
+  fiscalYear: string
+  url: string
+  first: boolean
+  added: string[]
+  removed: string[]
+  days: AcademicReportDay[]
 }
 
 /**
@@ -90,6 +113,8 @@ export interface PlanOutput {
   warnings: Warning[]
   /** 取り込めなかったイベント（通知メールに特別ダイヤにした日として載せる） */
   failedEvents: FailedEvent[]
+  /** 学年暦の取り込み内容が変わった年度（通知メールに予約した日として載せる） */
+  academicReports: AcademicReport[]
 }
 
 function counts(timetable: Timetable): { station: number; campus: number } {
@@ -453,7 +478,7 @@ export function buildPlan(input: PlanInput): PlanOutput {
   // Bot の管理キーかを見ないと、前回 Bot が張った special を人の override と誤認し、日ごとに付け外しが起きる
   const managedNow = input.state.managed_overrides
   const isBotKey = (date: string) =>
-    [managedNow?.special, managedNow?.event, managedNow?.vacation, managedNow?.holiday].some(
+    [managedNow?.special, managedNow?.event, managedNow?.vacation, managedNow?.academic, managedNow?.holiday].some(
       (cat) => cat?.[date] !== undefined && cat[date] === input.liveOverrides[date],
     )
   const manualSpecialDates: string[] = []
@@ -483,6 +508,22 @@ export function buildPlan(input: PlanInput): PlanOutput {
 
   nextState = applyRejectedImages(nextState, input.decisions, newlyRejected, succeeded, input.presentUrls)
   nextState = markPendingReplacements(nextState, input.decisions, succeeded)
+
+  // FR-13【v1.19】学年暦。calculateOverrides は nextState.academic_calendars から授業日の override を張る
+  let academicUpdates: AcademicUpdate[] = []
+  if (input.academic) {
+    const academic = nextAcademicCalendars(
+      input.state.academic_calendars,
+      input.academic.results,
+      input.today,
+      input.runAt,
+      input.academic.pageHealthy,
+    )
+    warnings.push(...academic.warnings)
+    academicUpdates = academic.updates
+    const { academic_calendars: _previous, ...rest } = nextState
+    nextState = Object.keys(academic.calendars).length > 0 ? { ...rest, academic_calendars: academic.calendars } : rest
+  }
 
   const calendar = calculateOverrides({
     liveOverrides: input.liveOverrides,
@@ -536,7 +577,46 @@ export function buildPlan(input: PlanInput): PlanOutput {
     filePlans.push({ op: 'delete', fileName, kind: 'event' })
   }
 
-  return { filePlans, calendar, nextState, validationFailures, warnings, failedEvents }
+  const academicReports = academicUpdates.map((update) =>
+    describeAcademicUpdate(update, calendar, input.holidays, input.today),
+  )
+
+  return { filePlans, calendar, nextState, validationFailures, warnings, failedEvents, academicReports }
+}
+
+/**
+ * 学年暦から読み取った各日が、今回の計算でどう扱われたかを人が読める形にする（通知メール用）。
+ * calculateOverrides の結果から逆算するので、優先順位の判定を二重に持たない。
+ */
+function describeAcademicUpdate(
+  update: AcademicUpdate,
+  calendar: CalendarResult,
+  holidays: Holiday[],
+  today: string,
+): AcademicReport {
+  const holidaySet = new Set(holidays.map((h) => h.date))
+  /** Bot の管理 override がある日（それ以外の override は人の手動） */
+  const botDates = new Set(Object.values(calendar.managed).flatMap((cat) => Object.keys(cat ?? {})))
+  const days = update.days.map((day): AcademicReportDay => {
+    let status: string
+    const next = calendar.nextOverrides[day.date]
+    if (isBefore(day.date, today)) status = '過去日'
+    else if (!isOffDay(day.date, holidaySet)) status = '平日のため変更なし（既定で授業日ダイヤ）'
+    else if (calendar.managed.academic?.[day.date] !== undefined) status = '授業日ダイヤを予約'
+    else if (next !== undefined && !botDates.has(day.date)) status = `手動 override（${next}）があるため Bot は張らない`
+    else if (next !== undefined) status = `${next} を優先`
+    else if (calendar.suppressed[day.date] !== undefined) status = '人が削除した日付のため予約しない'
+    else status = '予約しない'
+    return { ...day, status }
+  })
+  return {
+    fiscalYear: update.fiscalYear,
+    url: update.url,
+    first: update.first,
+    added: update.added,
+    removed: update.removed,
+    days,
+  }
 }
 
 /**

@@ -1,7 +1,7 @@
 /**
  * FR-9: calendar_rules.overrides の再構築（中核アルゴリズム）。
  * 優先順位: 手動 > 特別ダイヤ（読めない掲示・取り込めなかったイベント日）> イベント > 長期休暇
- *          > 祝日(baseline) > default_rules
+ *          > 学年暦の授業日（土日・祝日の授業日。FR-13【v1.19】）> 祝日(baseline) > default_rules
  *
  * 大原則「手動データ不可侵」: Bot は state.managed_overrides に記録した自分の管理分だけを
  * 変更・削除する。それ以外のキー（手動 override）は読み取り専用として素通しする。
@@ -52,11 +52,27 @@ export interface CalendarResult {
   deletions: string[]
 }
 
-const emptyManaged = (): ManagedOverrides => ({ special: {}, event: {}, vacation: {}, holiday: {} })
+const emptyManaged = (): ManagedOverrides => ({ special: {}, event: {}, vacation: {}, academic: {}, holiday: {} })
+
+/** 管理カテゴリ（state.managed_overrides のキー）。優先順位の高い順 */
+const MANAGED_CATEGORIES = ['special', 'event', 'vacation', 'academic', 'holiday'] as const
+type ManagedCategory = (typeof MANAGED_CATEGORIES)[number]
 
 function flatten(managed: ManagedOverrides): Record<string, string> {
-  // special は後から追加したフィールドなので、旧 state.json を読んだときは undefined になりうる
-  return { ...(managed.special ?? {}), ...managed.event, ...managed.vacation, ...managed.holiday }
+  // special・academic は後から追加したフィールドなので、旧 state.json を読んだときは undefined になりうる
+  return {
+    ...(managed.special ?? {}),
+    ...(managed.event ?? {}),
+    ...(managed.vacation ?? {}),
+    ...(managed.academic ?? {}),
+    ...(managed.holiday ?? {}),
+  }
+}
+
+/** 土日か祝日か（学年暦の授業日を override にするかの判定） */
+export function isOffDay(date: string, holidaySet: Set<string>): boolean {
+  const dow = dayOfWeek(date)
+  return dow === 0 || dow === 6 || holidaySet.has(date)
 }
 
 export function eventIdForDate(date: string): string {
@@ -147,9 +163,9 @@ export function calculateOverrides(input: CalendarInput): CalendarResult {
   // 3) 望ましい管理集合 D を優先順に構築（today 以降の日付のみ）
   // ---------------------------------------------------------------------
   const D: Record<string, string> = {}
-  const category: Record<string, keyof ManagedOverrides> = {}
+  const category: Record<string, ManagedCategory> = {}
   const holidaySet = new Set(input.holidays.map((h) => h.date))
-  const put = (date: string, id: string, cat: keyof ManagedOverrides): void => {
+  const put = (date: string, id: string, cat: ManagedCategory): void => {
     if (isBefore(date, today)) return
     if (date in D) return
     // 人が削除した日付は再生成しない。ただし人が消したのが特別ダイヤ（取り込めなかった日の
@@ -206,6 +222,29 @@ export function calculateOverrides(input: CalendarInput): CalendarResult {
       const dow = dayOfWeek(date)
       const isHolidayLike = dow === 0 || dow === 6 || holidaySet.has(date)
       put(date, `timetable_vacation_${season}_${isHolidayLike ? 'holiday' : 'weekday'}`, 'vacation')
+    }
+  }
+
+  // 3b'. 学年暦（FR-13【v1.19】）。土日・祝日に授業・試験がある日を授業日ダイヤにする。
+  // 祝日 baseline より上に置くので、祝日の授業日も授業日ダイヤになる。平日は既定で授業日ダイヤなので張らない。
+  // 長期休暇・イベント・特別ダイヤとは重なれば上の段が勝つ。休暇との重なりは学年暦と大学の掲示の
+  // 食い違いなので info で残す（イベント・特別ダイヤは日付を指定した掲示なので、勝つのが当然）
+  for (const [fiscalYear, entry] of Object.entries(input.state.academic_calendars ?? {})) {
+    for (const day of entry.days) {
+      if (isBefore(day.date, today)) continue
+      if (!isOffDay(day.date, holidaySet)) continue
+      if (category[day.date] === 'vacation') {
+        warnings.push({
+          level: 'info',
+          code: 'academic_vacation_conflict',
+          message:
+            `${day.date} は学年暦（${fiscalYear}年度）では${day.kind}ですが、長期休暇ダイヤの期間内のため長期休暇ダイヤを優先します。` +
+            '大学の掲示と学年暦が食い違っていないか確認してください。',
+          url: entry.url,
+        })
+        continue
+      }
+      put(day.date, CONFIG.academicTimetableId, 'academic')
     }
   }
 
@@ -285,11 +324,13 @@ export function calculateOverrides(input: CalendarInput): CalendarResult {
   // ---------------------------------------------------------------------
   const managed = emptyManaged()
   for (const [date, id] of Object.entries(D)) {
-    managed[category[date]!][date] = id
+    const bucket = (managed[category[date]!] ??= {})
+    bucket[date] = id
   }
-  for (const cat of ['special', 'event', 'vacation', 'holiday'] as const) {
+  for (const cat of MANAGED_CATEGORIES) {
+    const current = managed[cat] ?? {}
     const sorted: Record<string, string> = {}
-    for (const date of Object.keys(managed[cat]).sort()) sorted[date] = managed[cat][date]!
+    for (const date of Object.keys(current).sort()) sorted[date] = current[date]!
     managed[cat] = sorted
   }
 

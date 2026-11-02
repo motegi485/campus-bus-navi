@@ -11,6 +11,7 @@
     "start": "tsx src/index.ts",
     "dry-run": "tsx src/index.ts",
     "ocr:check": "tsx tools/ocr-check.ts",
+    "academic:check": "tsx tools/academic-check.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

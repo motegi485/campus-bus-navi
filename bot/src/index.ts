@@ -22,6 +22,14 @@ import { fetchHolidays } from './holidays.js'
 import { detectChanges, sortOcrTargets } from './detectChanges.js'
 import { OcrClient } from './ocr.js'
 import { buildPlan } from './plan.js'
+import {
+  detectAcademicChanges,
+  extractAcademicCalendarLinks,
+  toAcademicDays,
+  type AcademicDecision,
+  type AcademicLink,
+  type AcademicResult,
+} from './academicCalendar.js'
 import { botOwnedEventIds, isManualEventDate, isPastOverrideCleanupOnly } from './calendar.js'
 import { buildReport, buildStepSummary, formatWarning, linkDates } from './report.js'
 import {
@@ -120,6 +128,36 @@ async function main(): Promise<void> {
     `祝日 ${holidaysResult.holidays.length} 件（キャッシュ更新: ${holidaysResult.cacheToWrite ? 'あり' : 'なし'}）`,
   )
 
+  // ---- 4'. 学年暦（FR-13【v1.19】） --------------------------------------
+  // 教務課ページの取得に失敗しても実行全体は止めない（時刻表の取り込みとは独立した情報源のため）。
+  // 今年度の記録が無いままなら nextAcademicCalendars が warn を出す
+  let academicLinks: AcademicLink[] = []
+  let academicPageHealthy = false
+  try {
+    const academicHtml = await fetchPage(CONFIG.academicCalendarPageUrl)
+    const extractedAcademic = extractAcademicCalendarLinks(academicHtml, CONFIG.academicCalendarPageUrl, today)
+    warnings.push(...extractedAcademic.warnings)
+    academicLinks = extractedAcademic.links
+    academicPageHealthy = true
+  } catch (e) {
+    warnings.push({
+      level: 'info',
+      code: 'academic_page_fetch_failed',
+      message: `教務課ページ（学年暦）を取得できませんでした。前回取り込んだ学年暦を使います。理由: ${(e as Error).message}`,
+    })
+  }
+  const academicDecisions: AcademicDecision[] = await detectAcademicChanges(
+    academicLinks,
+    state.academic_calendars,
+    today,
+  )
+  log(
+    'academicCalendar',
+    `学年暦リンク ${academicLinks.length} 件`,
+    academicDecisions.map((d) => ({ fiscalYear: d.fiscalYear, action: d.action, url: d.link.url, reason: d.reason })),
+  )
+  const academicReadTargets = academicDecisions.filter((d) => d.action === 'read')
+
   // ---- 5〜6. 変更検知（必要なら画像 DL） --------------------------------
   // 取得フェーズにも締切と件数上限を渡す。無いと遅い応答が並んだだけで
   // 取得だけに実行時間を使い切り、レポートもメールも残さずジョブが強制終了される
@@ -153,20 +191,22 @@ async function main(): Promise<void> {
   const ocrStats = { matched: 0, total: 0, majority: 0 }
   let ocrClient: OcrClient | null = null
 
-  if (ocrTargets.length > 0) {
+  // 学年暦の PDF も同じクライアント（同じ呼び出し上限）で読む
+  const ocrTargetCount = ocrTargets.length + academicReadTargets.length
+  if (ocrTargetCount > 0) {
     if (!apiKey) {
       if (isDryRun || skipOcr) {
         const cause = skipOcr ? 'SKIP_OCR=1 が指定された' : 'GEMINI_API_KEY が未設定の'
         warnings.push({
           level: 'info',
           code: 'ocr_skipped',
-          message: `${cause}ため OCR をスキップしました（対象 ${ocrTargets.length} 件）。`,
+          message: `${cause}ため OCR をスキップしました（対象 ${ocrTargetCount} 件）。`,
         })
-        log('ocr', `${cause}ため OCR をスキップします（対象 ${ocrTargets.length} 件）`)
+        log('ocr', `${cause}ため OCR をスキップします（対象 ${ocrTargetCount} 件）`)
       } else {
         // AC-5: 鍵が無く OCR 対象がある場合は明確に失敗させる（不正なファイルは書かない）
         throw new Error(
-          `OCR 対象が ${ocrTargets.length} 件ありますが GEMINI_API_KEY が設定されていません。ファイルは一切変更していません。`,
+          `OCR 対象が ${ocrTargetCount} 件ありますが GEMINI_API_KEY が設定されていません。ファイルは一切変更していません。`,
         )
       }
     } else {
@@ -211,6 +251,77 @@ async function main(): Promise<void> {
       intermediates.set(decision.key, outcome.intermediate)
       log('ocr', `${decision.key}: 成功（${outcome.attempts}回読み${outcome.majority ? '・多数決採用' : '・一致'}）`)
     }
+  }
+
+  // ---- 7'. 学年暦の読み取り（FR-13）。event の後に読む（event のほうが適用日が近いため） ----
+  const academicResults: AcademicResult[] = []
+  for (const decision of academicDecisions) {
+    if (decision.action === 'unchanged') {
+      academicResults.push({ fiscalYear: decision.fiscalYear, status: 'unchanged', link: decision.link, check: decision.check })
+      continue
+    }
+    if (decision.action === 'failed') {
+      academicResults.push({
+        fiscalYear: decision.fiscalYear,
+        status: 'failed',
+        link: decision.link,
+        reason: decision.reason,
+        pending: decision.pending,
+        ...(decision.pendingSha256 ? { pendingSha256: decision.pendingSha256 } : {}),
+        retry: true,
+      })
+      continue
+    }
+    const fail = (reason: string): void => {
+      academicResults.push({
+        fiscalYear: decision.fiscalYear,
+        status: 'failed',
+        link: decision.link,
+        reason,
+        pending: true,
+        pendingSha256: decision.pdf.sha256,
+        retry: true,
+      })
+      log('academicCalendar', `${decision.fiscalYear}年度: 失敗 — ${reason}`)
+    }
+    if (!ocrClient) {
+      fail(skipOcr ? 'SKIP_OCR=1 のため読み取りませんでした' : 'GEMINI_API_KEY が無いため読み取りませんでした')
+      continue
+    }
+    if (ocrClient.deadlineExceeded) {
+      fail(`実行時間の上限（${Math.round(CONFIG.runDeadlineMs / 60000)}分）に達したため読み取りをスキップしました`)
+      continue
+    }
+    if (ocrClient.budgetExhausted) {
+      fail(`Gemini の呼び出し上限（${CONFIG.geminiMaxCallsPerRun}回/実行・${CONFIG.geminiMaxCallsPerDay}回/日）に達したため読み取りをスキップしました`)
+      continue
+    }
+    log('academicCalendar', `${decision.fiscalYear}年度: ${decision.link.url} を読み取ります（${decision.reason}）`)
+    const outcome = await ocrClient.readAcademicCalendar(decision.pdf.buffer)
+    if (!outcome.ok || !outcome.calendar) {
+      fail(outcome.reason ?? '学年暦の読み取りに失敗しました')
+      continue
+    }
+    const checked = toAcademicDays(Number(decision.fiscalYear), outcome.calendar)
+    if (!checked.ok) {
+      fail(checked.reason)
+      continue
+    }
+    academicResults.push({
+      fiscalYear: decision.fiscalYear,
+      status: 'accepted',
+      link: decision.link,
+      pdf: decision.pdf,
+      days: checked.days,
+      reason: decision.reason,
+    })
+    log(
+      'academicCalendar',
+      `${decision.fiscalYear}年度: 成功（${outcome.attempts}回読み${outcome.majority ? '・多数決採用' : '・一致'}、${checked.days.length} 日）`,
+    )
+  }
+
+  if (ocrClient) {
     log(
       'ocr',
       `Gemini 呼び出し回数: 今回 ${ocrClient.calls} / 上限 ${CONFIG.geminiMaxCallsPerRun}、` +
@@ -243,6 +354,7 @@ async function main(): Promise<void> {
     runAt,
     // 時刻表リンクを1件も抽出できていない実行では、消えたイベントの連続確認を進めない
     extractionHealthy: classified.length > 0,
+    academic: { results: academicResults, pageHealthy: academicPageHealthy },
   })
   warnings.push(...planned.warnings)
   if (holidaysResult.source) planned.nextState.holidays_source = holidaysResult.source
@@ -277,6 +389,10 @@ async function main(): Promise<void> {
       retry: f.retry,
       reason: f.reason,
     })),
+    academic: {
+      decisions: academicDecisions.map((d) => ({ fiscalYear: d.fiscalYear, action: d.action, url: d.link.url, reason: d.reason })),
+      reports: planned.academicReports,
+    },
     warnings,
     validationFailures: planned.validationFailures,
   }
@@ -344,6 +460,7 @@ async function main(): Promise<void> {
     validationFailures: planned.validationFailures,
     links: classified,
     failedEvents: planned.failedEvents,
+    academicReports: planned.academicReports,
   })
   writeTextFile(CONFIG.reportPath, body)
   log('report', `${CONFIG.reportPath} を生成しました`)

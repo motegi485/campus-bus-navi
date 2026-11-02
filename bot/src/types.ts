@@ -201,11 +201,47 @@ export interface StateSpecial {
   processed_at: string
 }
 
+/** 学年暦で授業・試験がある日の種別（FR-13【v1.19】） */
+export type AcademicDayKind = '授業日' | '曜日調整日' | '授業予備日' | '定期試験実施日'
+
+export interface AcademicDay {
+  /** YYYY-MM-DD */
+  date: string
+  kind: AcademicDayKind
+  /** 学年暦の備考欄の記載（例:「曜日調整日(水曜日の授業を実施)」）。無ければ空文字 */
+  note: string
+}
+
+/**
+ * 学年暦 PDF から読み取った、その年度の「授業・試験がある日」（FR-13【v1.19】）。
+ *
+ * 土日・祝日に当たる日だけが override になる（平日は既定で授業日ダイヤなので記録だけ）。
+ * どの日が override になるかは祝日データに依存するので、ここには読み取った日をそのまま残し、
+ * calculateOverrides が毎回判定する。
+ */
+export interface StateAcademicCalendar extends StateFetchCheck {
+  url: string
+  sha256: string
+  processed_at: string
+  days: AcademicDay[]
+  /**
+   * 差し替えを検出したが取り込めなかった PDF の SHA-256。
+   * これがある間は、内容を確かめられなかった回も「未取り込み」として扱い、翌日に読み直す
+   * （StateEvent.pending_sha256 と同じ考え方）。取り込めた回に消える。
+   */
+  pending_sha256?: string
+}
+
 export interface ManagedOverrides {
   /** 読めない掲示の期間を塗り潰した特別ダイヤ（最優先） */
   special: Record<string, string>
   event: Record<string, string>
   vacation: Record<string, string>
+  /**
+   * 学年暦で授業がある土日・祝日（FR-13【v1.19】）。長期休暇より下、祝日 baseline より上。
+   * 後から追加したカテゴリなので、旧 state.json では undefined になりうる
+   */
+  academic?: Record<string, string>
   holiday: Record<string, string>
 }
 
@@ -244,6 +280,11 @@ export interface State {
   ocr_usage?: { date: string; calls: number }
   /** 画像の内容を理由に拒否した event 画像（キーは正規化 URL）。掲示から消えたら捨てる */
   rejected_images?: Record<string, RejectedImage>
+  /**
+   * 学年暦（FR-13【v1.19】）。キーは年度（"2026" = 2026-04-01〜2027-03-31）。
+   * リンクが教務課ページから消えても年度末までは残し、過ぎたら捨てる。
+   */
+  academic_calendars?: Record<string, StateAcademicCalendar>
 }
 
 // ---------------------------------------------------------------------------

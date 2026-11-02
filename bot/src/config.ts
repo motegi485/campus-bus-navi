@@ -200,6 +200,26 @@ export const CONFIG = {
    */
   maxImageFetchesPerRun: 24,
 
+  /**
+   * 学年暦（FR-13【v1.19】）。
+   *
+   * 土日・祝日に授業がある日（曜日調整日・授業予備日など）は、バス時刻表ページに特別ダイヤとして
+   * 掲載されない（通常の授業日ダイヤが走るだけ）。教務課ページに載る学年暦 PDF を読み、
+   * その年度の該当日に授業日ダイヤの override を前もって張る。
+   */
+  academicCalendarPageUrl: 'https://www.fukuyama-u.ac.jp/education/academic-affairs/academic-affairs_guide/',
+  /** 学年暦 PDF のリンクを見分ける語（href かリンク文字列に含まれること） */
+  academicCalendarKeyword: '学年暦',
+  /** 学年暦 PDF のサイズ上限（2026 年度版は約 120KB） */
+  maxPdfBytes: 10 * 1024 * 1024,
+  /**
+   * 1 年度あたりの読み取り件数の上限。超えたら誤読を疑ってその版を採らない。
+   * 2026 年度の実データは 11 件（土日 8・平日 3）
+   */
+  academicMaxDaysPerYear: 40,
+  /** 授業日扱いにする時刻表 ID */
+  academicTimetableId: 'timetable_weekday',
+
   /** 祝日キャッシュの許容経過日数。これを超えたら取得経路の異常を疑う */
   holidayCacheMaxAgeDays: 90,
   /** 祝日データに求める将来カバレッジ日数。今日からこの日数先まで収録が無ければ警告 */

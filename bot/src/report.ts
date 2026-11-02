@@ -28,6 +28,18 @@ export interface ReportInput {
   links?: ClassifiedLink[]
   /** 取り込めなかったイベントと、実際に特別ダイヤにした日（FR-9【v1.16】） */
   failedEvents?: FailedEventSummary[]
+  /** 学年暦の取り込み内容が変わった年度（FR-13【v1.19】） */
+  academicReports?: AcademicReportSummary[]
+}
+
+/** plan.ts の AcademicReport のうち、レポートに使う部分 */
+export interface AcademicReportSummary {
+  fiscalYear: string
+  url: string
+  first: boolean
+  added: string[]
+  removed: string[]
+  days: { date: string; kind: string; note: string; status: string }[]
 }
 
 /** plan.ts の FailedEvent のうち、レポートに使う部分 */
@@ -204,6 +216,35 @@ export function departureSection(files: FilePlan[]): string[] {
   return lines
 }
 
+/**
+ * 学年暦から読み取った日と、その扱い（FR-13【v1.19】）。
+ * 予約は数か月先の日に及び、人の事前確認なしに反映されるので、読み取った全日を PDF と並べて確かめられる形で出す。
+ * 備考・URL は PDF・掲載ページ由来なので escape する。
+ */
+export function academicSection(reports: AcademicReportSummary[]): string[] {
+  if (reports.length === 0) return []
+  const lines: string[] = ['## 学年暦から予約した授業日']
+  lines.push('土日・祝日に授業・試験がある日は、通常の授業日ダイヤ（timetable\\_weekday）にします。平日の日は記録だけです。')
+  lines.push('')
+  for (const report of reports) {
+    lines.push(`### ${escapeExternal(report.fiscalYear)}年度（[学年暦 PDF](${linkUrl(report.url)})）`)
+    if (!report.first) {
+      lines.push(
+        `前回からの変化: 追加 ${report.added.length > 0 ? cell(report.added.join(', ')) : 'なし'}／` +
+          `削除 ${report.removed.length > 0 ? cell(report.removed.join(', ')) : 'なし'}`,
+      )
+      lines.push('')
+    }
+    lines.push('| 日付 | 種別 | 備考 | 扱い |')
+    lines.push('|---|---|---|---|')
+    for (const day of report.days) {
+      lines.push(`| ${cell(day.date)} | ${cell(day.kind)} | ${cell(day.note || '-')} | ${cell(day.status)} |`)
+    }
+    lines.push('')
+  }
+  return lines
+}
+
 export function buildReport(input: ReportInput): string {
   const lines: string[] = []
 
@@ -284,6 +325,8 @@ export function buildReport(input: ReportInput): string {
     lines.push('')
   }
 
+  lines.push(...academicSection(input.academicReports ?? []))
+
   // 自動適用では PR の diff が存在しないため、時刻そのものをここに出す
   lines.push(...departureSection(input.files))
 
@@ -337,6 +380,9 @@ export function buildReport(input: ReportInput): string {
   }
   if (specialFailed.length > 0) {
     lines.push('- [ ] 特別ダイヤにした日（取り込み失敗）の元画像。手で時刻表を作る場合は手動 override で置き換えられる')
+  }
+  if ((input.academicReports ?? []).length > 0) {
+    lines.push('- [ ] 学年暦から予約した授業日が、学年暦 PDF の曜日調整日・授業予備日などと合っているか')
   }
   if (input.warnings.some((w) => w.code === 'special_applied')) {
     lines.push('- [ ] 特別ダイヤにした期間の妥当性（通常どおり読める日は手動で個別 override に置き換えられる）')
