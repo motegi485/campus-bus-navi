@@ -29,7 +29,7 @@ export interface StreetViewSpot {
 
 /**
  * ルート別の乗り場パノラマ。2026-09-11 に Google マップ上で乗り場が写る位置・向きを
- * 人が選んで確定した値（調整手順は docs/data-model-and-operations.md）。
+ * 人が選んで確定した値（調整手順は project_knowledge/architecture/data-model-and-operations.md）。
  * 時刻表 JSON ではなくここに置くのは、表示の都合であって時刻表データではないことと、
  * JSON に入れると Bot 側（zod スキーマ・assemble）の改修まで必要になるため。
  */

@@ -826,7 +826,7 @@ html.bounce-native .header-cushion {
    ただし本アプリの流儀（構造はCSSクラス、色・細部はCSS変数経由のインライン
    style）に合わせて再実装する。複数カラムのダッシュボード化はしない
    （地図・時刻表を同時表示する構成は、旧・PC/横向き2カラム表示が抱えていた
-   高さ整合の問題を再燃させるため採用しない。詳細は design-decisions.md の
+   高さ整合の問題を再燃させるため採用しない。詳細は project_knowledge/decisions/design-decisions.md の
    「レスポンシブの境界」を参照）。
 
    Tailwind の @custom-variant は使わない（廃止済みの @custom-variant bp を

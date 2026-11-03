@@ -8,7 +8,7 @@
 #   毎日 07:00 JST の自動実行で main へ直接コミットが積まれている。
 #   ※ とはいえ GitHub 上の有効状態・main の実 SHA・Secrets はリポジトリ内の
 #     コメントだけでは断定できない外部状態。疑わしいときは必ず GitHub UI で現物を確認すること。
-# 稼働させた際の手順（すでに完了済み。再設定が必要になった場合の参考。詳細は bot/fixtures/_planning/HANDOFF.md）:
+# 稼働させた際の手順（すでに完了済み。再設定が必要になった場合の参考。詳細は project_knowledge/progress/HANDOFF.md）:
 #   1. Settings → Secrets and variables → Actions に次を登録
 #        GEMINI_API_KEY  … OCR 用（H-2）
 #        MAIL_USERNAME   … 送信元 Gmail アドレス

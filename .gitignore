@@ -8,3 +8,6 @@ _codexReview/*
 # エージェント用のローカル設定（許可コマンドや作業パスが入る。端末ごとの設定で共有しない）。
 # ユーザーのグローバル ignore に頼らず、このリポジトリ単体で守る
 .claude/settings.local.json
+
+# 内部開発文書（独立した非公開の Git リポジトリ）。親リポジトリでは追跡せず、submodule にもしない
+/project_knowledge/

@@ -33,7 +33,7 @@ interface Props {
  * （13px bold は large text の 3:1 の基準にも掛からない vacation のみ要注意）。
  *
  * 配色を変えるときは、必ずこの比を測り直すこと。
- * 詳細は docs/design-decisions.md の「色のコントラスト」を参照。
+ * 詳細は project_knowledge/decisions/design-decisions.md の「色のコントラスト」を参照。
  */
 const BADGE_MAP: Record<DiagramType, { label: string; rgb: string; color: string }> = {
   weekday:          { label: '授業日ダイヤ',          rgb: '52,107,196',  color: '#fff' },

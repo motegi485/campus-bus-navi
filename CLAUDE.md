@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-このファイルは、Claude を含む AI エージェントがこのリポジトリで作業する際の入口です。詳細な仕様をここへ重複記載せず、`docs/` と Bot の正本を参照してください。
+このファイルは、Claude を含む AI エージェントがこのリポジトリで作業する際の入口です。内部の仕様・設計・運用の詳細をここへ重複記載せず、内部文書（`project_knowledge/`）と Bot の正本を参照してください。
 
 ## 言語・環境
 
@@ -9,35 +9,30 @@
 - 改行コードは LF に統一する。`.gitattributes` がある場合はそれに従う。
 - Node.js は 22.12 以上の 22 系、24 系、または 26 系以降を使う（Vitest 5 / Vite 7 の要件）。既定は `.node-version` の 22 系で、Bot の CI も Node.js 22 を使う。
 
-## 作業前に読む文書
+## 内部文書（`project_knowledge/`）
 
-1. まず [docs/README.md](docs/README.md) を読み、対象作業に対応する文書を選ぶ。
-2. 次の表を最低限の導線とする。変更範囲が複数にまたがる場合は、該当する文書をすべて読む。
+- 開発・運用・設計の内部文書は、リポジトリ直下の `project_knowledge/` にある。これは独立した非公開の Git リポジトリで、このリポジトリでは `.gitignore` の対象として追跡しない。`git add` で取り込んだり、submodule や gitlink として登録したりしない。
+- 今後作る内部文書（要件、設計、実装の対応、進捗、設計判断、レビュー・検証記録、運用手順など）は、すべて `project_knowledge/` の該当する分類に作る。このリポジトリの追跡対象には作らない（`docs/` を作り直すことも含む）。
+- `project_knowledge/` が無い、または読めない場合は、内部文書を推測で補ったり公開側に作ったりしない。リポジトリ管理者に取得を依頼し、届くまではソースコード、`public/data/`、設定、検証器で確かめられる範囲だけで作業する。文書の更新が必要な点は、報告に残す。
 
-| 作業対象 | 先に読む文書 |
-| --- | --- |
-| 全体構成、状態、画面の責務 | [docs/architecture.md](docs/architecture.md) |
-| 時刻表、カレンダー、お知らせ、静的 JSON | [docs/data-model-and-operations.md](docs/data-model-and-operations.md) |
-| PWA、サービスワーカー、キャッシュ、Cloudflare Pages | [docs/pwa-and-deployment.md](docs/pwa-and-deployment.md) |
-| 意図を持つ安全設計・UI 判断 | [docs/design-decisions.md](docs/design-decisions.md) |
-| 開発環境、実装手順、変更別チェック | [docs/development-guide.md](docs/development-guide.md) |
-| 検証範囲、未検証状態の扱い | [docs/verification.md](docs/verification.md) |
-| 時刻表自動取り込み Bot | [docs/backend-bot.md](docs/backend-bot.md)、`bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`、必要に応じて `bot/fixtures/_planning/HANDOFF.md` |
-| 発車前の通知、Web Push、配信 Worker、D1 | [docs/backend-push.md](docs/backend-push.md)、`server/src/schema.sql` |
+## 作業の流れ
+
+1. 開始時: `project_knowledge/INDEX.md` と `project_knowledge/progress/CURRENT.md` を読む。次に INDEX の表から、作業に関係する文書を読む（変更範囲が複数にまたがる場合は、該当する文書をすべて読む）。最後に、実装（ソースコード、`public/data/`、設定ファイル、検証器）を確認する。
+2. 変更時: コード、データ、設定、通信、外部連携、検証方法、運用手順を変更したら、同じ作業で該当する `project_knowledge/` の文書、README、Bot 正本・HANDOFF の更新要否を必ず確認し、必要なものを更新する。
+3. 終了時: `project_knowledge/progress/CURRENT.md` の現在地・未解決事項・次作業を更新する。
 
 ## 正本と確認の原則
 
 - 現在の実行時挙動は、ソースコード、`public/data/`、設定ファイル、検証器を実際に確認して判断する。文書だけを根拠に断定しない。
-- Bot の要件・安全境界の正本は `bot/fixtures/_planning/BACKEND_REQUIREMENTS.md`。版番号は固定で書かず、同ファイル冒頭で確認する。
-- Bot の直近状況と次の人間作業は `bot/fixtures/_planning/HANDOFF.md` を確認する。ただし GitHub Actions の有効状態、Secrets、権限、実行結果、デプロイ済み状態は外部状態であり、GitHub UI 等で再確認する。
+- Bot の要件・安全境界の正本は `project_knowledge/requirements/BACKEND_REQUIREMENTS.md`。版番号は固定で書かず、同ファイル冒頭で確認する。
+- Bot の直近状況と次の人間作業は `project_knowledge/progress/HANDOFF.md` を確認する。ただし GitHub Actions の有効状態、Secrets、権限、実行結果、デプロイ済み状態は外部状態であり、GitHub UI 等で再確認する。
 - README は利用者向けの概要・権利・免責を置く場所であり、実装仕様の正本ではない。
 - コード、データ、文書に食い違いを見つけた場合は、推測で一方へ合わせない。根拠と影響を示し、修正方針を確認する。
 
 ## 文書を更新する責務
 
-- コード、データ、設定、通信、外部連携、検証方法、運用手順を変更したら、同じ作業で該当する `docs/`、README、Bot 正本・HANDOFF の更新要否を必ず確認する。
 - 仕様文書を新規作成・大幅更新するときは、必ず実装・データ・処理フローを確認し、事実、設計判断、外部状態の未確認事項を区別して記述する。
-- 新しい文書を加えたら `docs/README.md` の索引を更新し、このファイルと `AGENTS.md` の導線も見直す。
+- 新しい文書を加えたら `project_knowledge/INDEX.md` の索引を更新し、このファイルと `AGENTS.md` の導線も見直す。
 - デプロイ済み、実機確認済み、GitHub 設定済みなどは、確認日と方法なしに現在の事実として書かない。
 
 ## 実装・検証コマンド
@@ -55,7 +50,7 @@ npm run preview
 
 `npm run build` は、静的データ検証、TypeScript の型検査、Vite ビルドを順に行う。`scripts/frontend-regressions.test.mjs` は日付跨ぎ・通知選択・配信ヘッダーなどの回帰テストで、`npm run build` には含まれない。時刻表・カレンダー・お知らせを変更した場合は、少なくとも `npm run validate:data` を実行する。
 
-Bot はフロントエンドと依存を分離している。Bot を扱うときは、まず `docs/backend-bot.md` と正本を読んでから次を実行する。
+Bot はフロントエンドと依存を分離している。Bot を扱うときは、まず `project_knowledge/modules/backend-bot.md` と正本を読んでから次を実行する。
 
 ```powershell
 Set-Location bot
@@ -69,21 +64,23 @@ npx tsx src/index.ts
 
 `DRY_RUN` を外すと、実データや state を変更し得る。
 
-通知配信（`server/`）も依存を分離している。扱うときは `docs/backend-push.md` を読んでから、`server/` で次を実行する（`wrangler` のコマンドはリポジトリ直下で実行しない）。
+通知配信（`server/`）も依存を分離している。扱うときは `project_knowledge/modules/backend-push.md` を読んでから、`server/` で次を実行する（`wrangler` のコマンドはリポジトリ直下で実行しない）。
 
 ```powershell
 Set-Location server
 npm ci
 npm run typecheck
 npm test
-````GEMINI_API_KEY` などの秘密情報は読み上げ・出力・コミットしない。
+```
+
+`GEMINI_API_KEY` などの秘密情報は読み上げ・出力・コミットしない。
 
 ## 重要な作業規則
 
 - 複数ファイルにまたがる変更、アーキテクチャ・公開 API・データ構造の変更、削除を伴うリファクタリングは、先に計画を示し、承認を得てから実装する。軽微な単一ファイル修正は直接実施してよい。
 - 研究上の手法、アルゴリズム、評価方法、設計判断に関わる変更は独断で決めない。疑義と選択肢を示して確認する。
-- `public/data/` の JSON はランタイムと検証器の不変条件を満たす必要がある。形式や運用の詳細は `docs/data-model-and-operations.md` を正確に参照する。
-- PWA のデータ JSON をプリキャッシュしない理由、日付跨ぎ時に時刻を表示しない判断、特別ダイヤの扱い、モバイル固有の設計判断は `docs/design-decisions.md` と `docs/pwa-and-deployment.md` を読んでから変更する。
+- `public/data/` の JSON はランタイムと検証器の不変条件を満たす必要がある。形式や運用の詳細は `project_knowledge/architecture/data-model-and-operations.md` を正確に参照する。
+- PWA のデータ JSON をプリキャッシュしない理由、日付跨ぎ時に時刻を表示しない判断、特別ダイヤの扱い、モバイル固有の設計判断は `project_knowledge/decisions/design-decisions.md` と `project_knowledge/architecture/pwa-and-deployment.md` を読んでから変更する。
 - 秘密情報、API キー、`.env`、鍵、認証情報を読み上げ・出力・コミットしない。
 
 ## Git と外部操作

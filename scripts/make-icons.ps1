@@ -1,7 +1,7 @@
 ﻿# アプリアイコン生成スクリプト
 # 元画像の「ほぼ白」背景を純白へ平坦化し、any 用 (192/512) と maskable 用 (512, 80% 縮小＋白余白) を出力する
 # 使い方（リポジトリ直下で）: .\scripts\make-icons.ps1 -Source design\icons\bus-icon.png -OutDir public\icons
-# 詳細は docs/pwa-and-deployment.md の「アプリアイコン」を参照
+# 詳細は project_knowledge/architecture/pwa-and-deployment.md の「アプリアイコン」を参照
 param(
   [Parameter(Mandatory = $true)][string]$Source,
   [Parameter(Mandatory = $true)][string]$OutDir,

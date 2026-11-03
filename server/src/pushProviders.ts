@@ -21,7 +21,7 @@
 /**
  * 完全一致で許可するホスト。
  *
- * - `fcm.googleapis.com`                … Chrome（PC）で実機確認済み（docs/verification.md、2026-08-16）。
+ * - `fcm.googleapis.com`                … Chrome（PC）で実機確認済み（project_knowledge/reviews/verification.md、2026-08-16）。
  *                                         Chromium 系の他ブラウザも同じホストを返すと考えられるが、実機記録は無い
  * - `web.push.apple.com`                … iPhone のホーム画面 PWA（Safari / APNs）で実機確認済み（同上）
  * - `updates.push.services.mozilla.com` … Firefox。実機未確認

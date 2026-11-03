@@ -58,4 +58,4 @@ tag = "v2"
 new_sqlite_classes = ["ApiRateLimitShard", "ApiDailyMutationBudget"]
 
 # native の [[ratelimits]]（API_RATE_LIMIT / API_MUTATION_RATE_LIMIT）は、本番で効き目が
-# 観測されなかったため外した（2026-11-01）。経緯と namespace_id は docs/backend-push.md に残す
+# 観測されなかったため外した（2026-11-01）。経緯と namespace_id は project_knowledge/modules/backend-push.md に残す

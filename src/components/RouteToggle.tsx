@@ -63,7 +63,7 @@ function markHinted(): void {
  * ルート切替セグメント（改修たたき台 1a/2a/2b 共通）。
  * 選択中はグラデーションの塗りつぶし、非選択はラベルのみ。
  * 面は共有の1個のノブが担い、選択位置へスプリングでスライドする
- * （大規模改修前の動きを復元。docs/design-decisions.md 参照）。
+ * （大規模改修前の動きを復元。project_knowledge/decisions/design-decisions.md 参照）。
  * バスアイコンは選択状態で本体色を切り替える（BusGlyph）。
  */
 export function RouteToggle({ route, onChange }: Props) {
