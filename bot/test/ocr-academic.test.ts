@@ -119,6 +119,13 @@ describe('学年暦の responseSchema', () => {
   it('enum を使わない（値の検査は toAcademicDays が行う。時刻表のスキーマに無い機能を増やさない）', () => {
     expect(JSON.stringify(ACADEMIC_SCHEMA)).not.toMatch(/"enum"/)
   })
+
+  it('days に maxItems を付けない（maxItems: "80" で Gemini が 400 INVALID_ARGUMENT を返した。上限は zod と toAcademicDays で検査する）', () => {
+    expect(ACADEMIC_SCHEMA.properties?.days?.maxItems).toBeUndefined()
+    expect(() =>
+      parseAcademicCalendar(JSON.stringify({ fiscal_year: 2026, days: Array.from({ length: 81 }, () => day(11, 7, '土')) })),
+    ).toThrow(/スキーマ/)
+  })
 })
 
 describe('照合キーと応答の検証', () => {

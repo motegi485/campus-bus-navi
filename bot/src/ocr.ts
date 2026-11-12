@@ -609,7 +609,10 @@ export const ACADEMIC_SCHEMA: Schema = {
     fiscal_year: { type: Type.INTEGER },
     days: {
       type: Type.ARRAY,
-      maxItems: '80',
+      // maxItems は付けない。2026-11-08〜12 の切り分け（tools/academic-diag.ts）で、maxItems: '80' を付けると
+      // 入力（PDF・PNG・テキストのみ）にかかわらず 400 INVALID_ARGUMENT が返り、外すか '2' にすると通った
+      // （gemini-3.6-flash で確認。本番の 3.7 は高負荷で同じ比較ができていないが、本番スキーマで 400 になる症状は同じ）。
+      // 件数の上限は academicCalendarSchema の .max(80) と toAcademicDays の academicMaxDaysPerYear で検査する
       items: {
         type: Type.OBJECT,
         required: ['month', 'day', 'weekday', 'kind', 'note'],
@@ -617,9 +620,8 @@ export const ACADEMIC_SCHEMA: Schema = {
           month: { type: Type.INTEGER, minimum: 1, maximum: 12 },
           day: { type: Type.INTEGER, minimum: 1, maximum: 31 },
           // enum は付けない。値の検査は toAcademicDays が厳密に行う（曜日の一致・種別の 4 値）。
-          // 動作実績のある時刻表のスキーマ（INTERMEDIATE_SCHEMA）に無い機能を増やさないため。
-          // なお 2026-11-02 の実 API 確認では enum の有無にかかわらず 400 INVALID_ARGUMENT が返り、
-          // 同時に 503（高負荷）とタイムアウトも出ていたため、400 の原因は特定できていない
+          // 動作実績のある時刻表のスキーマ（INTERMEDIATE_SCHEMA）に無い機能を増やさないため
+          // （2026-11-02 の確認では enum を外しても 400 が続いた。原因は上の maxItems だった）
           weekday: { type: Type.STRING },
           kind: { type: Type.STRING },
           note: { type: Type.STRING },
