@@ -7,6 +7,7 @@
  *
  *   npm run academic:check -- 2026 fixtures/academic/expected_2026.json
  *   npm run academic:check -- 2026 fixtures/academic/expected_2026.json path/to/local.pdf
+ *   npm run academic:check -- --model=gemini-3.6-flash 2026 fixtures/academic/expected_2026.json   … 検証だけ別モデルで
  *
  * 第 3 引数を省くと、教務課ページから該当年度の PDF を取得する。
  */
@@ -44,7 +45,15 @@ async function loadPdf(fiscalYear: string, localPath: string | undefined): Promi
 
 async function main(): Promise<void> {
   loadLocalEnv()
-  const [fiscalYear, expectedPath, localPath] = process.argv.slice(2)
+  const args = process.argv.slice(2)
+  // --model=<名前>: 検証だけ別モデルで行う（本番の CONFIG.modelPrimary は変えない）
+  const modelArg = args.find((a) => a.startsWith('--model='))
+  const modelOverride = modelArg ? modelArg.slice('--model='.length) : undefined
+  if (modelOverride !== undefined && !/^(models\/)?[a-z0-9][a-z0-9.\-]*$/i.test(modelOverride)) {
+    console.error(`モデル名の形式が正しくありません: ${modelOverride}（例: --model=gemini-3.6-flash）`)
+    process.exit(1)
+  }
+  const [fiscalYear, expectedPath, localPath] = args.filter((a) => !a.startsWith('--'))
   if (!fiscalYear || !/^\d{4}$/.test(fiscalYear)) {
     console.error('使い方: npm run academic:check -- <年度> [期待値 fixture の JSON パス] [ローカルの PDF パス]')
     process.exit(1)
@@ -56,7 +65,7 @@ async function main(): Promise<void> {
   }
 
   const buffer = await loadPdf(fiscalYear, localPath)
-  const client = new OcrClient(apiKey)
+  const client = new OcrClient(apiKey, modelOverride)
   const outcome = await client.readAcademicCalendar(buffer)
   console.log(`モデル: ${outcome.modelUsed} / 呼び出し ${client.calls} 回 / ${outcome.attempts}回読み${outcome.majority ? '（多数決）' : ''}`)
   if (!outcome.ok || !outcome.calendar) {
