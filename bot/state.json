@@ -11,7 +11,7 @@
     "processed_at": "2026-09-25T09:25:38+09:00",
     "etag": "\"a2ed3-65ba846b8b64f\"",
     "last_modified": "Thu, 17 Sep 2026 06:55:59 GMT",
-    "checked_at": "2026-11-14"
+    "checked_at": "2026-11-15"
   },
   "vacations": {
     "summer": {
@@ -45,7 +45,7 @@
       "processed_at": "2026-10-30T10:49:12+09:00",
       "etag": "\"5bc54-65ed331f32475\"",
       "last_modified": "Tue, 27 Oct 2026 14:23:49 GMT",
-      "checked_at": "2026-11-14"
+      "checked_at": "2026-11-15"
     },
     "2026-11-15": {
       "url": "https://www.fukuyama-u.ac.jp/wp-content/uploads/2026/10/20261115　指定校推薦型選抜.jpg",
@@ -60,7 +60,7 @@
       "processed_at": "2026-10-31T10:29:06+09:00",
       "etag": "\"591a6-65ed331b1974a\"",
       "last_modified": "Tue, 27 Oct 2026 14:23:45 GMT",
-      "checked_at": "2026-11-14"
+      "checked_at": "2026-11-15"
     }
   },
   "managed_overrides": {
@@ -210,7 +210,7 @@
       ],
       "etag": "\"1e2dc-64e4f74e64650\"",
       "last_modified": "Tue, 31 Mar 2026 10:30:30 GMT",
-      "checked_at": "2026-11-14"
+      "checked_at": "2026-11-15"
     }
   }
 }
