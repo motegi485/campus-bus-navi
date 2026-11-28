@@ -48,8 +48,9 @@ const originalTransientBackoffMs = CONFIG.geminiTransientBackoffMs
 const originalModelFallback = CONFIG.modelFallback
 
 /** 切替機構を検証するためだけに一時設定するフォールバックモデル名（実在モデルではない） */
-const TEST_FALLBACK = 'gemini-3.8-fallback-test'
-const PRIMARY = 'gemini-3.7-flash'
+const TEST_FALLBACK = 'gemini-fallback-test'
+/** 【2026-11-28 ユーザー決定】Bot の Gemini モデルは gemini-4-hydrogen に統一（それまでは gemini-3.7-flash） */
+const PRIMARY = 'gemini-4-hydrogen'
 
 function calledModels(): string[] {
   return mocks.generateContent.mock.calls.map(([request]) => (request as { model: string }).model)
@@ -73,7 +74,7 @@ function restoreConfig(): void {
 }
 
 /**
- * 【2026-10-03 ユーザー決定】既定は gemini-3.7-flash 単独でフォールバックなし。
+ * 【2026-10-03 ユーザー決定・2026-11-28 にモデルを gemini-4-hydrogen へ統一】既定は単独モデルでフォールバックなし。
  * ただし modelFallback を設定すれば以前の切替分岐がそのまま働く（config.ts のコメント）。
  * この describe は「fallback を設定した構成でも切替機構が壊れていない」ことを守る。
  */
@@ -85,7 +86,7 @@ describe('OCR モデルフォールバック（modelFallback を設定した構�
 
   afterEach(restoreConfig)
 
-  it('primary は CONFIG.modelPrimary（gemini-3.7-flash）である', () => {
+  it('primary は CONFIG.modelPrimary（gemini-4-hydrogen）である', () => {
     expect(CONFIG.modelPrimary).toBe(PRIMARY)
   })
 
@@ -182,20 +183,25 @@ describe('OCR モデルフォールバック（modelFallback を設定した構�
 
 /**
  * 既定構成（modelFallback 未設定）。gemini-3.8-flash の 503 連発で再試行が実行上限を
- * 食い潰した 2026-10-03 の事象を受け、3.7 単独で動き、別モデルへ黙って切り替えないこと、
- * 要求タイムアウトで 180 秒 × 再試行を重ねず即失敗にすることを守る（FR-6【v1.16】）。
+ * 食い潰した 2026-10-03 の事象を受け、単独モデル（2026-11-28 から gemini-4-hydrogen）で動き、
+ * 別モデルへ黙って切り替えないこと、要求タイムアウトで 180 秒 × 再試行を重ねず即失敗にすることを守る（FR-6【v1.16】）。
  */
 describe('OCR モデル（既定構成: フォールバックなし）', () => {
   beforeEach(setUpFastConfig)
 
   afterEach(restoreConfig)
 
-  it('既定では primary が gemini-3.7-flash で、modelFallback は未設定', () => {
+  it('既定では primary が gemini-4-hydrogen で、modelFallback は未設定', () => {
     expect(CONFIG.modelPrimary).toBe(PRIMARY)
     expect(CONFIG.modelFallback).toBeUndefined()
   })
 
-  it('既定では gemini-3.7-flash だけを使って読み取る', async () => {
+  it('【2026-11-28】呼び出し間隔は Hydrogen の無料枠（1 分 5 回）に収まる 12 秒以上', () => {
+    // beforeEach が 0 に上書きするので、上書き前に保存した設定値を見る
+    expect(originalMinIntervalMs).toBeGreaterThanOrEqual(12_000)
+  })
+
+  it('既定では gemini-4-hydrogen だけを使って読み取る', async () => {
     mocks.generateContent.mockResolvedValue(RESPONSE)
 
     const client = new OcrClient('test-key')

@@ -58,7 +58,7 @@ async function main(): Promise<void> {
   const modelArg = args.find((a) => a.startsWith('--model='))
   const modelOverride = modelArg ? modelArg.slice('--model='.length) : undefined
   if (modelOverride !== undefined && !/^(models\/)?[a-z0-9][a-z0-9.\-]*$/i.test(modelOverride)) {
-    console.error(`モデル名の形式が正しくありません: ${modelOverride}（例: --model=gemini-3.6-flash）`)
+    console.error(`モデル名の形式が正しくありません: ${modelOverride}（例: --model=gemini-4-hydrogen）`)
     process.exit(1)
   }
   // --thinking=<low|medium|high>: 考える深さだけを変えて確かめる（本番の CONFIG.academicThinkingLevel は変えない）

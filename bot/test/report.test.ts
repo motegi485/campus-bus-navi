@@ -34,7 +34,7 @@ function timetable(id: string): Timetable {
 function report(overrides: Partial<Parameters<typeof buildReport>[0]> = {}): string {
   return buildReport({
     runAt: RUN_AT,
-    modelUsed: 'gemini-3.7-flash',
+    modelUsed: 'gemini-4-hydrogen',
     fallbackUsed: false,
     files: [],
     overrideChanges: [],

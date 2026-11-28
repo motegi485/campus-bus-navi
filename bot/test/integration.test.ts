@@ -201,7 +201,7 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
   it('実行レポートがテンプレートどおり生成される', () => {
     const body = buildReport({
       runAt: RUN_AT,
-      modelUsed: 'gemini-3.8-flash',
+      modelUsed: 'gemini-4-hydrogen',
       fallbackUsed: false,
       files: planned.filePlans,
       overrideChanges: planned.calendar.changes,
@@ -212,7 +212,7 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
       links: [],
     })
     expect(body).toContain('## 概要')
-    expect(body).toContain('モデル: gemini-3.8-flash')
+    expect(body).toContain('モデル: gemini-4-hydrogen')
     // ID・ファイル名の `_` は HTML 化で斜体にならないよう `\_` で逃がす（report.test.ts 参照）
     expect(body).toContain('| vacation | timetable\\_vacation\\_summer\\_weekday.json | 新規 |')
     expect(body).toContain('| regular | timetable\\_weekday.json | 更新 |')
@@ -231,7 +231,7 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
   it('発車時刻の節に、新規ファイルの全便と更新ファイルの差分が載る', () => {
     const body = buildReport({
       runAt: RUN_AT,
-      modelUsed: 'gemini-3.8-flash',
+      modelUsed: 'gemini-4-hydrogen',
       fallbackUsed: false,
       files: planned.filePlans,
       overrideChanges: planned.calendar.changes,
@@ -261,7 +261,7 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
 
     const body = buildReport({
       runAt: RUN_AT,
-      modelUsed: 'gemini-3.8-flash',
+      modelUsed: 'gemini-4-hydrogen',
       fallbackUsed: false,
       files: [{ ...plan, timetable: changed, counts: { station: 31, campus: 30 } }],
       overrideChanges: [],
@@ -289,7 +289,7 @@ describe('統合: 2026-08-01 のライブ状態を実走したらどうなるか
     }
     const body = buildReport({
       runAt: RUN_AT,
-      modelUsed: 'gemini-3.8-flash',
+      modelUsed: 'gemini-4-hydrogen',
       fallbackUsed: false,
       files: [],
       overrideChanges: [],

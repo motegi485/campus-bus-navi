@@ -239,7 +239,7 @@ async function main(): Promise<void> {
   const modelArg = args.find((a) => a.startsWith('--model='))
   const model = modelArg ? modelArg.slice('--model='.length) : CONFIG.modelPrimary
   if (!/^(models\/)?[a-z0-9][a-z0-9.\-]*$/i.test(model)) {
-    console.error(`モデル名の形式が正しくありません: ${model}（例: --model=gemini-3.8-flash。--list-models で一覧を表示できます）`)
+    console.error(`モデル名の形式が正しくありません: ${model}（例: --model=gemini-4-hydrogen。--list-models で一覧を表示できます）`)
     process.exit(1)
   }
   const selected = args.filter((a) => !a.startsWith('--')).map(Number)
