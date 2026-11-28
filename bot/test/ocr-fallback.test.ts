@@ -17,7 +17,7 @@ vi.mock('@google/genai', () => ({
     STRING: 'STRING',
     BOOLEAN: 'BOOLEAN',
   },
-  ThinkingLevel: { LOW: 'LOW' },
+  ThinkingLevel: { LOW: 'LOW', MEDIUM: 'MEDIUM', HIGH: 'HIGH' },
   MediaResolution: { MEDIA_RESOLUTION_HIGH: 'MEDIA_RESOLUTION_HIGH' },
 }))
 

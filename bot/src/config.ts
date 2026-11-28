@@ -5,6 +5,12 @@
 
 export type Season = 'spring' | 'summer' | 'winter'
 export type DayKind = 'weekday' | 'holiday'
+/**
+ * Gemini の考える深さ（thinking_level）【v1.21】。SDK の ThinkingLevel と同じ文字列。
+ * 文字列で持つのは、この定数ファイルを SDK に依存させないため。SDK 2.15.0 に XHIGH は無いので 3 つに限る。
+ */
+export type GeminiThinkingLevel = 'LOW' | 'MEDIUM' | 'HIGH'
+export const GEMINI_THINKING_LEVELS: readonly GeminiThinkingLevel[] = ['LOW', 'MEDIUM', 'HIGH']
 
 export const CONFIG = {
   pageUrl: 'https://www.fukuyama-u.ac.jp/campuslife/student-affairs/attending-school/',
@@ -228,6 +234,13 @@ export const CONFIG = {
   academicMaxDaysPerYear: 40,
   /** 授業日扱いにする時刻表 ID */
   academicTimetableId: 'timetable_weekday',
+  /**
+   * 学年暦の読み取りの考える深さ（thinking_level）【v1.21】。
+   * 時刻表の読み取りは LOW 固定（§8.5「単純グリッド読みのため」）。学年暦は凡例と色の突き合わせなど
+   * 判断が多いので別に持つ。値は tools/academic-check.ts の --thinking= で比べてから決める。
+   * 決めるまでは従来と同じ LOW。
+   */
+  academicThinkingLevel: 'LOW' as GeminiThinkingLevel,
 
   /** 祝日キャッシュの許容経過日数。これを超えたら取得経路の異常を疑う */
   holidayCacheMaxAgeDays: 90,

@@ -7,8 +7,9 @@
 
 import { GoogleGenAI, Type, ThinkingLevel, MediaResolution, type Schema } from '@google/genai'
 import { z } from 'zod'
+import { isRemarkGrounded } from './academicCalendar.js'
 import { CONFIG } from './config.js'
-import type { Intermediate, IntermediateDayType, IntermediateRow } from './types.js'
+import type { GeminiThinkingLevel, Intermediate, IntermediateDayType, IntermediateRow } from './types.js'
 
 /**
  * OCR プロンプト（§8.5.3）。
@@ -363,7 +364,9 @@ export class OcrClient {
       config: {
         responseMimeType: 'application/json',
         responseSchema: spec.schema,
-        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        // 【v1.21】考える深さは読み取りの種類ごと（時刻表は LOW、学年暦は CONFIG.academicThinkingLevel）。
+        // GeminiThinkingLevel は SDK の ThinkingLevel と同じ文字列
+        thinkingConfig: { thinkingLevel: spec.thinkingLevel as ThinkingLevel },
         mediaResolution: MediaResolution.MEDIA_RESOLUTION_HIGH,
         abortSignal: AbortSignal.timeout(requestTimeoutMs),
         // temperature / topP / topK は指定しない（Gemini 3 公式推奨: 既定 1.0 のまま）
@@ -498,11 +501,16 @@ export class OcrClient {
 
   /**
    * 学年暦 PDF の読み取り（FR-13【v1.19】）。照合は read() と同じ 2 回読み＋3 回目の多数決。
-   * 比べるのは年度と日付の集合だけ（種別・備考の言い回しは揺れても override の結果は変わらないため）。
+   * 比べるのは年度と、備考欄で裏付けられた日（自動で予約する日）の日付の集合だけ（academicDateKey。v1.21）。
    * 採用するのは一致したペアの先の読み取り。日付への変換と検証は academicCalendar.ts の toAcademicDays。
+   * thinkingLevel は検証ツール用の上書き（tools/academic-check.ts の --thinking=）。本番は CONFIG の値を使う。
    */
-  async readAcademicCalendar(buffer: Buffer): Promise<AcademicOcrOutcome> {
-    const verified = await this.readVerified(buffer, ACADEMIC_SPEC, sameAcademicDates)
+  async readAcademicCalendar(
+    buffer: Buffer,
+    options: { thinkingLevel?: GeminiThinkingLevel } = {},
+  ): Promise<AcademicOcrOutcome> {
+    const spec = academicSpec(options.thinkingLevel ?? CONFIG.academicThinkingLevel)
+    const verified = await this.readVerified(buffer, spec, sameAcademicDates)
     if (!verified.ok) {
       return { ok: false, attempts: verified.attempts, majority: false, modelUsed: this.model, reason: verified.reason }
     }
@@ -566,10 +574,13 @@ interface ReadSpec<T> {
   prompt: string
   schema: Schema
   parse: (text: string) => T
+  /** 考える深さ（thinking_level）【v1.21】。読み取りの種類ごとに決める */
+  thinkingLevel: GeminiThinkingLevel
 }
 
+/** 時刻表（通常・長期休暇・イベント）の読み取り。考える深さは §8.5 のとおり LOW（単純グリッド読みのため） */
 function timetableSpec(mimeType: string): ReadSpec<Intermediate> {
-  return { mimeType, prompt: OCR_PROMPT, schema: INTERMEDIATE_SCHEMA, parse: parseIntermediate }
+  return { mimeType, prompt: OCR_PROMPT, schema: INTERMEDIATE_SCHEMA, parse: parseIntermediate, thinkingLevel: 'LOW' }
 }
 
 /**
@@ -578,12 +589,19 @@ function timetableSpec(mimeType: string): ReadSpec<Intermediate> {
  * 平日の通常の授業日は数が多く（年 140 日超）、列挙させると誤読と照合の不一致が増えるうえ、
  * override にもならない。土日・祝日に授業・試験がある日と、備考欄の曜日調整日・授業予備日だけを挙げさせる。
  * 曜日を一緒に答えさせ、toAcademicDays で実際の曜日と突き合わせて月の取り違えを検出する。
+ *
+ * 【v1.21】2026-11-14 の初回取り込みで、B（セルの色）から 9 日を誤って拾った（祝日 7 日を授業日、
+ * 試験期間中の土曜 2 日を定期試験実施日。原本のセルはどれも灰色）。B は override にせず要確認に回すが
+ * （academicCalendar.ts の isRemarkGrounded）、通知の誤った候補を減らすため、次の 2 点を改めた。
+ * - 規則 2: 灰色・白のセルは授業なしと明記し、一般知識・前後の日・期間の記載から推測しないよう求める
+ * - 旧規則 2 は 2026 年度の文言そのもの（「7/30(木)～8/7(金)定期試験実施期間」）を例に挙げ、
+ *   「その期間のうち B に当たる日を列挙」と指示していた。期間内の土曜を挙げる方向へ誘導した可能性があるため外した
  */
 export const ACADEMIC_PROMPT = `あなたは福山大学の「学年暦」PDF の読み取り器です。
 学年暦から、次の A または B に当たる日だけを抽出し、指定スキーマの JSON のみを返してください。
 
 A. 備考欄に「曜日調整日」または「授業予備日」と書かれた日（曜日を問わず、すべて）
-B. 土曜日・日曜日・祝日（日付が赤字など祝日として示された日）のうち、カレンダーのセルが
+B. 土曜日・日曜日・祝日（日付が赤字など祝日として示された日）のうち、その日付のセル自体が
    凡例の「授業日」「曜日調整日」「授業予備日」「定期試験実施日」のいずれかの色で塗られている日
 
 厳守事項:
@@ -593,10 +611,12 @@ B. 土曜日・日曜日・祝日（日付が赤字など祝日として示さ�
    - weekday: その日の曜日（日・月・火・水・木・金・土 の 1 文字）。備考の「2(土)」の括弧内、またはカレンダーの列見出しで確かめる
    - kind: 凡例に基づく種別。「授業日」「曜日調整日」「授業予備日」「定期試験実施日」のいずれか
    - note: 備考欄のその日の記載をそのまま（例:「曜日調整日(水曜日の授業を実施)」）。記載が無ければ空文字
-2. 「7/30(木)～8/7(金)定期試験実施期間」のように期間で書かれた行事は、その期間のうち B に当たる日だけを
-   1 日ずつ列挙してください。期間内の平日は列挙しません。
-3. 平日の通常の授業日は列挙しないでください。休業日や、行事だけで授業の無い日（色の付いていないセル、
-   授業日以外の色のセル）も列挙しないでください。
+2. B は、その日付のセルの塗り色だけで判断してください。灰色・白など凡例の 4 色以外のセルは、授業も試験も無い日です。
+   大学では祝日に授業をすることが多いといった一般的な知識や、前後の日のセルの色、備考欄の期間の記載
+   （「〜定期試験実施期間」など）から推測しないでください。期間で書かれた行事の中の土日・祝日も、
+   その日のセルが凡例の色で塗られていなければ挙げません。
+3. 平日の通常の授業日は列挙しないでください。休業日や、行事だけで授業の無い日（凡例の 4 色以外のセル）も
+   列挙しないでください。
 4. fiscal_year は表題に書かれた年度（西暦。例:「令和8(2026)年度」なら 2026）です。
    4〜12 月はその年、1〜3 月は翌年の日付です。
 5. 存在しない日を作らない。該当する日を省略しない。同じ日を 2 回挙げない。
@@ -664,16 +684,32 @@ export function parseAcademicCalendar(text: string): AcademicCalendarRead {
   return parsed.data
 }
 
-const ACADEMIC_SPEC: ReadSpec<AcademicCalendarRead> = {
-  mimeType: 'application/pdf',
-  prompt: ACADEMIC_PROMPT,
-  schema: ACADEMIC_SCHEMA,
-  parse: parseAcademicCalendar,
+function academicSpec(thinkingLevel: GeminiThinkingLevel): ReadSpec<AcademicCalendarRead> {
+  return {
+    mimeType: 'application/pdf',
+    prompt: ACADEMIC_PROMPT,
+    schema: ACADEMIC_SCHEMA,
+    parse: parseAcademicCalendar,
+    thinkingLevel,
+  }
 }
 
-/** 2 回読み照合のキー: 年度と（月, 日）の集合。種別・備考・曜日の表記は比べない */
+/**
+ * 2 回読み照合のキー: 年度と、備考欄で裏付けられた日（isRemarkGrounded。自動で予約する日）の（月, 日）の集合。
+ * 備考の言い回し・曜日の表記は比べない。
+ *
+ * 【v1.21】セルの色だけで判断した日（要確認の候補）は比べない。override にならない日の読みが揺れるだけで
+ * 版全体が不採用になると、自動で予約する日まで失われ、翌日以降も読み直して無料枠を使い続けるため。
+ * 照合の強さは、アプリの表示を変える日に集中させる。件数・曜日などの検査は toAcademicDays が全日にかける。
+ */
 export function academicDateKey(value: AcademicCalendarRead): string {
-  const dates = [...new Set(value.days.map((d) => `${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`))]
+  const dates = [
+    ...new Set(
+      value.days
+        .filter((d) => isRemarkGrounded(d))
+        .map((d) => `${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`),
+    ),
+  ]
   // 4 月始まりの年度順に並べる（1〜3 月を後ろへ）
   dates.sort((a, b) => {
     const order = (s: string) => (Number(s.slice(0, 2)) >= 4 ? '0' : '1') + s

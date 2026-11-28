@@ -11,6 +11,7 @@
  * 実際にはその掲示で上書きされている運行を表示してしまいうるため。
  */
 
+import { isRemarkGrounded } from './academicCalendar.js'
 import { CONFIG } from './config.js'
 import type { Holiday, ManagedOverrides, OverrideChange, Season, State, Warning } from './types.js'
 import { dayOfWeek, eachDate, isAfter, isBefore, todayJst } from './time.js'
@@ -227,12 +228,15 @@ export function calculateOverrides(input: CalendarInput): CalendarResult {
 
   // 3b'. 学年暦（FR-13【v1.19】）。土日・祝日に授業・試験がある日を授業日ダイヤにする。
   // 祝日 baseline より上に置くので、祝日の授業日も授業日ダイヤになる。平日は既定で授業日ダイヤなので張らない。
+  // 【v1.21】張るのは備考欄の文字で裏付けられた日（曜日調整日・授業予備日）だけ。セルの色だけで
+  // 判断した日は誤読が続いたため（2026-11-14）、張らずに祝日 baseline・曜日の既定に任せ、通知で要確認にする。
   // 長期休暇・イベント・特別ダイヤとは重なれば上の段が勝つ。休暇との重なりは学年暦と大学の掲示の
   // 食い違いなので info で残す（イベント・特別ダイヤは日付を指定した掲示なので、勝つのが当然）
   for (const [fiscalYear, entry] of Object.entries(input.state.academic_calendars ?? {})) {
     for (const day of entry.days) {
       if (isBefore(day.date, today)) continue
       if (!isOffDay(day.date, holidaySet)) continue
+      if (!isRemarkGrounded(day)) continue
       if (category[day.date] === 'vacation') {
         warnings.push({
           level: 'info',

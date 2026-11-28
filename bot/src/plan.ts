@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto'
 import { assemble } from './assemble.js'
-import { nextAcademicCalendars, type AcademicResult, type AcademicUpdate } from './academicCalendar.js'
+import { isRemarkGrounded, nextAcademicCalendars, type AcademicResult, type AcademicUpdate } from './academicCalendar.js'
 import {
   botOwnedEventIds,
   calculateOverrides,
@@ -602,7 +602,11 @@ function describeAcademicUpdate(
     const next = calendar.nextOverrides[day.date]
     if (isBefore(day.date, today)) status = '過去日'
     else if (!isOffDay(day.date, holidaySet)) status = '平日のため変更なし（既定で授業日ダイヤ）'
-    else if (calendar.managed.academic?.[day.date] !== undefined) status = '授業日ダイヤを予約'
+    else if (!isRemarkGrounded(day)) {
+      // 【v1.21】色だけで判断した日は張らない。人の手動 override があれば、それも添える
+      status = '要確認（色だけで判断したため自動では予約しない）'
+      if (next !== undefined && !botDates.has(day.date)) status += `。手動 override（${next}）あり`
+    } else if (calendar.managed.academic?.[day.date] !== undefined) status = '授業日ダイヤを予約'
     else if (next !== undefined && !botDates.has(day.date)) status = `手動 override（${next}）があるため Bot は張らない`
     else if (next !== undefined) status = `${next} を優先`
     else if (calendar.suppressed[day.date] !== undefined) status = '人が削除した日付のため予約しない'

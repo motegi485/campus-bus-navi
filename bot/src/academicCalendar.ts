@@ -13,6 +13,8 @@
  *
  * 人の事前確認なしに main へ反映されるので、読み取りは 2 回読み照合（ocr.ts）に加えて、
  * 曜日の一致・年度内・件数の上限を検査し、1 件でも外れたらその版を丸ごと採らない。
+ * 【v1.21】override にするのは備考欄の文字で裏付けられた日（isRemarkGrounded）だけ。
+ * セルの色だけで判断した日は記録と通知（要確認）にとどめる。
  */
 
 import * as cheerio from 'cheerio'
@@ -25,6 +27,23 @@ import type { AcademicDay, AcademicDayKind, StateAcademicCalendar, StateFetchChe
 
 export const ACADEMIC_DAY_KINDS: readonly AcademicDayKind[] = ['授業日', '曜日調整日', '授業予備日', '定期試験実施日']
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'] as const
+
+/** 備考欄の文字で裏付けられたときだけ自動で予約する種別（v1.21） */
+const REMARK_KINDS: readonly string[] = ['曜日調整日', '授業予備日']
+
+/**
+ * 【v1.21】その日を自動で予約してよいか（備考欄の文字で裏付けられているか）。
+ *
+ * 種別が曜日調整日・授業予備日で、かつ備考にその種別の語が書かれている日だけを true にする。
+ * セルの色だけで判断した日（祝日の授業日・土日の試験日など。備考は空）は false で、
+ * override にせず通知で「要確認」に回す。
+ * 2026-11-14 の初回取り込みで、色だけで判断した 9 日がすべて誤読だった（原本のセルは灰色）。
+ * Gemini が毎回同じように誤ったため 2 回読み照合を通っており、照合では防げない。
+ * 一方、備考欄の文字から読んだ 11 日はすべて正しかった。
+ */
+export function isRemarkGrounded(day: { kind: string; note: string }): boolean {
+  return REMARK_KINDS.includes(day.kind) && day.note.includes(day.kind)
+}
 
 // ---------------------------------------------------------------------------
 // 年度
@@ -492,7 +511,8 @@ export function nextAcademicCalendars(
           `${result.fiscalYear}年度の学年暦を${before ? '読み直しました' : '取り込みました'}（${result.days.length} 日` +
           (before ? `、追加 ${added.length}・削除 ${removed.length}` : '') +
           '）。「学年暦から予約した授業日」の日付が学年暦 PDF と合っているか確認してください。' +
-          '誤っている日は calendar_rules.json の override を削除または変更すれば、以後 Bot は再生成しません。',
+          '誤っている日は calendar_rules.json の override を削除または変更すれば、以後 Bot は再生成しません。' +
+          '「要確認」の日（セルの色だけで判断した日）は自動では予約していません。授業があるなら手動で override を追加してください。',
         url: result.link.url,
       })
       continue

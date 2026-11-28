@@ -224,7 +224,12 @@ export function departureSection(files: FilePlan[]): string[] {
 export function academicSection(reports: AcademicReportSummary[]): string[] {
   if (reports.length === 0) return []
   const lines: string[] = ['## 学年暦から予約した授業日']
-  lines.push('土日・祝日に授業・試験がある日は、通常の授業日ダイヤ（timetable\\_weekday）にします。平日の日は記録だけです。')
+  lines.push(
+    '備考欄に曜日調整日・授業予備日と書かれた日は、土日・祝日なら通常の授業日ダイヤ（timetable\\_weekday）を予約します。平日の日は記録だけです。',
+  )
+  lines.push(
+    '扱いが「要確認」の日は、セルの色だけで判断したため自動では予約していません。学年暦 PDF で確かめ、授業があるなら calendar\\_rules.json に手動で override を追加してください。',
+  )
   lines.push('')
   for (const report of reports) {
     lines.push(`### ${escapeExternal(report.fiscalYear)}年度（[学年暦 PDF](${linkUrl(report.url)})）`)
@@ -382,7 +387,8 @@ export function buildReport(input: ReportInput): string {
     lines.push('- [ ] 特別ダイヤにした日（取り込み失敗）の元画像。手で時刻表を作る場合は手動 override で置き換えられる')
   }
   if ((input.academicReports ?? []).length > 0) {
-    lines.push('- [ ] 学年暦から予約した授業日が、学年暦 PDF の曜日調整日・授業予備日などと合っているか')
+    lines.push('- [ ] 学年暦から予約した授業日が、学年暦 PDF の曜日調整日・授業予備日と合っているか')
+    lines.push('- [ ] 「要確認」の日に授業があるか（あれば calendar\\_rules.json に手動で override を追加する）')
   }
   if (input.warnings.some((w) => w.code === 'special_applied')) {
     lines.push('- [ ] 特別ダイヤにした期間の妥当性（通常どおり読める日は手動で個別 override に置き換えられる）')

@@ -18,7 +18,7 @@ vi.mock('@google/genai', () => ({
     constructor(_o: unknown) {}
   },
   Type: { ARRAY: 'ARRAY', OBJECT: 'OBJECT', INTEGER: 'INTEGER', STRING: 'STRING', BOOLEAN: 'BOOLEAN' },
-  ThinkingLevel: { LOW: 'LOW' },
+  ThinkingLevel: { LOW: 'LOW', MEDIUM: 'MEDIUM', HIGH: 'HIGH' },
   MediaResolution: { MEDIA_RESOLUTION_HIGH: 'MEDIA_RESOLUTION_HIGH' },
 }))
 
@@ -66,6 +66,20 @@ describe('Gemini 応答の実行時検証（I6）', () => {
     expect(outcome.ok).toBe(false)
     expect(outcome.reason).toMatch(/Gemini/)
     expect(mocks.generateContent).toHaveBeenCalledTimes(1)
+  })
+
+  it('【v1.21】時刻表の読み取りの考える深さは、学年暦の設定によらず LOW のまま', async () => {
+    const academic = CONFIG as unknown as { academicThinkingLevel: string }
+    const original = academic.academicThinkingLevel
+    academic.academicThinkingLevel = 'HIGH'
+    try {
+      mocks.generateContent.mockResolvedValue({ text: 'not json' })
+      await new OcrClient('k').read(Buffer.from('x'), 'image/jpeg')
+      const request = mocks.generateContent.mock.calls[0]![0] as { config: { thinkingConfig: { thinkingLevel: string } } }
+      expect(request.config.thinkingConfig.thinkingLevel).toBe('LOW')
+    } finally {
+      academic.academicThinkingLevel = original
+    }
   })
 
   it('既存の正解 fixture（irregular_notes なし）はそのまま通る', () => {

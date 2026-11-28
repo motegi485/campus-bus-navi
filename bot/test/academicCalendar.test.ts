@@ -11,6 +11,7 @@ import {
   detectAcademicChanges,
   extractAcademicCalendarLinks,
   fiscalYearOf,
+  isRemarkGrounded,
   looksLikePdf,
   nextAcademicCalendars,
   toAcademicDays,
@@ -52,7 +53,7 @@ function entry(partial: Partial<StateAcademicCalendar> = {}): StateAcademicCalen
     url: PDF_URL,
     sha256: 'sha-old',
     processed_at: '2026-04-01T07:00:00+09:00',
-    days: [{ date: '2026-11-07', kind: '曜日調整日', note: '' }],
+    days: [{ date: '2026-11-07', kind: '曜日調整日', note: '曜日調整日(火曜日の授業を実施)' }],
     etag: '"etag-old"',
     checked_at: '2026-11-01',
     ...partial,
@@ -348,13 +349,44 @@ describe('state への反映（nextAcademicCalendars）', () => {
   })
 })
 
+describe('【v1.21】自動で予約してよい日（isRemarkGrounded）', () => {
+  it('曜日調整日・授業予備日で、備考にその語があれば true', () => {
+    expect(isRemarkGrounded({ kind: '曜日調整日', note: '曜日調整日(水曜日の授業を実施)' })).toBe(true)
+    expect(isRemarkGrounded({ kind: '授業予備日', note: '授業予備日' })).toBe(true)
+  })
+
+  it('備考が空、または備考の語と種別が食い違えば false', () => {
+    expect(isRemarkGrounded({ kind: '曜日調整日', note: '' })).toBe(false)
+    expect(isRemarkGrounded({ kind: '授業予備日', note: '曜日調整日(月曜日の授業を実施)' })).toBe(false)
+  })
+
+  it('授業日・定期試験実施日は備考があっても false（色だけで判断する種別）', () => {
+    expect(isRemarkGrounded({ kind: '授業日', note: '' })).toBe(false)
+    expect(isRemarkGrounded({ kind: '授業日', note: '授業日' })).toBe(false)
+    expect(isRemarkGrounded({ kind: '定期試験実施日', note: '定期試験実施日' })).toBe(false)
+  })
+
+  it('期待値 fixture の 11 日はすべて true（実データの備考の形）', () => {
+    const r = toAcademicDays(2026, EXPECTED_2026)
+    if (!r.ok) throw new Error(r.reason)
+    expect(r.days.filter((d) => isRemarkGrounded(d))).toHaveLength(11)
+  })
+})
+
 describe('カレンダーの優先順位（FR-9 の 3b\' 学年暦）', () => {
   const TODAY = '2026-11-02'
-  function run(days: { date: string; kind?: string }[], overrides: Partial<CalendarInput> = {}) {
+  // 備考は、曜日調整日・授業予備日なら実データと同じく種別の語を含め（自動で予約する日）、
+  // それ以外（色だけで判断した授業日・定期試験実施日）は空にする。note を渡せば上書きする
+  function run(days: { date: string; kind?: string; note?: string }[], overrides: Partial<CalendarInput> = {}) {
+    const toDay = (d: { date: string; kind?: string; note?: string }) => {
+      const kind = (d.kind ?? '曜日調整日') as '曜日調整日'
+      const note = d.note ?? (kind === '曜日調整日' || (kind as string) === '授業予備日' ? kind : '')
+      return { date: d.date, kind, note }
+    }
     const state: State = {
       version: 1,
       academic_calendars: {
-        2026: entry({ days: days.map((d) => ({ date: d.date, kind: (d.kind ?? '曜日調整日') as '曜日調整日', note: '' })) }),
+        2026: entry({ days: days.map(toDay) }),
       },
       ...(overrides.state ?? {}),
     }
@@ -380,11 +412,31 @@ describe('カレンダーの優先順位（FR-9 の 3b\' 学年暦）', () => {
     expect(result.managed.academic).toEqual({ '2026-11-07': 'timetable_weekday', '2026-11-28': 'timetable_weekday' })
   })
 
-  it('祝日の授業日は祝日 baseline より優先して授業日ダイヤにする', () => {
-    const result = run([{ date: '2026-11-23', kind: '授業日' }])
+  it('【v1.21】色だけで判断した祝日の授業日・土曜の試験日は張らず、祝日 baseline・曜日の既定に任せる', () => {
+    // 2026-11-14 の初回取り込みで誤読した形（備考は空）
+    const result = run([
+      { date: '2026-11-23', kind: '授業日' },
+      { date: '2027-01-11', kind: '授業日' },
+      { date: '2027-02-06', kind: '定期試験実施日' },
+    ])
+    expect(result.managed.academic).toEqual({})
+    expect(result.nextOverrides['2026-11-23']).toBe('timetable_holiday')
+    expect(result.nextOverrides['2027-01-11']).toBe('timetable_holiday')
+    expect(result.managed.holiday).toHaveProperty('2026-11-23')
+    expect(result.nextOverrides).not.toHaveProperty('2027-02-06')
+  })
+
+  it('備考欄で裏付けられた日なら、祝日でも祝日 baseline より優先して授業日ダイヤにする', () => {
+    const result = run([{ date: '2026-11-23', kind: '曜日調整日', note: '曜日調整日(月曜日の授業を実施)' }])
     expect(result.nextOverrides['2026-11-23']).toBe('timetable_weekday')
     expect(result.managed.academic).toEqual({ '2026-11-23': 'timetable_weekday' })
     expect(result.managed.holiday).not.toHaveProperty('2026-11-23')
+  })
+
+  it('種別が曜日調整日でも、備考にその語が無ければ張らない', () => {
+    const result = run([{ date: '2026-11-07', kind: '曜日調整日', note: '' }])
+    expect(result.managed.academic).toEqual({})
+    expect(result.nextOverrides).not.toHaveProperty('2026-11-07')
   })
 
   it('平日の曜日調整日・過去日には override を張らない', () => {
@@ -492,6 +544,35 @@ describe('buildPlan への組み込み', () => {
     expect(status['2026-11-28']).toBe('授業日ダイヤを予約')
   })
 
+  it('【v1.21】色だけで判断した土日・祝日は予約せず「要確認」と表示する（2026-11-14 の誤読の再現）', () => {
+    const misread = [
+      ...days2026,
+      { date: '2026-11-23', kind: '授業日' as const, note: '' },
+      { date: '2027-01-11', kind: '授業日' as const, note: '' },
+      { date: '2027-02-06', kind: '定期試験実施日' as const, note: '' },
+    ].sort((a, b) => a.date.localeCompare(b.date))
+    const accepted: AcademicResult = { fiscalYear: '2026', status: 'accepted', link: link(), pdf: pdf(), days: misread, reason: '' }
+
+    const out = plan({}, { results: [accepted], pageHealthy: true })
+    expect(out.nextState.managed_overrides?.academic).toEqual({
+      '2026-11-07': 'timetable_weekday',
+      '2026-11-28': 'timetable_weekday',
+    })
+    expect(out.calendar.nextOverrides['2026-11-23']).toBe('timetable_holiday')
+    expect(out.calendar.nextOverrides['2027-01-11']).toBe('timetable_holiday')
+    expect(out.calendar.nextOverrides).not.toHaveProperty('2027-02-06')
+    const status = Object.fromEntries(out.academicReports[0]!.days.map((d) => [d.date, d.status]))
+    expect(status['2026-11-23']).toBe('要確認（色だけで判断したため自動では予約しない）')
+    expect(status['2027-02-06']).toBe('要確認（色だけで判断したため自動では予約しない）')
+    expect(status['2026-11-28']).toBe('授業日ダイヤを予約')
+    expect(out.warnings.find((w) => w.code === 'academic_calendar_updated')!.message).toMatch(/要確認/)
+
+    // 人の手動 override があれば、その値も添える
+    const manual = plan({ '2027-01-11': 'timetable_holiday' }, { results: [accepted], pageHealthy: true })
+    const manualStatus = Object.fromEntries(manual.academicReports[0]!.days.map((d) => [d.date, d.status]))
+    expect(manualStatus['2027-01-11']).toBe('要確認（色だけで判断したため自動では予約しない）。手動 override（timetable_holiday）あり')
+  })
+
   it('academic を渡さなければ前回の記録をそのまま使い、警告も出さない', () => {
     const state: State = { version: 1, academic_calendars: { 2026: entry() } }
     const out = plan({}, undefined, state)
@@ -519,6 +600,9 @@ describe('通知本文（学年暦の節）', () => {
     expect(lines).toContain('&lt;img src=x&gt;\\[link\\](y)\\|')
     expect(lines).not.toContain('<img')
     expect(lines).toContain('追加 2026-11-28')
+    // 【v1.21】要確認の日の扱いを説明する
+    expect(lines).toMatch(/「要確認」の日は、セルの色だけで判断したため自動では予約していません/)
+    expect(lines).toContain('calendar\\_rules.json')
   })
 
   it('取り込みが無ければ節を出さない', () => {

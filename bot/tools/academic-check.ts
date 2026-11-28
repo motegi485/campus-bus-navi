@@ -7,23 +7,31 @@
  *
  *   npm run academic:check -- 2026 fixtures/academic/expected_2026.json
  *   npm run academic:check -- 2026 fixtures/academic/expected_2026.json path/to/local.pdf
- *   npm run academic:check -- --model=gemini-3.6-flash 2026 fixtures/academic/expected_2026.json   … 検証だけ別モデルで
+ *   npm run academic:check -- --model=<モデル名> 2026 fixtures/academic/expected_2026.json     … 検証だけ別モデルで
+ *   npm run academic:check -- --thinking=high 2026 fixtures/academic/expected_2026.json        … 考える深さを変えて
  *
  * 第 3 引数を省くと、教務課ページから該当年度の PDF を取得する。
+ *
+ * 【v1.21】期待値と照らし合わせるのは、自動で予約する日（備考欄で裏付けられた日。isRemarkGrounded）だけ。
+ * セルの色だけで判断した土日・祝日は「要確認の候補」として別に一覧し、件数を出す（終了コードには含めない）。
+ * 終了コード: 2 = 読み取りの失敗、3 = 検証の失敗、4 = 自動で予約する日が期待値と不一致。
  */
 
 import { readFileSync } from 'node:fs'
 import { loadLocalEnv } from '../src/env.js'
 import { OcrClient } from '../src/ocr.js'
-import { CONFIG } from '../src/config.js'
+import { CONFIG, GEMINI_THINKING_LEVELS, type GeminiThinkingLevel } from '../src/config.js'
 import { fetchPage } from '../src/fetchPage.js'
 import {
   extractAcademicCalendarLinks,
   fetchPdf,
+  isRemarkGrounded,
   looksLikePdf,
   toAcademicDays,
   type RawAcademicCalendar,
 } from '../src/academicCalendar.js'
+import { isOffDay } from '../src/calendar.js'
+import { readHolidaysCache } from '../src/files.js'
 import { todayJst } from '../src/time.js'
 
 async function loadPdf(fiscalYear: string, localPath: string | undefined): Promise<Buffer> {
@@ -53,9 +61,17 @@ async function main(): Promise<void> {
     console.error(`モデル名の形式が正しくありません: ${modelOverride}（例: --model=gemini-3.6-flash）`)
     process.exit(1)
   }
+  // --thinking=<low|medium|high>: 考える深さだけを変えて確かめる（本番の CONFIG.academicThinkingLevel は変えない）
+  const thinkingArg = args.find((a) => a.startsWith('--thinking='))
+  const thinkingValue = thinkingArg ? thinkingArg.slice('--thinking='.length).toUpperCase() : undefined
+  if (thinkingValue !== undefined && !(GEMINI_THINKING_LEVELS as readonly string[]).includes(thinkingValue)) {
+    console.error(`考える深さの指定が正しくありません: ${thinkingArg}（low / medium / high のいずれか）`)
+    process.exit(1)
+  }
+  const thinkingLevel = (thinkingValue as GeminiThinkingLevel | undefined) ?? CONFIG.academicThinkingLevel
   const [fiscalYear, expectedPath, localPath] = args.filter((a) => !a.startsWith('--'))
   if (!fiscalYear || !/^\d{4}$/.test(fiscalYear)) {
-    console.error('使い方: npm run academic:check -- <年度> [期待値 fixture の JSON パス] [ローカルの PDF パス]')
+    console.error('使い方: npm run academic:check -- [--model=<モデル名>] [--thinking=<low|medium|high>] <年度> [期待値 fixture の JSON パス] [ローカルの PDF パス]')
     process.exit(1)
   }
   const apiKey = process.env.GEMINI_API_KEY
@@ -66,8 +82,13 @@ async function main(): Promise<void> {
 
   const buffer = await loadPdf(fiscalYear, localPath)
   const client = new OcrClient(apiKey, modelOverride)
-  const outcome = await client.readAcademicCalendar(buffer)
-  console.log(`モデル: ${outcome.modelUsed} / 呼び出し ${client.calls} 回 / ${outcome.attempts}回読み${outcome.majority ? '（多数決）' : ''}`)
+  const startedAt = Date.now()
+  const outcome = await client.readAcademicCalendar(buffer, { thinkingLevel })
+  const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1)
+  console.log(
+    `モデル: ${outcome.modelUsed} / 考える深さ: ${thinkingLevel} / 呼び出し ${client.calls} 回 / ` +
+      `${outcome.attempts}回読み${outcome.majority ? '（多数決）' : ''} / 所要 ${elapsedSec} 秒`,
+  )
   if (!outcome.ok || !outcome.calendar) {
     console.error(`読み取り失敗: ${outcome.reason}`)
     process.exit(2)
@@ -79,19 +100,30 @@ async function main(): Promise<void> {
     console.error(JSON.stringify(outcome.calendar, null, 2))
     process.exit(3)
   }
-  for (const day of checked.days) console.log(`  ${day.date}  ${day.kind}  ${day.note}`)
+  const auto = checked.days.filter((d) => isRemarkGrounded(d))
+  const others = checked.days.filter((d) => !isRemarkGrounded(d))
+  console.log(`自動で予約する日（備考欄で裏付けあり）: ${auto.length} 日`)
+  for (const day of auto) console.log(`  ${day.date}  ${day.kind}  ${day.note}`)
+
+  // 要確認の候補: 色だけで判断した日のうち土日・祝日に当たるもの（本番で「要確認」と通知される日）
+  const holidaySet = new Set((readHolidaysCache()?.holidays ?? []).map((h) => h.date))
+  const candidates = others.filter((d) => isOffDay(d.date, holidaySet))
+  console.log(`要確認の候補（色だけで判断した土日・祝日）: ${candidates.length} 件`)
+  for (const day of candidates) console.log(`  ${day.date}  ${day.kind}  ${day.note || '-'}`)
+  const weekdayOthers = others.length - candidates.length
+  if (weekdayOthers > 0) console.log(`（ほかに、色だけで判断した平日 ${weekdayOthers} 件。平日は override にならない）`)
 
   if (expectedPath) {
     const expected = toAcademicDays(Number(fiscalYear), JSON.parse(readFileSync(expectedPath, 'utf-8')) as RawAcademicCalendar)
     if (!expected.ok) throw new Error(`期待値 fixture が不正です: ${expected.reason}`)
-    const got = new Set(checked.days.map((d) => d.date))
+    const got = new Set(auto.map((d) => d.date))
     const want = new Set(expected.days.map((d) => d.date))
     const missing = [...want].filter((d) => !got.has(d))
     const extra = [...got].filter((d) => !want.has(d))
     if (missing.length === 0 && extra.length === 0) {
-      console.log(`✓ 期待値と一致しました（${want.size} 日）`)
+      console.log(`✓ 自動で予約する日が期待値と一致しました（${want.size} 日）`)
     } else {
-      console.error(`✗ 期待値と不一致: 不足 ${missing.join(', ') || 'なし'} / 余分 ${extra.join(', ') || 'なし'}`)
+      console.error(`✗ 自動で予約する日が期待値と不一致: 不足 ${missing.join(', ') || 'なし'} / 余分 ${extra.join(', ') || 'なし'}`)
       process.exit(4)
     }
   }

@@ -1,8 +1,8 @@
 /** Bot 内で共有する型定義。フロントの src/types/timetable.d.ts と互換の形を保つ。 */
 
-import type { Season, DayKind } from './config.js'
+import type { Season, DayKind, GeminiThinkingLevel } from './config.js'
 
-export type { Season, DayKind }
+export type { Season, DayKind, GeminiThinkingLevel }
 
 export type RouteKey = 'station_to_campus' | 'campus_to_station'
 
