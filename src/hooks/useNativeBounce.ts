@@ -12,9 +12,9 @@ import { isIOS } from '../utils/platform'
   そのため両 OS とも OS ネイティブのオーバースクロール表現を解放して使う。
 
   - iOS/iPadOS … html.bounce-native でルートの縦 overscroll-behavior を解放し、
-    ネイティブのラバーバンドバウンスをそのまま使う。上端露出域のグラデ継続は
-    viewport 固定・コンテンツ背面の .header-cushion（ヘッダー上端 1 行の色
-    プロファイル = 90deg グラデ、stop 位置は本フックが算出）が担う。
+    ネイティブのラバーバンドバウンスをそのまま使う。上端露出域には
+    viewport 固定・コンテンツ背面の .header-cushion が、ヘッダー
+    （.header-plain）と同じ単色（--bg-page）を敷く。
     下端露出域は body 背景（--bg-page）が自動で正しく塗る。
   - Android … html.bounce-stretch でルートを overscroll-behavior-y: contain にし、
     ネイティブの「ストレッチ」（Android 12+。11 以前はグロー）を使う。contain は
@@ -24,10 +24,10 @@ import { isIOS } from '../utils/platform'
   - PC … 従来どおり html,body の overscroll-behavior: none（バウンス無し。
     macOS Safari のネイティブバウンスもこれで抑止される）。
 
-  改修デザイン（白基調ヘッダー）でヘッダーの背景が単色（--bg-card）になったため、
+  改修デザイン（白基調ヘッダー）でヘッダーの背景が単色（--bg-page）になったため、
   クッションも単色でよく、以前あったグラデ近似の stop 位置計算（--bounce-x0/1/2、
   ResizeObserver）は不要になった。.header-cushion 自体は index.css 側で
-  background: var(--bg-card) を直接指定する。
+  background: var(--bg-page) を直接指定する。
 */
 
 const COARSE_MQ = '(pointer: coarse)'

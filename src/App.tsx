@@ -715,7 +715,7 @@ export default function App() {
             )}
           </div>{/* phone-shell-inner */}
 
-          {/* ホーム上端バウンスのグラデ継続クッション（iOS ネイティブバウンス専用、
+          {/* ホーム上端バウンスで露出する単色（--bg-page）のクッション（iOS ネイティブバウンス専用、
               スタイルは index.css の .header-cushion）。ヘッダーは白基調に統一したため、
               route による色分岐は持たない。 */}
           <div ref={cushionRef} aria-hidden="true" className="header-cushion" />
